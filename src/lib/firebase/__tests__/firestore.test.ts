@@ -1,10 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { addTrackedPlayer, removeTrackedPlayer, TrackedPlayer } from '../firestore';
+import { addTrackedPlayer, removeTrackedPlayer, syncPlayersToFirestore, TrackedPlayer } from '../firestore';
 
 describe('Firestore Data Persistence & Validation', () => {
   it('throws a friendly error if player or playerId is undefined', async () => {
     await expect(addTrackedPlayer({} as any)).rejects.toThrow('Player ID is required');
     await expect(removeTrackedPlayer('')).rejects.toThrow('Player ID is required');
+  });
+
+  it('handles empty competitor array gracefully in syncPlayersToFirestore', async () => {
+    await expect(syncPlayersToFirestore([])).resolves.not.toThrow();
   });
 
   it('constructs a valid TrackedPlayer payload for Firestore persistence', () => {

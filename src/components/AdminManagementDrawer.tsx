@@ -3,6 +3,8 @@
 import React, { useState } from 'react';
 import { ESPNEvent, ESPNCompetitor } from '@/types/espn';
 import { Settings, X, Calendar, UserPlus, Trash2, Search, Check, Plus } from 'lucide-react';
+import { GolferHeadshot } from './GolferHeadshot';
+
 import { TrackedPlayer } from '@/lib/firebase/firestore';
 
 interface AdminManagementDrawerProps {
@@ -130,14 +132,12 @@ export function AdminManagementDrawer({
                           className="flex items-center justify-between p-2 rounded-lg bg-slate-900/60 border border-slate-800/80 text-xs"
                         >
                           <div className="flex items-center gap-2">
-                            <img
-                              src={
-                                comp.athlete.headshot?.href ||
-                                'https://a.espncdn.com/i/headshots/golf/players/full/default.png'
-                              }
-                              alt={comp.athlete.displayName}
-                              className="w-6 h-6 rounded-full object-cover bg-slate-800"
+                            <GolferHeadshot
+                              name={comp.athlete?.displayName || 'Golfer'}
+                              src={comp.athlete?.headshot?.href}
+                              size={24}
                             />
+
                             <span className="font-semibold text-slate-200 truncate max-w-35">
                               {comp.athlete.displayName}
                             </span>
@@ -180,13 +180,14 @@ export function AdminManagementDrawer({
                         className="flex items-center justify-between p-2 rounded-lg bg-slate-900 border border-slate-800 text-xs"
                       >
                         <div className="flex items-center gap-2.5">
-                          <img
-                            src={p.headshotUrl || 'https://a.espncdn.com/i/headshots/golf/players/full/default.png'}
-                            alt={p.name}
-                            className="w-6 h-6 rounded-full object-cover bg-slate-800"
+                          <GolferHeadshot
+                            name={p.name}
+                            src={p.headshotUrl}
+                            size={24}
                           />
                           <span className="font-semibold text-slate-200">{p.name}</span>
                         </div>
+
                         <button
                           onClick={() => onRemoveTrackedPlayer(p.playerId)}
                           className="p-1 rounded text-rose-400 hover:text-rose-300 hover:bg-rose-950/40 transition"

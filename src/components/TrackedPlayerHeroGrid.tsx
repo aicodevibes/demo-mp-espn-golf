@@ -3,6 +3,7 @@
 import React from 'react';
 import { ESPNCompetitor } from '@/types/espn';
 import { UserCheck, Activity } from 'lucide-react';
+import { GolferHeadshot } from './GolferHeadshot';
 
 interface TrackedPlayerHeroGridProps {
   trackedCompetitors: ESPNCompetitor[];
@@ -61,12 +62,13 @@ export function TrackedPlayerHeroGrid({
               {/* Headshot & Bio */}
               <div className="flex items-center gap-3">
                 <div className="relative">
-                  <img
-                    src={comp.athlete.headshot?.href || 'https://a.espncdn.com/i/headshots/golf/players/full/default.png'}
-                    alt={comp.athlete.displayName}
-                    className="w-12 h-12 rounded-full object-cover bg-slate-800 border-2 border-slate-700 group-hover:border-emerald-500/50 transition"
+                  <GolferHeadshot
+                    name={comp.athlete?.displayName || 'Golfer'}
+                    src={comp.athlete?.headshot?.href}
+                    size={48}
+                    priority={idx < 4}
                   />
-                  {comp.athlete.flag?.href && (
+                  {comp.athlete?.flag?.href && (
                     <img
                       src={comp.athlete.flag.href}
                       alt={comp.athlete.country?.abbreviation || 'Flag'}
@@ -74,6 +76,7 @@ export function TrackedPlayerHeroGrid({
                     />
                   )}
                 </div>
+
                 <div>
                   <h3 className="text-sm font-bold text-slate-100 group-hover:text-emerald-400 transition truncate max-w-30">
                     {comp.athlete.displayName}

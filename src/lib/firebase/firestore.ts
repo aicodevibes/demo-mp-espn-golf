@@ -9,7 +9,9 @@ import {
   query,
   orderBy,
   serverTimestamp,
+  writeBatch,
 } from 'firebase/firestore';
+
 import { db } from './config';
 import { useEffect, useState } from 'react';
 
@@ -68,6 +70,37 @@ export async function removeTrackedPlayer(playerId: string) {
   const playerRef = doc(db, 'trackedPlayers', playerId);
   await deleteDoc(playerRef);
 }
+
+// Auto-Sync Golfer Directory to Firestore
+export async function syncPlayersToFirestore(competitors: any[]) {
+  if (!competitors || competitors.length === 0) return;
+  try {
+    const batch = writeBatch(db);
+    // Write in chunks of 450 to stay under Firestore's 500 batch limit
+    const chunk = competitors.slice(0, 450);
+    chunk.forEach((comp) => {
+      const playerId = comp.athlete?.id || comp.id;
+      if (!playerId) return;
+      const playerRef = doc(db, 'players', playerId);
+      batch.set(
+        playerRef,
+        {
+          id: playerId,
+          name: comp.athlete?.displayName || 'Golfer',
+          headshotUrl: comp.athlete?.headshot?.href || '',
+          country: comp.athlete?.country?.abbreviation || '',
+          countryFlag: comp.athlete?.flag?.href || '',
+          lastUpdated: serverTimestamp(),
+        },
+        { merge: true }
+      );
+    });
+    await batch.commit();
+  } catch (error) {
+    console.warn('Firestore player directory auto-sync skipped (rules or offline):', error);
+  }
+}
+
 
 
 // Real-time hooks

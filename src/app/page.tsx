@@ -13,8 +13,10 @@ import {
   setActiveEvent,
   addTrackedPlayer,
   removeTrackedPlayer,
+  syncPlayersToFirestore,
   TrackedPlayer,
 } from '@/lib/firebase/firestore';
+
 import { ESPNEvent, ESPNCompetitor, ESPNPlayerSummary } from '@/types/espn';
 import { formatPlayerSummaryFromCompetitor } from '@/lib/espn/summary';
 
@@ -66,6 +68,8 @@ export default function DashboardPage() {
             setActiveEventObj(data.events[0]);
             const comps = data.events[0]?.competitions?.[0]?.competitors || [];
             setCompetitors(comps);
+            syncPlayersToFirestore(comps);
+
 
             // Auto-select first tracked player or first field competitor
             if (comps.length > 0 && !selectedPlayerId) {

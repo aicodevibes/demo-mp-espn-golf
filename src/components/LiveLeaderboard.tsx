@@ -3,6 +3,7 @@
 import React from 'react';
 import { ESPNCompetitor } from '@/types/espn';
 import { Trophy, CheckCircle2, PlusCircle } from 'lucide-react';
+import { GolferHeadshot } from './GolferHeadshot';
 import { useAuth } from '@/context/AuthContext';
 
 interface LiveLeaderboardProps {
@@ -70,11 +71,12 @@ export function LiveLeaderboard({
                 <span className="w-6 text-center font-bold text-slate-400">
                   {comp.order || '-'}
                 </span>
-                <img
-                  src={comp.athlete.headshot?.href || 'https://a.espncdn.com/i/headshots/golf/players/full/default.png'}
-                  alt={comp.athlete.displayName}
-                  className="w-7 h-7 rounded-full object-cover bg-slate-800 border border-slate-700"
+                <GolferHeadshot
+                  name={comp.athlete?.displayName || 'Golfer'}
+                  src={comp.athlete?.headshot?.href}
+                  size={28}
                 />
+
                 <div>
                   <p className="font-semibold text-slate-200 group-hover:text-emerald-400 transition truncate max-w-27.5 sm:max-w-35">
                     {comp.athlete.displayName}
