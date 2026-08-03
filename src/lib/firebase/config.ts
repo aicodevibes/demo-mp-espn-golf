@@ -13,5 +13,8 @@ const firebaseConfig = {
 
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+
+// Connect to custom named Firestore database ID 'fir-demo-mp' (or process.env setting)
+const databaseId = process.env.NEXT_PUBLIC_FIREBASE_DATABASE_ID || 'fir-demo-mp';
+export const db = getFirestore(app, databaseId);
 export const googleProvider = new GoogleAuthProvider();

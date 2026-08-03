@@ -20,6 +20,11 @@ env:
     availability:
       - BUILD
       - RUNTIME
+  - variable: NEXT_PUBLIC_FIREBASE_DATABASE_ID
+    value: fir-demo-mp
+    availability:
+      - BUILD
+      - RUNTIME
   - variable: NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
     value: fir-demo-mp.firebasestorage.app
     availability:
