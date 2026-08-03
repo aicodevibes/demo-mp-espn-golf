@@ -87,28 +87,66 @@ export interface PlayerStatusInfo {
   badgeLabel: string;
 }
 
-export function getPlayerStatusInfo(comp: ESPNCompetitor): PlayerStatusInfo {
+export function getPlayerStatusInfo(comp: ESPNCompetitor, eventStatus?: any): PlayerStatusInfo {
   if (!comp || !comp.status) {
     return { isCut: false, isWD: false, isDQ: false, isMDF: false, isInactive: false, badgeLabel: '' };
   }
 
   const pos = (comp.status?.position?.displayName || '').toUpperCase();
+  const displayVal = (comp.status?.displayValue || '').toUpperCase();
   const typeName = (comp.status?.type?.name || '').toUpperCase();
+  const shortDetail = (comp.status?.type?.shortDetail || '').toUpperCase();
   const detail = (comp.status?.type?.detail || '').toUpperCase();
+  const description = (comp.status?.type?.description || '').toUpperCase();
 
-  const isCut = pos === 'CUT' || typeName === 'STATUS_CUT' || detail.includes('CUT');
-  const isWD = pos === 'WD' || typeName === 'STATUS_WITHDRAWN' || detail.includes('WITHDRAWN') || detail.includes('WD');
-  const isDQ = pos === 'DQ' || typeName === 'STATUS_DISQUALIFIED' || detail.includes('DISQUALIFIED');
-  const isMDF = pos === 'MDF' || detail.includes('MDF');
+  const isCut =
+    pos === 'CUT' ||
+    pos === 'MC' ||
+    displayVal === 'CUT' ||
+    displayVal === 'MC' ||
+    typeName === 'STATUS_CUT' ||
+    typeName === 'STATUS_MISSED_CUT' ||
+    shortDetail.includes('CUT') ||
+    shortDetail.includes('MC') ||
+    detail.includes('CUT') ||
+    detail.includes('MISSED CUT') ||
+    description.includes('CUT');
 
-  const isInactive = isCut || isWD || isDQ || isMDF;
+  const isWD =
+    pos === 'WD' ||
+    displayVal === 'WD' ||
+    typeName === 'STATUS_WITHDRAWN' ||
+    shortDetail.includes('WD') ||
+    detail.includes('WITHDRAWN') ||
+    detail.includes('WD') ||
+    description.includes('WITHDRAWN');
+
+  const isDQ =
+    pos === 'DQ' ||
+    displayVal === 'DQ' ||
+    typeName === 'STATUS_DISQUALIFIED' ||
+    detail.includes('DISQUALIFIED');
+
+  const isMDF = pos === 'MDF' || displayVal === 'MDF' || detail.includes('MDF');
+
+  // Check 36-hole cut by completed round count in 4-round tournament
+  const currentPeriod = eventStatus?.period || comp.status?.period || 4;
+  const isFinalOrLateRound = eventStatus?.type?.state === 'post' || currentPeriod >= 3;
+  const missedCutByRounds =
+    isFinalOrLateRound &&
+    Array.isArray(comp.linescores) &&
+    comp.linescores.length === 2 &&
+    !isWD &&
+    !isDQ;
+
+  const finalIsCut = isCut || missedCutByRounds;
+  const isInactive = finalIsCut || isWD || isDQ || isMDF;
 
   let badgeLabel = '';
-  if (isCut) badgeLabel = 'CUT';
+  if (finalIsCut) badgeLabel = 'CUT';
   else if (isWD) badgeLabel = 'WD';
   else if (isDQ) badgeLabel = 'DQ';
   else if (isMDF) badgeLabel = 'MDF';
 
-  return { isCut, isWD, isDQ, isMDF, isInactive, badgeLabel };
+  return { isCut: finalIsCut, isWD, isDQ, isMDF, isInactive, badgeLabel };
 }
-

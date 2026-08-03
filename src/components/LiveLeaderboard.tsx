@@ -7,8 +7,6 @@ import { GolferHeadshot } from './GolferHeadshot';
 import { useAuth } from '@/context/AuthContext';
 import { formatEventDates, getWinnerStatus, getPlayerStatusInfo } from '@/lib/espn';
 
-
-
 interface LiveLeaderboardProps {
   competitors: ESPNCompetitor[];
   eventObj?: ESPNEvent;
@@ -47,6 +45,22 @@ export function LiveLeaderboard({
     );
   }, [competitors, searchQuery]);
 
+  // Partition competitors into active vs cut/withdrawn (sorted to bottom under Cut Line)
+  const { activeCompetitors, cutCompetitors } = React.useMemo(() => {
+    const active: ESPNCompetitor[] = [];
+    const cut: ESPNCompetitor[] = [];
+
+    filteredCompetitors.forEach((comp) => {
+      const status = getPlayerStatusInfo(comp, eventObj?.status);
+      if (status.isInactive) {
+        cut.push(comp);
+      } else {
+        active.push(comp);
+      }
+    });
+
+    return { activeCompetitors: active, cutCompetitors: cut };
+  }, [filteredCompetitors, eventObj]);
 
   if (competitors.length === 0) {
     return (
@@ -62,9 +76,125 @@ export function LiveLeaderboard({
     );
   }
 
+  const renderCompetitorRow = (comp: ESPNCompetitor, idx: number) => {
+    const playerId = comp.athlete?.id || comp.id || `comp-${idx}`;
+    const isTracked = trackedSet.has(playerId);
+    const isSelected = selectedPlayerId === playerId;
+    const score = comp.score || 'E';
+    const isUnderPar = score.startsWith('-');
+    const isOverPar = score.startsWith('+');
+
+    const winnerInfo = getWinnerStatus(comp, eventObj?.status, competitors);
+    const statusInfo = getPlayerStatusInfo(comp, eventObj?.status);
+
+    return (
+      <div
+        key={`${playerId}-${idx}`}
+        onClick={() => onSelectPlayer?.(playerId)}
+        className={`group flex items-center justify-between p-2.5 rounded-lg border text-xs cursor-pointer transition ${
+          winnerInfo.isWinner
+            ? 'bg-amber-950/40 border-amber-500/60 text-amber-100 font-medium'
+            : statusInfo.isCut
+            ? 'bg-rose-950/20 border-rose-900/40 text-slate-300 opacity-80'
+            : statusInfo.isWD
+            ? 'bg-amber-950/20 border-amber-900/40 text-slate-300 opacity-80'
+            : isSelected
+            ? 'bg-emerald-950/40 border-emerald-500/80 text-white'
+            : 'bg-slate-950/50 hover:bg-slate-900 border-slate-800/80 text-slate-200'
+        }`}
+      >
+        <div className="flex items-center gap-2.5">
+          <span className="w-8 text-center font-bold">
+            {statusInfo.isCut ? (
+              <span className="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-400 border border-rose-500/40 font-extrabold text-[10px]">
+                CUT
+              </span>
+            ) : statusInfo.isWD ? (
+              <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/40 font-extrabold text-[10px]">
+                WD
+              </span>
+            ) : (
+              <span className="text-slate-400">
+                {comp.status?.position?.displayName || comp.order || '-'}
+              </span>
+            )}
+          </span>
+
+          <GolferHeadshot
+            name={comp.athlete?.displayName || 'Golfer'}
+            src={comp.athlete?.headshot?.href}
+            playerId={playerId}
+            size={28}
+          />
+
+          <div>
+            <div className="flex items-center gap-1.5">
+              <p className="font-semibold text-slate-200 group-hover:text-emerald-400 transition truncate max-w-27.5 sm:max-w-35">
+                {comp.athlete.displayName}
+              </p>
+
+              {winnerInfo.isWinner ? (
+                <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-amber-300 bg-amber-500/20 px-1.5 py-0.5 rounded border border-amber-400/50">
+                  <Trophy className="w-3 h-3 text-amber-400" /> Champion
+                </span>
+              ) : winnerInfo.badgeLabel ? (
+                <span className="inline-flex items-center gap-1 text-[9px] font-bold text-slate-300 bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700">
+                  {winnerInfo.badgeLabel}
+                </span>
+              ) : null}
+            </div>
+
+            <p className="text-[10px] text-slate-400">
+              Thru: {comp.status?.thru || 'F'}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <span
+            className={`font-extrabold text-sm ${
+              isUnderPar
+                ? 'text-emerald-400'
+                : isOverPar
+                ? 'text-rose-400'
+                : 'text-slate-300'
+            }`}
+          >
+            {score}
+          </span>
+
+          {/* Admin Track / Untrack Button */}
+          {isAdmin && onToggleTrackPlayer && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleTrackPlayer(comp);
+              }}
+              title={isTracked ? 'Remove from watchlist' : 'Add to watchlist'}
+              className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded transition ${
+                isTracked
+                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                  : 'bg-emerald-600 text-white hover:bg-emerald-500 shadow-sm'
+              }`}
+            >
+              {isTracked ? (
+                <>
+                  <CheckCircle2 className="w-3 h-3 text-emerald-400" /> Tracked
+                </>
+              ) : (
+                <>
+                  <PlusCircle className="w-3 h-3" /> + Track
+                </>
+              )}
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="rounded-xl bg-slate-900/80 border border-slate-800 p-4 space-y-3 shadow-xl">
-
       {/* Header & Status Badges */}
       <div className="border-b border-slate-800 pb-3 space-y-1.5">
         <div className="flex items-center justify-between">
@@ -112,126 +242,24 @@ export function LiveLeaderboard({
         />
       </div>
 
-      {/* Leaderboard Table List */}
+      {/* Leaderboard Table List with Cut Line Separator */}
       <div className="overflow-y-auto max-h-130 pr-1 space-y-1 scrollbar-thin">
-        {filteredCompetitors.map((comp, idx) => {
-          const playerId = comp.athlete?.id || comp.id || `comp-${idx}`;
-          const isTracked = trackedSet.has(playerId);
+        {/* Active / Made Cut Golfers */}
+        {activeCompetitors.map((comp, idx) => renderCompetitorRow(comp, idx))}
 
-          const isSelected = selectedPlayerId === playerId;
-          const score = comp.score || 'E';
-          const isUnderPar = score.startsWith('-');
-          const isOverPar = score.startsWith('+');
+        {/* ✂️ 36-Hole Cut Line Divider */}
+        {cutCompetitors.length > 0 && (
+          <div className="flex items-center gap-2 py-2 px-1 my-2">
+            <div className="h-px bg-rose-500/40 flex-1" />
+            <span className="text-[10px] font-extrabold tracking-wider uppercase text-rose-400 bg-rose-500/10 px-2.5 py-0.5 rounded-full border border-rose-500/30 shadow-sm">
+              ✂️ 36-Hole Cut Line ({cutCompetitors.length} Cut / WD)
+            </span>
+            <div className="h-px bg-rose-500/40 flex-1" />
+          </div>
+        )}
 
-          const winnerInfo = getWinnerStatus(comp, eventObj?.status, competitors);
-          const statusInfo = getPlayerStatusInfo(comp);
-
-          return (
-            <div
-              key={`${playerId}-${idx}`}
-              onClick={() => onSelectPlayer?.(playerId)}
-              className={`group flex items-center justify-between p-2.5 rounded-lg border text-xs cursor-pointer transition ${
-                winnerInfo.isWinner
-                  ? 'bg-amber-950/40 border-amber-500/60 text-amber-100 font-medium'
-                  : statusInfo.isCut
-                  ? 'bg-rose-950/20 border-rose-900/40 text-slate-300 opacity-80'
-                  : statusInfo.isWD
-                  ? 'bg-amber-950/20 border-amber-900/40 text-slate-300 opacity-80'
-                  : isSelected
-                  ? 'bg-emerald-950/40 border-emerald-500/80 text-white'
-                  : 'bg-slate-950/50 hover:bg-slate-900 border-slate-800/80 text-slate-200'
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <span className="w-8 text-center font-bold">
-                  {statusInfo.isCut ? (
-                    <span className="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-400 border border-rose-500/40 font-extrabold text-[10px]">
-                      CUT
-                    </span>
-                  ) : statusInfo.isWD ? (
-                    <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/40 font-extrabold text-[10px]">
-                      WD
-                    </span>
-                  ) : (
-                    <span className="text-slate-400">
-                      {comp.status?.position?.displayName || comp.order || '-'}
-                    </span>
-                  )}
-                </span>
-
-
-                <GolferHeadshot
-                  name={comp.athlete?.displayName || 'Golfer'}
-                  src={comp.athlete?.headshot?.href}
-                  playerId={playerId}
-                  size={28}
-                />
-
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <p className="font-semibold text-slate-200 group-hover:text-emerald-400 transition truncate max-w-27.5 sm:max-w-35">
-                      {comp.athlete.displayName}
-                    </p>
-
-                    {winnerInfo.isWinner ? (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-amber-300 bg-amber-500/20 px-1.5 py-0.5 rounded border border-amber-400/50">
-                        <Trophy className="w-3 h-3 text-amber-400" /> Champion
-                      </span>
-                    ) : winnerInfo.badgeLabel ? (
-                      <span className="inline-flex items-center gap-1 text-[9px] font-bold text-slate-300 bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700">
-                        {winnerInfo.badgeLabel}
-                      </span>
-                    ) : null}
-                  </div>
-
-                  <p className="text-[10px] text-slate-400">
-                    Thru: {comp.status?.thru || 'F'}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <span
-                  className={`font-extrabold text-sm ${
-                    isUnderPar
-                      ? 'text-emerald-400'
-                      : isOverPar
-                      ? 'text-rose-400'
-                      : 'text-slate-300'
-                  }`}
-                >
-                  {score}
-                </span>
-
-                {/* Admin Track / Untrack Button */}
-                {isAdmin && onToggleTrackPlayer && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onToggleTrackPlayer(comp);
-                    }}
-                    title={isTracked ? 'Remove from watchlist' : 'Add to watchlist'}
-                    className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded transition ${
-                      isTracked
-                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
-                        : 'bg-emerald-600 text-white hover:bg-emerald-500 shadow-sm'
-                    }`}
-                  >
-                    {isTracked ? (
-                      <>
-                        <CheckCircle2 className="w-3 h-3 text-emerald-400" /> Tracked
-                      </>
-                    ) : (
-                      <>
-                        <PlusCircle className="w-3 h-3" /> + Track
-                      </>
-                    )}
-                  </button>
-                )}
-              </div>
-            </div>
-          );
-        })}
+        {/* Cut / Withdrawn Golfers */}
+        {cutCompetitors.map((comp, idx) => renderCompetitorRow(comp, activeCompetitors.length + idx))}
       </div>
     </div>
   );

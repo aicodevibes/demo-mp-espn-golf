@@ -69,8 +69,9 @@ export function GolferHeadshot({
         priority={priority}
         onError={() => setImageError(true)}
         className="w-full h-full object-cover"
-        unoptimized={process.env.NODE_ENV === 'test'}
+        unoptimized={true}
       />
+
 
     </div>
   );
