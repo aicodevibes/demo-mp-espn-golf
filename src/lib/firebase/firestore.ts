@@ -51,6 +51,9 @@ export async function getActiveConfig(): Promise<AppConfig | null> {
 
 // Tracked Players CRUD
 export async function addTrackedPlayer(player: TrackedPlayer) {
+  if (!player || !player.playerId) {
+    throw new Error('Player ID is required to add tracked player');
+  }
   const playerRef = doc(db, 'trackedPlayers', player.playerId);
   await setDoc(playerRef, {
     ...player,
@@ -59,9 +62,13 @@ export async function addTrackedPlayer(player: TrackedPlayer) {
 }
 
 export async function removeTrackedPlayer(playerId: string) {
+  if (!playerId) {
+    throw new Error('Player ID is required to remove tracked player');
+  }
   const playerRef = doc(db, 'trackedPlayers', playerId);
   await deleteDoc(playerRef);
 }
+
 
 // Real-time hooks
 export function useActiveConfig() {

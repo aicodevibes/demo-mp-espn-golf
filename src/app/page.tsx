@@ -130,20 +130,24 @@ export default function DashboardPage() {
   };
 
   const handleToggleTrackPlayer = async (comp: ESPNCompetitor) => {
-    const isTracked = trackedPlayerIds.includes(comp.athlete.id);
+    const playerId = comp.athlete?.id || comp.id;
+    if (!playerId) return;
+
+    const isTracked = trackedPlayerIds.includes(playerId);
     if (isTracked) {
-      await removeTrackedPlayer(comp.athlete.id);
+      await removeTrackedPlayer(playerId);
     } else {
       const newPlayer: TrackedPlayer = {
-        playerId: comp.athlete.id,
-        name: comp.athlete.displayName,
-        headshotUrl: comp.athlete.headshot?.href,
-        country: comp.athlete.country?.abbreviation,
+        playerId: playerId,
+        name: comp.athlete?.displayName || 'Unknown Golfer',
+        headshotUrl: comp.athlete?.headshot?.href || '',
+        country: comp.athlete?.country?.abbreviation || '',
         displayOrder: trackedPlayers.length + 1,
       };
       await addTrackedPlayer(newPlayer);
     }
   };
+
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
