@@ -51,7 +51,7 @@ export function TrackedPlayerHeroGrid({
             onClick={() => onSelectPlayer?.(comp.athlete.id)}
             className={`cursor-pointer group relative overflow-hidden rounded-xl border p-4 transition-all duration-200 ${
               isSelected
-                ? 'bg-gradient-to-b from-emerald-950/60 to-slate-900 border-emerald-500 shadow-lg shadow-emerald-950/40'
+                ? 'bg-linear-to-b from-emerald-950/60 to-slate-900 border-emerald-500 shadow-lg shadow-emerald-950/40'
                 : 'bg-slate-900/60 hover:bg-slate-900 border-slate-800 hover:border-slate-700'
             }`}
           >
@@ -73,9 +73,10 @@ export function TrackedPlayerHeroGrid({
                   )}
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-slate-100 group-hover:text-emerald-400 transition truncate max-w-[120px]">
+                  <h3 className="text-sm font-bold text-slate-100 group-hover:text-emerald-400 transition truncate max-w-30">
                     {comp.athlete.displayName}
                   </h3>
+
                   <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-400">
                     <span className="font-semibold px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">
                       Pos: #{comp.order || '-'}

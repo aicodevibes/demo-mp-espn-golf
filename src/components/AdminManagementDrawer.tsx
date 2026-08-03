@@ -94,7 +94,8 @@ export function AdminManagementDrawer({
                     No golfers in your tracking list. Use the '+' icon next to any golfer in the tournament leaderboard to add them.
                   </p>
                 ) : (
-                  <div className="space-y-2 max-h-[320px] overflow-y-auto pr-1">
+                  <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+
                     {trackedPlayers.map((p) => (
                       <div
                         key={p.playerId}

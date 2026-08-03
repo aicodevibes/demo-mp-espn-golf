@@ -122,7 +122,8 @@ export function ScorecardMatrix({
 
       {/* Scorecard Table Matrix */}
       <div className="overflow-x-auto">
-        <table className="w-full text-center border-collapse min-w-[640px]">
+        <table className="w-full text-center border-collapse min-w-160">
+
           <thead>
             <tr className="bg-slate-950/80 text-[11px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-800">
               <th className="py-2.5 px-2 text-left">Hole</th>

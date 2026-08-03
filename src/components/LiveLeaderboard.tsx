@@ -46,7 +46,7 @@ export function LiveLeaderboard({
         </span>
       </div>
 
-      <div className="overflow-y-auto max-h-[520px] pr-1 space-y-1 scrollbar-thin">
+      <div className="overflow-y-auto max-h-130 pr-1 space-y-1 scrollbar-thin">
         {competitors.map((comp) => {
           const isTracked = trackedPlayerIds.includes(comp.athlete.id);
           const isSelected = selectedPlayerId === comp.athlete.id;
@@ -74,7 +74,7 @@ export function LiveLeaderboard({
                   className="w-7 h-7 rounded-full object-cover bg-slate-800 border border-slate-700"
                 />
                 <div>
-                  <p className="font-semibold text-slate-200 group-hover:text-emerald-400 transition truncate max-w-[110px] sm:max-w-[140px]">
+                  <p className="font-semibold text-slate-200 group-hover:text-emerald-400 transition truncate max-w-27.5 sm:max-w-35">
                     {comp.athlete.displayName}
                   </p>
                   <p className="text-[10px] text-slate-400">
@@ -82,6 +82,7 @@ export function LiveLeaderboard({
                   </p>
                 </div>
               </div>
+
 
               <div className="flex items-center gap-3">
                 <span

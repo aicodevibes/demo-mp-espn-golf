@@ -16,7 +16,7 @@ export function Header({ eventName }: HeaderProps) {
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
         {/* Branding & Event Badge */}
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center shadow-lg shadow-emerald-950/50">
+          <div className="h-10 w-10 rounded-xl bg-linear-to-br from-emerald-500 to-teal-700 flex items-center justify-center shadow-lg shadow-emerald-950/50">
             <Trophy className="w-5 h-5 text-white" />
           </div>
           <div>
@@ -54,9 +54,10 @@ export function Header({ eventName }: HeaderProps) {
                 )}
                 <div className="text-xs">
                   <p className="font-semibold text-slate-200">{user.displayName || 'Golfer Fan'}</p>
-                  <p className="text-slate-400 text-[10px] truncate max-w-[120px]">{user.email}</p>
+                  <p className="text-slate-400 text-[10px] truncate max-w-30">{user.email}</p>
                 </div>
               </div>
+
               <button
                 onClick={() => signOut()}
                 className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition"
