@@ -81,19 +81,23 @@ export async function syncPlayersToFirestore(competitors: any[]) {
     chunk.forEach((comp) => {
       const playerId = comp.athlete?.id || comp.id;
       if (!playerId) return;
+      const headshotUrl =
+        comp.athlete?.headshot?.href ||
+        `https://a.espncdn.com/i/headshots/golf/players/full/${playerId}.png`;
       const playerRef = doc(db, 'players', playerId);
       batch.set(
         playerRef,
         {
           id: playerId,
           name: comp.athlete?.displayName || 'Golfer',
-          headshotUrl: comp.athlete?.headshot?.href || '',
+          headshotUrl: headshotUrl,
           country: comp.athlete?.country?.abbreviation || '',
           countryFlag: comp.athlete?.flag?.href || '',
           lastUpdated: serverTimestamp(),
         },
         { merge: true }
       );
+
     });
     await batch.commit();
   } catch (error) {

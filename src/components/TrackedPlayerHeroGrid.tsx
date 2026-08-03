@@ -65,9 +65,11 @@ export function TrackedPlayerHeroGrid({
                   <GolferHeadshot
                     name={comp.athlete?.displayName || 'Golfer'}
                     src={comp.athlete?.headshot?.href}
+                    playerId={playerId}
                     size={48}
                     priority={idx < 4}
                   />
+
                   {comp.athlete?.flag?.href && (
                     <img
                       src={comp.athlete.flag.href}

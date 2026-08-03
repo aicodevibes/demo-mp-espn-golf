@@ -74,8 +74,10 @@ export function LiveLeaderboard({
                 <GolferHeadshot
                   name={comp.athlete?.displayName || 'Golfer'}
                   src={comp.athlete?.headshot?.href}
+                  playerId={playerId}
                   size={28}
                 />
+
 
                 <div>
                   <p className="font-semibold text-slate-200 group-hover:text-emerald-400 transition truncate max-w-27.5 sm:max-w-35">
