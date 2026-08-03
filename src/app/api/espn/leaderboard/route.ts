@@ -6,8 +6,9 @@ export async function GET(req: NextRequest) {
     const eventId = searchParams.get('event');
 
     const url = eventId
-      ? `https://site.web.api.espn.com/apis/site/v2/sports/golf/pga/leaderboard?event=${eventId}`
-      : 'https://site.web.api.espn.com/apis/site/v2/sports/golf/pga/leaderboard';
+      ? `https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard?event=${eventId}`
+      : 'https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard';
+
 
     const res = await fetch(url, {
       next: { revalidate: 60 },
