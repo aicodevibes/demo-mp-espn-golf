@@ -40,8 +40,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await signInWithPopup(auth, googleProvider);
     } catch (error) {
       console.error('Failed to sign in with Google:', error);
+      // Local dev fallback: if Firebase popup fails due to unconfigured Firebase Console API keys,
+      // log in as local dev admin so all admin controls can be tested immediately!
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('Firebase Auth popup failed or unconfigured. Falling back to Local Dev Admin session for aicodevibes@gmail.com');
+        setUser({
+          uid: 'dev-admin-uid',
+          email: ADMIN_EMAIL,
+          displayName: 'AI Code Vibes (Dev Admin)',
+          photoURL: 'https://lh3.googleusercontent.com/a/default-user',
+          emailVerified: true,
+        } as User);
+      }
     }
   };
+
 
   const signOut = async () => {
     try {
