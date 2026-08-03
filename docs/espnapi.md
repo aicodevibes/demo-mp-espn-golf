@@ -40,6 +40,9 @@ Each competitor object in `data.events[0].competitions[0].competitors` contains:
     headshot: {
       href: "https://a.espncdn.com/i/headshots/golf/players/full/3470.png"
     },
+    // Note: If athlete.headshot is omitted by ESPN for certain players (e.g. Matt Wallace id: 10548),
+    // construct the canonical CDN URL: https://a.espncdn.com/i/headshots/golf/players/full/${playerId}.png
+
     flag: {
       href: "https://a.espncdn.com/i/teamlogos/countries/500/usa.png",
       alt: "USA"
