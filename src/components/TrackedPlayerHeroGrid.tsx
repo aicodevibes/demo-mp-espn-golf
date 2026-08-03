@@ -2,38 +2,33 @@
 
 import React from 'react';
 import { ESPNCompetitor } from '@/types/espn';
-import { UserCheck, Activity } from 'lucide-react';
+import { Trophy, Activity, Award } from 'lucide-react';
 import { GolferHeadshot } from './GolferHeadshot';
+import { getWinnerStatus } from '@/lib/espn/eventHelpers';
 
 interface TrackedPlayerHeroGridProps {
   trackedCompetitors: ESPNCompetitor[];
-  loading?: boolean;
+  allCompetitors?: ESPNCompetitor[];
+  eventStatus?: any;
   selectedPlayerId?: string;
   onSelectPlayer?: (playerId: string) => void;
 }
 
 export function TrackedPlayerHeroGrid({
   trackedCompetitors,
-  loading,
+  allCompetitors = [],
+  eventStatus,
   selectedPlayerId,
   onSelectPlayer,
 }: TrackedPlayerHeroGridProps) {
-  if (loading) {
-    return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-        {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="h-32 bg-slate-900/60 rounded-xl animate-pulse border border-slate-800" />
-        ))}
-      </div>
-    );
-  }
-
   if (!trackedCompetitors || trackedCompetitors.length === 0) {
     return (
-      <div className="p-6 rounded-xl bg-slate-900/40 border border-dashed border-slate-800 text-center">
-        <UserCheck className="w-8 h-8 text-emerald-500/60 mx-auto mb-2" />
-        <p className="text-sm text-slate-300 font-medium">No golfers currently in your tracking list.</p>
-        <p className="text-xs text-slate-400 mt-1">Sign in with Google to add golfers to your custom dashboard.</p>
+      <div className="p-6 rounded-xl bg-slate-900/40 border border-slate-800 text-center">
+        <Trophy className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+        <h4 className="text-sm font-semibold text-slate-300">No Tracked Golfers Selected</h4>
+        <p className="text-xs text-slate-400 mt-1">
+          Use the Admin Controls to pin golfers to your main hero watchlist.
+        </p>
       </div>
     );
   }
@@ -47,17 +42,37 @@ export function TrackedPlayerHeroGrid({
         const isUnderPar = score.startsWith('-');
         const isOverPar = score.startsWith('+');
 
+        const winnerInfo = getWinnerStatus(comp, eventStatus, allCompetitors.length > 0 ? allCompetitors : trackedCompetitors);
+
         return (
           <div
             key={`${playerId}-${idx}`}
             onClick={() => onSelectPlayer?.(playerId)}
             className={`cursor-pointer group relative overflow-hidden rounded-xl border p-4 transition-all duration-200 ${
-
-              isSelected
+              winnerInfo.isWinner
+                ? 'bg-linear-to-b from-amber-950/60 to-slate-900 border-amber-400 shadow-xl shadow-amber-950/50'
+                : isSelected
                 ? 'bg-linear-to-b from-emerald-950/60 to-slate-900 border-emerald-500 shadow-lg shadow-emerald-950/40'
                 : 'bg-slate-900/60 hover:bg-slate-900 border-slate-800 hover:border-slate-700'
             }`}
           >
+            {/* Top Winner or Rank Badge */}
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <span className="text-[11px] font-bold text-slate-400 bg-slate-950/80 px-2 py-0.5 rounded border border-slate-800">
+                Pos: {comp.status?.position?.displayName || comp.order || '-'}
+              </span>
+
+              {winnerInfo.isWinner ? (
+                <span className="inline-flex items-center gap-1 text-[11px] font-extrabold text-amber-300 bg-amber-500/20 px-2.5 py-0.5 rounded-full border border-amber-400 shadow-sm animate-pulse">
+                  <Trophy className="w-3 h-3 text-amber-400" /> {winnerInfo.badgeLabel}
+                </span>
+              ) : winnerInfo.badgeLabel ? (
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-300 bg-slate-800 px-2 py-0.5 rounded border border-slate-700">
+                  {winnerInfo.badgeLabel}
+                </span>
+              ) : null}
+            </div>
+
             <div className="flex items-start justify-between gap-3">
               {/* Headshot & Bio */}
               <div className="flex items-center gap-3">
@@ -83,41 +98,30 @@ export function TrackedPlayerHeroGrid({
                   <h3 className="text-sm font-bold text-slate-100 group-hover:text-emerald-400 transition truncate max-w-30">
                     {comp.athlete.displayName}
                   </h3>
-
-                  <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-400">
-                    <span className="font-semibold px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">
-                      Pos: #{comp.order || '-'}
-                    </span>
-                    <span className="truncate">
-                      {comp.status?.thru ? `Thru ${comp.status.thru}` : 'Scheduled'}
-                    </span>
-                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    Thru: <span className="font-semibold text-slate-300">{comp.status?.thru || 'F'}</span>
+                  </p>
                 </div>
               </div>
 
-              {/* Par Score Badge */}
+              {/* Total Score to Par */}
               <div className="text-right">
-                <span
-                  className={`inline-block font-extrabold text-xl tracking-tight ${
+                <div
+                  className={`text-xl font-black ${
                     isUnderPar
                       ? 'text-emerald-400'
                       : isOverPar
                       ? 'text-rose-400'
-                      : 'text-slate-200'
+                      : 'text-slate-300'
                   }`}
                 >
                   {score}
-                </span>
-                <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">
+                </div>
+                <div className="text-[10px] uppercase font-bold tracking-wider text-slate-500">
                   Total
-                </p>
+                </div>
               </div>
             </div>
-
-            {/* Selection indicator bar */}
-            {isSelected && (
-              <div className="absolute bottom-0 left-0 right-0 h-1 bg-emerald-500 rounded-b-xl" />
-            )}
           </div>
         );
       })}

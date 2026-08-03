@@ -146,7 +146,8 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
       {/* Top Navigation Header */}
-      <Header eventName={activeEvent?.name} />
+      <Header eventName={activeEvent?.name} eventObj={activeEventObj} />
+
 
       {/* Main Content Dashboard Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 lg:px-8 py-6 space-y-6">
@@ -164,8 +165,9 @@ export default function DashboardPage() {
 
           <TrackedPlayerHeroGrid
             trackedCompetitors={displayCompetitors}
-            loading={loadingLeaderboard || playersLoading}
-            selectedPlayerId={selectedPlayerId || selectedCompetitor?.athlete.id}
+            allCompetitors={competitors}
+            eventStatus={activeEventObj?.status}
+            selectedPlayerId={selectedPlayerId || selectedCompetitor?.athlete?.id || selectedCompetitor?.id}
             onSelectPlayer={(id) => setSelectedPlayerId(id)}
           />
 
@@ -178,7 +180,7 @@ export default function DashboardPage() {
             <ScorecardMatrix
               playerSummary={playerSummary}
               loading={loadingSummary}
-              playerName={selectedCompetitor?.athlete.displayName}
+              playerName={selectedCompetitor?.athlete?.displayName}
             />
           </div>
 
@@ -186,13 +188,14 @@ export default function DashboardPage() {
           <div className="lg:col-span-5 space-y-4">
             <LiveLeaderboard
               competitors={competitors}
-              loading={loadingLeaderboard}
+              eventObj={activeEventObj}
               trackedPlayerIds={trackedPlayerIds}
               onToggleTrackPlayer={handleToggleTrackPlayer}
               selectedPlayerId={selectedPlayerId}
               onSelectPlayer={(id) => setSelectedPlayerId(id)}
             />
           </div>
+
         </section>
       </main>
 
