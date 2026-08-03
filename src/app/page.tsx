@@ -86,13 +86,14 @@ export default function DashboardPage() {
 
   // 4. Fetch Hole-by-Hole Player Summary when selected player changes
   useEffect(() => {
-    if (!activeEventId || !selectedPlayerId) return;
+    const targetPlayerId = selectedPlayerId || competitors[0]?.athlete.id;
+    if (!activeEventId || !targetPlayerId) return;
 
     async function fetchPlayerSummary() {
       setLoadingSummary(true);
       try {
         const res = await fetch(
-          `/api/espn/playersummary?eventId=${activeEventId}&playerId=${selectedPlayerId}`
+          `/api/espn/playersummary?eventId=${activeEventId}&playerId=${targetPlayerId}`
         );
         if (res.ok) {
           const data = await res.json();
@@ -109,15 +110,19 @@ export default function DashboardPage() {
     }
 
     fetchPlayerSummary();
-  }, [activeEventId, selectedPlayerId]);
+  }, [activeEventId, selectedPlayerId, competitors]);
 
-  // Tracked competitor objects matching Firestore trackedPlayers roster
+
+  // Tracked competitor objects matching Firestore trackedPlayers roster (or top 4 leaders if roster is empty)
   const trackedCompetitors = competitors.filter((c) =>
     trackedPlayers.some((p) => p.playerId === c.athlete.id)
   );
 
+  const displayCompetitors = trackedCompetitors.length > 0 ? trackedCompetitors : competitors.slice(0, 4);
+
   const trackedPlayerIds = trackedPlayers.map((p) => p.playerId);
-  const selectedCompetitor = competitors.find((c) => c.athlete.id === selectedPlayerId);
+  const selectedCompetitor = competitors.find((c) => c.athlete.id === selectedPlayerId) || displayCompetitors[0];
+
 
   // Admin Actions
   const handleSelectEvent = async (eventId: string) => {
@@ -160,11 +165,12 @@ export default function DashboardPage() {
           </div>
 
           <TrackedPlayerHeroGrid
-            trackedCompetitors={trackedCompetitors}
+            trackedCompetitors={displayCompetitors}
             loading={loadingLeaderboard || playersLoading}
-            selectedPlayerId={selectedPlayerId}
+            selectedPlayerId={selectedPlayerId || selectedCompetitor?.athlete.id}
             onSelectPlayer={(id) => setSelectedPlayerId(id)}
           />
+
         </section>
 
         {/* Section 2: Split View (60% Scorecard Matrix + 40% Live Leaderboard) */}
