@@ -99,6 +99,7 @@ export interface ESPNRoundLinescore {
 }
 
 export interface ESPNPlayerSummary {
+  competitor?: ESPNCompetitor;
   player: {
     id: string;
     displayName: string;
@@ -106,3 +107,4 @@ export interface ESPNPlayerSummary {
   };
   rounds: ESPNRoundLinescore[];
 }
+
