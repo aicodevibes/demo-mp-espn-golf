@@ -146,7 +146,7 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
       {/* Top Navigation Header */}
-      <Header eventName={activeEvent?.name} eventObj={activeEventObj} />
+      <Header eventName={activeEvent?.name} eventObj={activeEvent || undefined} />
 
 
       {/* Main Content Dashboard Container */}
@@ -166,7 +166,7 @@ export default function DashboardPage() {
           <TrackedPlayerHeroGrid
             trackedCompetitors={displayCompetitors}
             allCompetitors={competitors}
-            eventStatus={activeEventObj?.status}
+            eventStatus={activeEvent?.status}
             selectedPlayerId={selectedPlayerId || selectedCompetitor?.athlete?.id || selectedCompetitor?.id}
             onSelectPlayer={(id) => setSelectedPlayerId(id)}
           />
@@ -188,13 +188,14 @@ export default function DashboardPage() {
           <div className="lg:col-span-5 space-y-4">
             <LiveLeaderboard
               competitors={competitors}
-              eventObj={activeEventObj}
+              eventObj={activeEvent || undefined}
               trackedPlayerIds={trackedPlayerIds}
               onToggleTrackPlayer={handleToggleTrackPlayer}
               selectedPlayerId={selectedPlayerId}
               onSelectPlayer={(id) => setSelectedPlayerId(id)}
             />
           </div>
+
 
         </section>
       </main>
