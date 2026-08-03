@@ -45,7 +45,7 @@ export function TrackedPlayerHeroGrid({
         const isOverPar = score.startsWith('+');
 
         const winnerInfo = getWinnerStatus(comp, eventStatus, allCompetitors.length > 0 ? allCompetitors : trackedCompetitors);
-        const statusInfo = getPlayerStatusInfo(comp);
+        const statusInfo = getPlayerStatusInfo(comp, eventStatus);
 
         return (
           <div

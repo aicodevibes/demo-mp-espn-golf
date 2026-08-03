@@ -1,25 +1,32 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ESPNPlayerSummary, ESPNRoundLinescore } from '@/types/espn';
+import { ESPNCompetitor, ESPNPlayerSummary, ESPNRoundLinescore } from '@/types/espn';
 import { Circle, Square, Award } from 'lucide-react';
 
 import { getPlayerStatusInfo } from '@/lib/espn';
 
 interface ScorecardMatrixProps {
   playerSummary: ESPNPlayerSummary | null;
+  /** The full competitor object from the leaderboard (has linescores for CUT detection). */
+  competitor?: ESPNCompetitor | null;
+  eventStatus?: any;
   loading?: boolean;
   playerName?: string;
 }
 
 export function ScorecardMatrix({
   playerSummary,
+  competitor,
+  eventStatus,
   loading,
   playerName = 'Selected Golfer',
 }: ScorecardMatrixProps) {
   const [activeRound, setActiveRound] = useState<number>(1);
 
-  const statusInfo = playerSummary?.competitor ? getPlayerStatusInfo(playerSummary.competitor) : null;
+  // Use the leaderboard competitor (has linescores) — not playerSummary.competitor which ESPN
+  // never populates in the player summary API response.
+  const statusInfo = competitor ? getPlayerStatusInfo(competitor, eventStatus) : null;
 
 
   if (loading) {

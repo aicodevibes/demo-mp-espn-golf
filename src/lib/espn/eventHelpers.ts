@@ -88,29 +88,31 @@ export interface PlayerStatusInfo {
 }
 
 export function getPlayerStatusInfo(comp: ESPNCompetitor, eventStatus?: any): PlayerStatusInfo {
-  if (!comp || !comp.status) {
+  if (!comp) {
     return { isCut: false, isWD: false, isDQ: false, isMDF: false, isInactive: false, badgeLabel: '' };
   }
 
+  // NOTE: ESPN sends a null/empty status object for players who missed the 36-hole cut.
+  // We must compute the linescore-based check BEFORE any early returns on status fields.
+  const currentPeriod = eventStatus?.period || (comp.status as any)?.period || 0;
+  const isFinalOrLateRound =
+    eventStatus?.type?.state === 'post' ||
+    eventStatus?.type?.completed === true ||
+    currentPeriod >= 3;
+
+  // Cut detection via round count: active players have 4 linescores (rounds), cut players have 2.
+  const missedCutByRounds =
+    isFinalOrLateRound &&
+    Array.isArray(comp.linescores) &&
+    comp.linescores.length === 2;
+
+  // String-based status checks (only meaningful when ESPN does populate status fields)
   const pos = (comp.status?.position?.displayName || '').toUpperCase();
   const displayVal = (comp.status?.displayValue || '').toUpperCase();
   const typeName = (comp.status?.type?.name || '').toUpperCase();
   const shortDetail = (comp.status?.type?.shortDetail || '').toUpperCase();
   const detail = (comp.status?.type?.detail || '').toUpperCase();
   const description = (comp.status?.type?.description || '').toUpperCase();
-
-  const isCut =
-    pos === 'CUT' ||
-    pos === 'MC' ||
-    displayVal === 'CUT' ||
-    displayVal === 'MC' ||
-    typeName === 'STATUS_CUT' ||
-    typeName === 'STATUS_MISSED_CUT' ||
-    shortDetail.includes('CUT') ||
-    shortDetail.includes('MC') ||
-    detail.includes('CUT') ||
-    detail.includes('MISSED CUT') ||
-    description.includes('CUT');
 
   const isWD =
     pos === 'WD' ||
@@ -129,17 +131,22 @@ export function getPlayerStatusInfo(comp: ESPNCompetitor, eventStatus?: any): Pl
 
   const isMDF = pos === 'MDF' || displayVal === 'MDF' || detail.includes('MDF');
 
-  // Check 36-hole cut by completed round count in 4-round tournament
-  const currentPeriod = eventStatus?.period || comp.status?.period || 4;
-  const isFinalOrLateRound = eventStatus?.type?.state === 'post' || currentPeriod >= 3;
-  const missedCutByRounds =
-    isFinalOrLateRound &&
-    Array.isArray(comp.linescores) &&
-    comp.linescores.length === 2 &&
-    !isWD &&
-    !isDQ;
+  const isCutByString =
+    pos === 'CUT' ||
+    pos === 'MC' ||
+    displayVal === 'CUT' ||
+    displayVal === 'MC' ||
+    typeName === 'STATUS_CUT' ||
+    typeName === 'STATUS_MISSED_CUT' ||
+    shortDetail.includes('CUT') ||
+    shortDetail.includes('MC') ||
+    detail.includes('CUT') ||
+    detail.includes('MISSED CUT') ||
+    description.includes('CUT');
 
-  const finalIsCut = isCut || missedCutByRounds;
+  // Combine: a player is CUT if ESPN says so via strings, OR they only have 2 rounds in a completed event
+  // (and they're not WD/DQ, which have their own distinct treatment)
+  const finalIsCut = isCutByString || (missedCutByRounds && !isWD && !isDQ);
   const isInactive = finalIsCut || isWD || isDQ || isMDF;
 
   let badgeLabel = '';

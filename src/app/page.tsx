@@ -200,6 +200,8 @@ export default function DashboardPage() {
           <div className="lg:col-span-7 space-y-4">
             <ScorecardMatrix
               playerSummary={playerSummary}
+              competitor={selectedCompetitor}
+              eventStatus={activeEvent?.status}
               loading={loadingSummary}
               playerName={selectedCompetitor?.athlete?.displayName}
             />
