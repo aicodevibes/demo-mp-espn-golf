@@ -5,7 +5,8 @@ import { ESPNCompetitor, ESPNEvent } from '@/types/espn';
 import { Trophy, CheckCircle2, PlusCircle, Search, Calendar, Activity } from 'lucide-react';
 import { GolferHeadshot } from './GolferHeadshot';
 import { useAuth } from '@/context/AuthContext';
-import { formatEventDates, getWinnerStatus } from '@/lib/espn/eventHelpers';
+import { formatEventDates, getWinnerStatus } from '@/lib/espn';
+
 
 interface LiveLeaderboardProps {
   competitors: ESPNCompetitor[];

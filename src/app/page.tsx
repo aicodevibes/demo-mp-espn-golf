@@ -17,7 +17,8 @@ import {
   TrackedPlayer,
 } from '@/lib/firebase/firestore';
 import { ESPNEvent, ESPNCompetitor, ESPNPlayerSummary } from '@/types/espn';
-import { formatPlayerSummaryFromCompetitor } from '@/lib/espn/summary';
+import { formatPlayerSummaryFromCompetitor } from '@/lib/espn';
+
 
 // Vercel Performance Rule: bundle-dynamic-imports
 // Dynamically import heavy Admin Control Drawer only when needed

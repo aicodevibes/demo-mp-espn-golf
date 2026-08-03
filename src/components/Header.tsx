@@ -4,7 +4,8 @@ import React from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { ShieldCheck, LogIn, LogOut, Trophy, Calendar, Activity } from 'lucide-react';
 import { ESPNEvent } from '@/types/espn';
-import { formatEventDates } from '@/lib/espn/eventHelpers';
+import { formatEventDates } from '@/lib/espn';
+
 
 interface HeaderProps {
   eventName?: string;

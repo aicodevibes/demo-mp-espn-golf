@@ -4,7 +4,8 @@ import React from 'react';
 import { ESPNCompetitor } from '@/types/espn';
 import { Trophy, Activity, Award } from 'lucide-react';
 import { GolferHeadshot } from './GolferHeadshot';
-import { getWinnerStatus } from '@/lib/espn/eventHelpers';
+import { getWinnerStatus } from '@/lib/espn';
+
 
 interface TrackedPlayerHeroGridProps {
   trackedCompetitors: ESPNCompetitor[];
