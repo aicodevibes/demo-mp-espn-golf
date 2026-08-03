@@ -39,17 +39,19 @@ export function TrackedPlayerHeroGrid({
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-      {trackedCompetitors.map((comp) => {
-        const isSelected = selectedPlayerId === comp.athlete.id;
+      {trackedCompetitors.map((comp, idx) => {
+        const playerId = comp.athlete?.id || comp.id || `player-${idx}`;
+        const isSelected = selectedPlayerId === playerId;
         const score = comp.score || 'E';
         const isUnderPar = score.startsWith('-');
         const isOverPar = score.startsWith('+');
 
         return (
           <div
-            key={comp.athlete.id}
-            onClick={() => onSelectPlayer?.(comp.athlete.id)}
+            key={`${playerId}-${idx}`}
+            onClick={() => onSelectPlayer?.(playerId)}
             className={`cursor-pointer group relative overflow-hidden rounded-xl border p-4 transition-all duration-200 ${
+
               isSelected
                 ? 'bg-linear-to-b from-emerald-950/60 to-slate-900 border-emerald-500 shadow-lg shadow-emerald-950/40'
                 : 'bg-slate-900/60 hover:bg-slate-900 border-slate-800 hover:border-slate-700'

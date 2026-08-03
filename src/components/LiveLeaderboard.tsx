@@ -47,18 +47,20 @@ export function LiveLeaderboard({
       </div>
 
       <div className="overflow-y-auto max-h-130 pr-1 space-y-1 scrollbar-thin">
-        {competitors.map((comp) => {
-          const isTracked = trackedPlayerIds.includes(comp.athlete.id);
-          const isSelected = selectedPlayerId === comp.athlete.id;
+        {competitors.map((comp, idx) => {
+          const playerId = comp.athlete?.id || comp.id || `comp-${idx}`;
+          const isTracked = trackedPlayerIds.includes(playerId);
+          const isSelected = selectedPlayerId === playerId;
           const score = comp.score || 'E';
           const isUnderPar = score.startsWith('-');
           const isOverPar = score.startsWith('+');
 
           return (
             <div
-              key={comp.athlete.id}
-              onClick={() => onSelectPlayer?.(comp.athlete.id)}
+              key={`${playerId}-${idx}`}
+              onClick={() => onSelectPlayer?.(playerId)}
               className={`group flex items-center justify-between p-2.5 rounded-lg border text-xs cursor-pointer transition ${
+
                 isSelected
                   ? 'bg-emerald-950/40 border-emerald-500/80 text-white'
                   : 'bg-slate-950/50 hover:bg-slate-900 border-slate-800/80 text-slate-200'
