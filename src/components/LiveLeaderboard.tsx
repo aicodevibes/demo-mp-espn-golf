@@ -104,17 +104,21 @@ export function LiveLeaderboard({
                       e.stopPropagation();
                       onToggleTrackPlayer(comp);
                     }}
-                    title={isTracked ? 'Remove from tracking' : 'Add to tracking'}
-                    className={`p-1 rounded transition ${
+                    title={isTracked ? 'Remove from watchlist' : 'Add to watchlist'}
+                    className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded transition ${
                       isTracked
-                        ? 'text-emerald-400 hover:text-emerald-300'
-                        : 'text-slate-400 hover:text-slate-200'
+                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
+                        : 'bg-emerald-600 text-white hover:bg-emerald-500 shadow-sm'
                     }`}
                   >
                     {isTracked ? (
-                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                      <>
+                        <CheckCircle2 className="w-3 h-3 text-emerald-400" /> Tracked
+                      </>
                     ) : (
-                      <PlusCircle className="w-4 h-4 text-slate-400 hover:text-emerald-400" />
+                      <>
+                        <PlusCircle className="w-3 h-3" /> + Track
+                      </>
                     )}
                   </button>
                 )}
@@ -126,3 +130,4 @@ export function LiveLeaderboard({
     </div>
   );
 }
+

@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { ESPNEvent, ESPNCompetitor } from '@/types/espn';
-import { Settings, X, Calendar, UserPlus, Check, Trash2 } from 'lucide-react';
+import { Settings, X, Calendar, UserPlus, Trash2, Search, Check, Plus } from 'lucide-react';
 import { TrackedPlayer } from '@/lib/firebase/firestore';
 
 interface AdminManagementDrawerProps {
@@ -10,6 +10,8 @@ interface AdminManagementDrawerProps {
   activeEventId?: string;
   onSelectEvent: (eventId: string) => Promise<void>;
   trackedPlayers: TrackedPlayer[];
+  fieldCompetitors?: ESPNCompetitor[];
+  onAddTrackedPlayer?: (comp: ESPNCompetitor) => Promise<void>;
   onRemoveTrackedPlayer: (playerId: string) => Promise<void>;
 }
 
@@ -18,16 +20,25 @@ export function AdminManagementDrawer({
   activeEventId,
   onSelectEvent,
   trackedPlayers,
+  fieldCompetitors = [],
+  onAddTrackedPlayer,
   onRemoveTrackedPlayer,
 }: AdminManagementDrawerProps) {
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [saving, setSaving] = useState<boolean>(false);
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
   const handleEventChange = async (eventId: string) => {
     setSaving(true);
     await onSelectEvent(eventId);
     setSaving(false);
   };
+
+  const trackedPlayerIds = trackedPlayers.map((p) => p.playerId);
+
+  const filteredCompetitors = fieldCompetitors.filter((c) =>
+    c.athlete.displayName.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <>
@@ -42,7 +53,7 @@ export function AdminManagementDrawer({
       {/* Drawer Overlay */}
       {isOpen && (
         <div className="fixed inset-0 z-50 flex justify-end bg-black/70 backdrop-blur-sm animate-fadeIn">
-          <div className="w-full max-w-md bg-slate-950 border-l border-slate-800 h-full p-6 flex flex-col justify-between shadow-2xl">
+          <div className="w-full max-w-md bg-slate-950 border-l border-slate-800 h-full p-6 flex flex-col justify-between shadow-2xl overflow-y-auto">
             <div className="space-y-6">
               {/* Header */}
               <div className="flex items-center justify-between border-b border-slate-800 pb-4">
@@ -79,27 +90,94 @@ export function AdminManagementDrawer({
                   ))}
                 </select>
                 <p className="text-[11px] text-slate-400">
-                  Changing the active tournament updates the live leaderboard and scorecard data for all site visitors.
+                  Changing the active tournament updates live leaderboards for all visitors.
                 </p>
               </div>
 
-              {/* Tracked Roster Section */}
-              <div className="space-y-3">
+              {/* Golfer Inventory Search & Add Section */}
+              <div className="space-y-3 pt-2 border-t border-slate-900">
+                <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <UserPlus className="w-4 h-4 text-emerald-400" /> Select Golfers from Field
+                  </span>
+                  <span className="text-[11px] text-slate-400">
+                    {fieldCompetitors.length} Available
+                  </span>
+                </label>
+
+                {/* Search Bar */}
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-500" />
+                  <input
+                    type="text"
+                    placeholder="Search golfer to add..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 rounded-lg pl-9 pr-3 py-2 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+
+                {/* Scrollable Inventory List */}
+                <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                  {filteredCompetitors.length === 0 ? (
+                    <p className="text-xs text-slate-500 text-center py-3">No matching golfers found.</p>
+                  ) : (
+                    filteredCompetitors.map((comp) => {
+                      const isTracked = trackedPlayerIds.includes(comp.athlete.id);
+                      return (
+                        <div
+                          key={comp.athlete.id}
+                          className="flex items-center justify-between p-2 rounded-lg bg-slate-900/60 border border-slate-800/80 text-xs"
+                        >
+                          <div className="flex items-center gap-2">
+                            <img
+                              src={
+                                comp.athlete.headshot?.href ||
+                                'https://a.espncdn.com/i/headshots/golf/players/full/default.png'
+                              }
+                              alt={comp.athlete.displayName}
+                              className="w-6 h-6 rounded-full object-cover bg-slate-800"
+                            />
+                            <span className="font-semibold text-slate-200 truncate max-w-35">
+                              {comp.athlete.displayName}
+                            </span>
+                          </div>
+
+                          {isTracked ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                              <Check className="w-3 h-3" /> Tracked
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => onAddTrackedPlayer?.(comp)}
+                              className="inline-flex items-center gap-1 text-[11px] font-bold text-white bg-emerald-600 hover:bg-emerald-500 px-2.5 py-1 rounded transition shadow-sm"
+                            >
+                              <Plus className="w-3 h-3" /> + Add
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              {/* Active Tracked Roster Section */}
+              <div className="space-y-3 pt-2 border-t border-slate-900">
                 <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                  <UserPlus className="w-4 h-4 text-emerald-400" /> Tracked Golfer Roster ({trackedPlayers.length})
+                  <Check className="w-4 h-4 text-emerald-400" /> Active Watchlist ({trackedPlayers.length})
                 </label>
 
                 {trackedPlayers.length === 0 ? (
                   <p className="text-xs text-slate-400 bg-slate-900/40 p-3 rounded-lg border border-slate-800 text-center">
-                    No golfers in your tracking list. Use the '+' icon next to any golfer in the tournament leaderboard to add them.
+                    Your tracked watchlist is currently empty. Use the search list above to add golfers.
                   </p>
                 ) : (
-                  <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
-
+                  <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
                     {trackedPlayers.map((p) => (
                       <div
                         key={p.playerId}
-                        className="flex items-center justify-between p-2.5 rounded-lg bg-slate-900 border border-slate-800 text-xs"
+                        className="flex items-center justify-between p-2 rounded-lg bg-slate-900 border border-slate-800 text-xs"
                       >
                         <div className="flex items-center gap-2.5">
                           <img

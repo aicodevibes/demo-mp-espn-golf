@@ -205,9 +205,12 @@ export default function DashboardPage() {
           activeEventId={activeEventId}
           onSelectEvent={handleSelectEvent}
           trackedPlayers={trackedPlayers}
+          fieldCompetitors={competitors}
+          onAddTrackedPlayer={handleToggleTrackPlayer}
           onRemoveTrackedPlayer={async (id) => removeTrackedPlayer(id)}
         />
       )}
+
 
       {/* Footer */}
       <footer className="border-t border-slate-900 bg-slate-950 py-4 text-center text-xs text-slate-500">
