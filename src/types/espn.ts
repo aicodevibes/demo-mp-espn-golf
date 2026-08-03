@@ -31,6 +31,10 @@ export interface ESPNCompetitor {
   status?: {
     period?: number;
     thru?: number | string;
+    position?: {
+      id?: string;
+      displayName?: string;
+    };
     type?: {
       name: string;
       description: string;
@@ -39,6 +43,7 @@ export interface ESPNCompetitor {
       shortDetail?: string;
     };
   };
+
   score?: string;
   linescores?: Array<{
     value: number;
