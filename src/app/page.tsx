@@ -16,6 +16,8 @@ import {
   TrackedPlayer,
 } from '@/lib/firebase/firestore';
 import { ESPNEvent, ESPNCompetitor, ESPNPlayerSummary } from '@/types/espn';
+import { formatPlayerSummaryFromCompetitor } from '@/lib/espn/summary';
+
 
 export default function DashboardPage() {
   const { user, isAdmin } = useAuth();
@@ -84,33 +86,21 @@ export default function DashboardPage() {
     fetchLeaderboard();
   }, [activeEventId]);
 
-  // 4. Fetch Hole-by-Hole Player Summary when selected player changes
+  // 4. Compute Hole-by-Hole Player Summary from active competitor linescores
   useEffect(() => {
-    const targetPlayerId = selectedPlayerId || competitors[0]?.athlete.id;
-    if (!activeEventId || !targetPlayerId) return;
+    const targetPlayerId = selectedPlayerId || competitors[0]?.athlete?.id || competitors[0]?.id;
+    if (!targetPlayerId || competitors.length === 0) return;
 
-    async function fetchPlayerSummary() {
-      setLoadingSummary(true);
-      try {
-        const res = await fetch(
-          `/api/espn/playersummary?eventId=${activeEventId}&playerId=${targetPlayerId}`
-        );
-        if (res.ok) {
-          const data = await res.json();
-          setPlayerSummary(data);
-        } else {
-          setPlayerSummary(null);
-        }
-      } catch (err) {
-        console.error('Failed to fetch Player Summary:', err);
-        setPlayerSummary(null);
-      } finally {
-        setLoadingSummary(false);
-      }
+    const targetComp = competitors.find(
+      (c) => (c.athlete?.id || c.id) === targetPlayerId
+    ) || competitors[0];
+
+    if (targetComp) {
+      const summary = formatPlayerSummaryFromCompetitor(targetComp);
+      setPlayerSummary(summary);
     }
+  }, [selectedPlayerId, competitors]);
 
-    fetchPlayerSummary();
-  }, [activeEventId, selectedPlayerId, competitors]);
 
 
   // Tracked competitor objects matching Firestore trackedPlayers roster (or top 4 leaders if roster is empty)

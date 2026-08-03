@@ -104,20 +104,21 @@ export function ScorecardMatrix({
 
         {/* Round Tabs */}
         <div className="flex items-center gap-1.5 bg-slate-950 p-1 rounded-lg border border-slate-800">
-          {[1, 2, 3, 4].map((rNum) => (
+          {(playerSummary.rounds || []).map((rd) => (
             <button
-              key={rNum}
-              onClick={() => setActiveRound(rNum)}
+              key={rd.period}
+              onClick={() => setActiveRound(rd.period)}
               className={`px-3 py-1 text-xs font-semibold rounded-md transition ${
-                activeRound === rNum
+                activeRound === rd.period
                   ? 'bg-emerald-600 text-white shadow-sm'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
               }`}
             >
-              R{rNum}
+              R{rd.period} {rd.displayValue ? `(${rd.displayValue})` : ''}
             </button>
           ))}
         </div>
+
       </div>
 
       {/* Scorecard Table Matrix */}
