@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import { Header } from '@/components/Header';
 import { TrackedPlayerHeroGrid } from '@/components/TrackedPlayerHeroGrid';
 import { ScorecardMatrix } from '@/components/ScorecardMatrix';
 import { LiveLeaderboard } from '@/components/LiveLeaderboard';
-import { AdminManagementDrawer } from '@/components/AdminManagementDrawer';
 import { useAuth } from '@/context/AuthContext';
 import {
   useActiveConfig,
@@ -16,10 +16,15 @@ import {
   syncPlayersToFirestore,
   TrackedPlayer,
 } from '@/lib/firebase/firestore';
-
 import { ESPNEvent, ESPNCompetitor, ESPNPlayerSummary } from '@/types/espn';
 import { formatPlayerSummaryFromCompetitor } from '@/lib/espn/summary';
 
+// Vercel Performance Rule: bundle-dynamic-imports
+// Dynamically import heavy Admin Control Drawer only when needed
+const AdminManagementDrawer = dynamic(
+  () => import('@/components/AdminManagementDrawer').then((mod) => mod.AdminManagementDrawer),
+  { ssr: false }
+);
 
 export default function DashboardPage() {
   const { user, isAdmin } = useAuth();
@@ -51,8 +56,8 @@ export default function DashboardPage() {
     fetchScoreboard();
   }, []);
 
-  // 2. Determine Active Event (Firestore config vs default first active event)
-  const activeEventId = config?.activeEventId || (events[0]?.id || '');
+  // 2. Set Active Event ID (from Firestore config or default to 1st event)
+  const activeEventId = config?.activeEventId || events[0]?.id;
 
   // 3. Fetch Active Event Leaderboard
   useEffect(() => {
@@ -70,13 +75,12 @@ export default function DashboardPage() {
             setCompetitors(comps);
             syncPlayersToFirestore(comps);
 
-
             // Auto-select first tracked player or first field competitor
             if (comps.length > 0 && !selectedPlayerId) {
               const firstTracked = comps.find((c: ESPNCompetitor) =>
-                trackedPlayers.some((p) => p.playerId === c.athlete.id)
+                trackedPlayers.some((p) => p.playerId === (c.athlete?.id || c.id))
               );
-              setSelectedPlayerId(firstTracked ? firstTracked.athlete.id : comps[0].athlete.id);
+              setSelectedPlayerId(firstTracked ? firstTracked.athlete?.id || firstTracked.id : comps[0].athlete?.id || comps[0].id);
             }
           }
         }
@@ -90,62 +94,63 @@ export default function DashboardPage() {
     fetchLeaderboard();
   }, [activeEventId]);
 
+  // Vercel Performance Rule: rerender-derived-state & js-set-map-lookups
+  // O(1) Set lookup for tracked player IDs
+  const trackedPlayerIdsSet = useMemo(
+    () => new Set(trackedPlayers.map((p) => p.playerId)),
+    [trackedPlayers]
+  );
+
+  const trackedPlayerIds = useMemo(
+    () => Array.from(trackedPlayerIdsSet),
+    [trackedPlayerIdsSet]
+  );
+
+  // Vercel Performance Rule: rerender-memo & js-index-maps
+  const displayCompetitors = useMemo(() => {
+    if (trackedPlayers.length === 0) return competitors.slice(0, 4);
+
+    const compMap = new Map(competitors.map((c) => [c.athlete?.id || c.id, c]));
+
+    return trackedPlayers.map((p) => {
+      const match = compMap.get(p.playerId);
+      if (match) return match;
+      return {
+        id: p.playerId,
+        score: 'E',
+        athlete: {
+          id: p.playerId,
+          displayName: p.name,
+          headshot: { href: p.headshotUrl || '' },
+          country: { abbreviation: p.country || '' },
+        },
+      } as ESPNCompetitor;
+    });
+  }, [competitors, trackedPlayers]);
+
+  const selectedCompetitor = useMemo(() => {
+    const compMap = new Map(competitors.map((c) => [c.athlete?.id || c.id, c]));
+    return compMap.get(selectedPlayerId) || displayCompetitors[0];
+  }, [competitors, selectedPlayerId, displayCompetitors]);
+
   // 4. Compute Hole-by-Hole Player Summary from active competitor linescores
   useEffect(() => {
-    const targetPlayerId = selectedPlayerId || competitors[0]?.athlete?.id || competitors[0]?.id;
-    if (!targetPlayerId || competitors.length === 0) return;
-
-    const targetComp = competitors.find(
-      (c) => (c.athlete?.id || c.id) === targetPlayerId
-    ) || competitors[0];
-
-    if (targetComp) {
-      const summary = formatPlayerSummaryFromCompetitor(targetComp);
+    if (selectedCompetitor) {
+      const summary = formatPlayerSummaryFromCompetitor(selectedCompetitor);
       setPlayerSummary(summary);
     }
-  }, [selectedPlayerId, competitors]);
-
-
-
-  // Tracked competitor objects matching Firestore trackedPlayers roster (or top 4 leaders if roster is empty)
-  const trackedCompetitors = competitors.filter((c) => {
-    const compId = c.athlete?.id || c.id;
-    return trackedPlayers.some((p) => p.playerId === compId);
-  });
-
-  const displayCompetitors =
-    trackedPlayers.length > 0
-      ? trackedPlayers.map((p) => {
-          const match = competitors.find((c) => (c.athlete?.id || c.id) === p.playerId);
-          if (match) return match;
-          return {
-            id: p.playerId,
-            score: 'E',
-            athlete: {
-              id: p.playerId,
-              displayName: p.name,
-              headshot: { href: p.headshotUrl || '' },
-              country: { abbreviation: p.country || '' },
-            },
-          } as ESPNCompetitor;
-        })
-      : competitors.slice(0, 4);
-
-  const trackedPlayerIds = trackedPlayers.map((p) => p.playerId);
-  const selectedCompetitor = competitors.find((c) => (c.athlete?.id || c.id) === selectedPlayerId) || displayCompetitors[0];
-
-
+  }, [selectedCompetitor]);
 
   // Admin Actions
-  const handleSelectEvent = async (eventId: string) => {
+  const handleSelectEvent = useCallback(async (eventId: string) => {
     await setActiveEvent(eventId, new Date().getFullYear(), user?.email || 'aicodevibes@gmail.com');
-  };
+  }, [user]);
 
-  const handleToggleTrackPlayer = async (comp: ESPNCompetitor) => {
+  const handleToggleTrackPlayer = useCallback(async (comp: ESPNCompetitor) => {
     const playerId = comp.athlete?.id || comp.id;
     if (!playerId) return;
 
-    const isTracked = trackedPlayerIds.includes(playerId);
+    const isTracked = trackedPlayerIdsSet.has(playerId);
     if (isTracked) {
       await removeTrackedPlayer(playerId);
     } else {
@@ -158,14 +163,12 @@ export default function DashboardPage() {
       };
       await addTrackedPlayer(newPlayer);
     }
-  };
-
+  }, [trackedPlayerIdsSet, trackedPlayers]);
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
       {/* Top Navigation Header */}
       <Header eventName={activeEvent?.name} eventObj={activeEvent || undefined} />
-
 
       {/* Main Content Dashboard Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 lg:px-8 py-6 space-y-6">
@@ -179,7 +182,6 @@ export default function DashboardPage() {
             <span className="text-xs text-slate-400">
               {trackedPlayers.length} Golfer(s) Tracked
             </span>
-
           </div>
 
           <TrackedPlayerHeroGrid
@@ -189,7 +191,6 @@ export default function DashboardPage() {
             selectedPlayerId={selectedPlayerId || selectedCompetitor?.athlete?.id || selectedCompetitor?.id}
             onSelectPlayer={(id) => setSelectedPlayerId(id)}
           />
-
         </section>
 
         {/* Section 2: Split View (60% Scorecard Matrix + 40% Live Leaderboard) */}
@@ -214,8 +215,6 @@ export default function DashboardPage() {
               onSelectPlayer={(id) => setSelectedPlayerId(id)}
             />
           </div>
-
-
         </section>
       </main>
 
@@ -231,12 +230,6 @@ export default function DashboardPage() {
           onRemoveTrackedPlayer={async (id) => removeTrackedPlayer(id)}
         />
       )}
-
-
-      {/* Footer */}
-      <footer className="border-t border-slate-900 bg-slate-950 py-4 text-center text-xs text-slate-500">
-        PGA Performance Pulse • Live Data via ESPN API & Firebase App Hosting
-      </footer>
     </div>
   );
 }

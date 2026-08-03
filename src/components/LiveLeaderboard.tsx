@@ -31,9 +31,20 @@ export function LiveLeaderboard({
   const eventState = eventObj?.status?.type?.state;
   const statusDetail = eventObj?.status?.type?.detail || 'Scheduled';
 
-  const filteredCompetitors = competitors.filter((comp) =>
-    comp.athlete.displayName.toLowerCase().includes(searchQuery.toLowerCase())
+  // Vercel Performance Rule: rerender-memo & js-set-map-lookups
+  const trackedSet = React.useMemo(
+    () => new Set(trackedPlayerIds),
+    [trackedPlayerIds]
   );
+
+  const filteredCompetitors = React.useMemo(() => {
+    if (!searchQuery.trim()) return competitors;
+    const query = searchQuery.toLowerCase();
+    return competitors.filter((comp) =>
+      comp.athlete?.displayName?.toLowerCase().includes(query)
+    );
+  }, [competitors, searchQuery]);
+
 
   return (
     <div className="rounded-xl bg-slate-900/80 border border-slate-800 p-4 space-y-3 shadow-xl">
@@ -88,7 +99,8 @@ export function LiveLeaderboard({
       <div className="overflow-y-auto max-h-130 pr-1 space-y-1 scrollbar-thin">
         {filteredCompetitors.map((comp, idx) => {
           const playerId = comp.athlete?.id || comp.id || `comp-${idx}`;
-          const isTracked = trackedPlayerIds.includes(playerId);
+          const isTracked = trackedSet.has(playerId);
+
           const isSelected = selectedPlayerId === playerId;
           const score = comp.score || 'E';
           const isUnderPar = score.startsWith('-');
