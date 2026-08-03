@@ -108,14 +108,32 @@ export default function DashboardPage() {
 
 
   // Tracked competitor objects matching Firestore trackedPlayers roster (or top 4 leaders if roster is empty)
-  const trackedCompetitors = competitors.filter((c) =>
-    trackedPlayers.some((p) => p.playerId === c.athlete.id)
-  );
+  const trackedCompetitors = competitors.filter((c) => {
+    const compId = c.athlete?.id || c.id;
+    return trackedPlayers.some((p) => p.playerId === compId);
+  });
 
-  const displayCompetitors = trackedCompetitors.length > 0 ? trackedCompetitors : competitors.slice(0, 4);
+  const displayCompetitors =
+    trackedPlayers.length > 0
+      ? trackedPlayers.map((p) => {
+          const match = competitors.find((c) => (c.athlete?.id || c.id) === p.playerId);
+          if (match) return match;
+          return {
+            id: p.playerId,
+            score: 'E',
+            athlete: {
+              id: p.playerId,
+              displayName: p.name,
+              headshot: { href: p.headshotUrl || '' },
+              country: { abbreviation: p.country || '' },
+            },
+          } as ESPNCompetitor;
+        })
+      : competitors.slice(0, 4);
 
   const trackedPlayerIds = trackedPlayers.map((p) => p.playerId);
-  const selectedCompetitor = competitors.find((c) => c.athlete.id === selectedPlayerId) || displayCompetitors[0];
+  const selectedCompetitor = competitors.find((c) => (c.athlete?.id || c.id) === selectedPlayerId) || displayCompetitors[0];
+
 
 
   // Admin Actions
@@ -159,8 +177,9 @@ export default function DashboardPage() {
               Custom Golfer Watchlist
             </h2>
             <span className="text-xs text-slate-400">
-              {trackedCompetitors.length} Golfer(s) Tracked
+              {trackedPlayers.length} Golfer(s) Tracked
             </span>
+
           </div>
 
           <TrackedPlayerHeroGrid
