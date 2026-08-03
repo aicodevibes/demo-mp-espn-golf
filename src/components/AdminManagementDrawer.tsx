@@ -6,6 +6,7 @@ import { Settings, X, Calendar, UserPlus, Trash2, Search, Check, Plus } from 'lu
 import { GolferHeadshot } from './GolferHeadshot';
 
 import { TrackedPlayer } from '@/lib/firebase/firestore';
+import { formatEventDates } from '@/lib/espn';
 
 interface AdminManagementDrawerProps {
   events: ESPNEvent[];
@@ -30,7 +31,12 @@ export function AdminManagementDrawer({
   const [saving, setSaving] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
 
+  const liveEvents = React.useMemo(() => events.filter((e) => e.status?.type?.state === 'in'), [events]);
+  const pastEvents = React.useMemo(() => events.filter((e) => e.status?.type?.state === 'post'), [events]);
+  const upcomingEvents = React.useMemo(() => events.filter((e) => e.status?.type?.state === 'pre'), [events]);
+
   const handleEventChange = async (eventId: string) => {
+
     setSaving(true);
     await onSelectEvent(eventId);
     setSaving(false);
@@ -85,16 +91,45 @@ export function AdminManagementDrawer({
                   <option value="" disabled>
                     -- Select Active Event --
                   </option>
-                  {events.map((evt) => (
-                    <option key={evt.id} value={evt.id}>
-                      {evt.name} {evt.status?.type?.detail ? `(${evt.status.type.detail})` : ''}
-                    </option>
-                  ))}
+
+                  {/* 🟢 Live Events */}
+                  {liveEvents.length > 0 && (
+                    <optgroup label="🟢 Live / Active Event">
+                      {liveEvents.map((evt) => (
+                        <option key={evt.id} value={evt.id}>
+                          {evt.name} ({formatEventDates(evt.date, evt.endDate)})
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+
+                  {/* 🏁 Past Events */}
+                  {pastEvents.length > 0 && (
+                    <optgroup label="🏁 Past Events">
+                      {pastEvents.map((evt) => (
+                        <option key={evt.id} value={evt.id}>
+                          {evt.name} ({formatEventDates(evt.date, evt.endDate)})
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+
+                  {/* 📅 Upcoming Events */}
+                  {upcomingEvents.length > 0 && (
+                    <optgroup label="📅 Upcoming Events">
+                      {upcomingEvents.map((evt) => (
+                        <option key={evt.id} value={evt.id}>
+                          {evt.name} ({formatEventDates(evt.date, evt.endDate)})
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
                 </select>
                 <p className="text-[11px] text-slate-400">
                   Changing the active tournament updates live leaderboards for all visitors.
                 </p>
               </div>
+
 
               {/* Golfer Inventory Search & Add Section */}
               <div className="space-y-3 pt-2 border-t border-slate-900">

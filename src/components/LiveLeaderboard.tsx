@@ -5,7 +5,8 @@ import { ESPNCompetitor, ESPNEvent } from '@/types/espn';
 import { Trophy, CheckCircle2, PlusCircle, Search, Calendar, Activity } from 'lucide-react';
 import { GolferHeadshot } from './GolferHeadshot';
 import { useAuth } from '@/context/AuthContext';
-import { formatEventDates, getWinnerStatus } from '@/lib/espn';
+import { formatEventDates, getWinnerStatus, getPlayerStatusInfo } from '@/lib/espn';
+
 
 
 interface LiveLeaderboardProps {
@@ -47,8 +48,23 @@ export function LiveLeaderboard({
   }, [competitors, searchQuery]);
 
 
+  if (competitors.length === 0) {
+    return (
+      <div className="rounded-xl bg-slate-900/80 border border-slate-800 p-6 text-center space-y-2 shadow-xl">
+        <Calendar className="w-8 h-8 text-amber-400 mx-auto" />
+        <h3 className="text-sm font-bold text-slate-200">
+          ⚪ Tournament Scheduled
+        </h3>
+        <p className="text-xs text-slate-400 max-w-xs mx-auto">
+          The player field roster and tee times have not yet been released by ESPN for this event.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-xl bg-slate-900/80 border border-slate-800 p-4 space-y-3 shadow-xl">
+
       {/* Header & Status Badges */}
       <div className="border-b border-slate-800 pb-3 space-y-1.5">
         <div className="flex items-center justify-between">
@@ -108,6 +124,7 @@ export function LiveLeaderboard({
           const isOverPar = score.startsWith('+');
 
           const winnerInfo = getWinnerStatus(comp, eventObj?.status, competitors);
+          const statusInfo = getPlayerStatusInfo(comp);
 
           return (
             <div
@@ -116,15 +133,32 @@ export function LiveLeaderboard({
               className={`group flex items-center justify-between p-2.5 rounded-lg border text-xs cursor-pointer transition ${
                 winnerInfo.isWinner
                   ? 'bg-amber-950/40 border-amber-500/60 text-amber-100 font-medium'
+                  : statusInfo.isCut
+                  ? 'bg-rose-950/20 border-rose-900/40 text-slate-300 opacity-80'
+                  : statusInfo.isWD
+                  ? 'bg-amber-950/20 border-amber-900/40 text-slate-300 opacity-80'
                   : isSelected
                   ? 'bg-emerald-950/40 border-emerald-500/80 text-white'
                   : 'bg-slate-950/50 hover:bg-slate-900 border-slate-800/80 text-slate-200'
               }`}
             >
               <div className="flex items-center gap-2.5">
-                <span className="w-6 text-center font-bold text-slate-400">
-                  {comp.status?.position?.displayName || comp.order || '-'}
+                <span className="w-8 text-center font-bold">
+                  {statusInfo.isCut ? (
+                    <span className="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-400 border border-rose-500/40 font-extrabold text-[10px]">
+                      CUT
+                    </span>
+                  ) : statusInfo.isWD ? (
+                    <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/40 font-extrabold text-[10px]">
+                      WD
+                    </span>
+                  ) : (
+                    <span className="text-slate-400">
+                      {comp.status?.position?.displayName || comp.order || '-'}
+                    </span>
+                  )}
                 </span>
+
 
                 <GolferHeadshot
                   name={comp.athlete?.displayName || 'Golfer'}

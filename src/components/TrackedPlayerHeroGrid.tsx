@@ -4,7 +4,8 @@ import React from 'react';
 import { ESPNCompetitor } from '@/types/espn';
 import { Trophy, Activity, Award } from 'lucide-react';
 import { GolferHeadshot } from './GolferHeadshot';
-import { getWinnerStatus } from '@/lib/espn';
+import { getWinnerStatus, getPlayerStatusInfo } from '@/lib/espn';
+
 
 
 interface TrackedPlayerHeroGridProps {
@@ -44,6 +45,7 @@ export function TrackedPlayerHeroGrid({
         const isOverPar = score.startsWith('+');
 
         const winnerInfo = getWinnerStatus(comp, eventStatus, allCompetitors.length > 0 ? allCompetitors : trackedCompetitors);
+        const statusInfo = getPlayerStatusInfo(comp);
 
         return (
           <div
@@ -52,6 +54,10 @@ export function TrackedPlayerHeroGrid({
             className={`cursor-pointer group relative overflow-hidden rounded-xl border p-4 transition-all duration-200 ${
               winnerInfo.isWinner
                 ? 'bg-linear-to-b from-amber-950/60 to-slate-900 border-amber-400 shadow-xl shadow-amber-950/50'
+                : statusInfo.isCut
+                ? 'bg-slate-900/40 border-rose-950/60 opacity-80'
+                : statusInfo.isWD
+                ? 'bg-slate-900/40 border-amber-950/60 opacity-80'
                 : isSelected
                 ? 'bg-linear-to-b from-emerald-950/60 to-slate-900 border-emerald-500 shadow-lg shadow-emerald-950/40'
                 : 'bg-slate-900/60 hover:bg-slate-900 border-slate-800 hover:border-slate-700'
@@ -67,12 +73,21 @@ export function TrackedPlayerHeroGrid({
                 <span className="inline-flex items-center gap-1 text-[11px] font-extrabold text-amber-300 bg-amber-500/20 px-2.5 py-0.5 rounded-full border border-amber-400 shadow-sm animate-pulse">
                   <Trophy className="w-3 h-3 text-amber-400" /> {winnerInfo.badgeLabel}
                 </span>
+              ) : statusInfo.isCut ? (
+                <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-rose-400 bg-rose-500/20 px-2 py-0.5 rounded border border-rose-500/40">
+                  ✂️ Missed Cut
+                </span>
+              ) : statusInfo.isWD ? (
+                <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-amber-400 bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/40">
+                  🚪 Withdrawn
+                </span>
               ) : winnerInfo.badgeLabel ? (
                 <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-300 bg-slate-800 px-2 py-0.5 rounded border border-slate-700">
                   {winnerInfo.badgeLabel}
                 </span>
               ) : null}
             </div>
+
 
             <div className="flex items-start justify-between gap-3">
               {/* Headshot & Bio */}

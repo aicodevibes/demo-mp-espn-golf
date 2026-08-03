@@ -77,3 +77,38 @@ export function getWinnerStatus(
 
   return { isWinner: false, isPlayoff: false, badgeLabel: '' };
 }
+
+export interface PlayerStatusInfo {
+  isCut: boolean;
+  isWD: boolean;
+  isDQ: boolean;
+  isMDF: boolean;
+  isInactive: boolean;
+  badgeLabel: string;
+}
+
+export function getPlayerStatusInfo(comp: ESPNCompetitor): PlayerStatusInfo {
+  if (!comp || !comp.status) {
+    return { isCut: false, isWD: false, isDQ: false, isMDF: false, isInactive: false, badgeLabel: '' };
+  }
+
+  const pos = (comp.status?.position?.displayName || '').toUpperCase();
+  const typeName = (comp.status?.type?.name || '').toUpperCase();
+  const detail = (comp.status?.type?.detail || '').toUpperCase();
+
+  const isCut = pos === 'CUT' || typeName === 'STATUS_CUT' || detail.includes('CUT');
+  const isWD = pos === 'WD' || typeName === 'STATUS_WITHDRAWN' || detail.includes('WITHDRAWN') || detail.includes('WD');
+  const isDQ = pos === 'DQ' || typeName === 'STATUS_DISQUALIFIED' || detail.includes('DISQUALIFIED');
+  const isMDF = pos === 'MDF' || detail.includes('MDF');
+
+  const isInactive = isCut || isWD || isDQ || isMDF;
+
+  let badgeLabel = '';
+  if (isCut) badgeLabel = 'CUT';
+  else if (isWD) badgeLabel = 'WD';
+  else if (isDQ) badgeLabel = 'DQ';
+  else if (isMDF) badgeLabel = 'MDF';
+
+  return { isCut, isWD, isDQ, isMDF, isInactive, badgeLabel };
+}
+

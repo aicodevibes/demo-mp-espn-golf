@@ -4,6 +4,8 @@ import React, { useState } from 'react';
 import { ESPNPlayerSummary, ESPNRoundLinescore } from '@/types/espn';
 import { Circle, Square, Award } from 'lucide-react';
 
+import { getPlayerStatusInfo } from '@/lib/espn';
+
 interface ScorecardMatrixProps {
   playerSummary: ESPNPlayerSummary | null;
   loading?: boolean;
@@ -16,6 +18,9 @@ export function ScorecardMatrix({
   playerName = 'Selected Golfer',
 }: ScorecardMatrixProps) {
   const [activeRound, setActiveRound] = useState<number>(1);
+
+  const statusInfo = playerSummary?.competitor ? getPlayerStatusInfo(playerSummary.competitor) : null;
+
 
   if (loading) {
     return (
@@ -100,7 +105,18 @@ export function ScorecardMatrix({
             {playerName}'s Hole-by-Hole Scorecard
           </h3>
           <p className="text-xs text-slate-400">Traditional 18-Hole Round Performance Matrix</p>
+          {statusInfo?.isCut && (
+            <span className="inline-flex items-center gap-1 mt-1.5 text-[11px] font-extrabold px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 border border-rose-500/40">
+              ✂️ Missed 36-Hole Cut
+            </span>
+          )}
+          {statusInfo?.isWD && (
+            <span className="inline-flex items-center gap-1 mt-1.5 text-[11px] font-extrabold px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/40">
+              🚪 Withdrawn (WD)
+            </span>
+          )}
         </div>
+
 
         {/* Round Tabs */}
         <div className="flex items-center gap-1.5 bg-slate-950 p-1 rounded-lg border border-slate-800">
