@@ -1,65 +1,212 @@
-import Image from "next/image";
+'use client';
 
-export default function Home() {
+import React, { useEffect, useState } from 'react';
+import { Header } from '@/components/Header';
+import { TrackedPlayerHeroGrid } from '@/components/TrackedPlayerHeroGrid';
+import { ScorecardMatrix } from '@/components/ScorecardMatrix';
+import { LiveLeaderboard } from '@/components/LiveLeaderboard';
+import { AdminManagementDrawer } from '@/components/AdminManagementDrawer';
+import { useAuth } from '@/context/AuthContext';
+import {
+  useActiveConfig,
+  useTrackedPlayers,
+  setActiveEvent,
+  addTrackedPlayer,
+  removeTrackedPlayer,
+  TrackedPlayer,
+} from '@/lib/firebase/firestore';
+import { ESPNEvent, ESPNCompetitor, ESPNPlayerSummary } from '@/types/espn';
+
+export default function DashboardPage() {
+  const { user, isAdmin } = useAuth();
+  const { config, loading: configLoading } = useActiveConfig();
+  const { players: trackedPlayers, loading: playersLoading } = useTrackedPlayers();
+
+  const [events, setEvents] = useState<ESPNEvent[]>([]);
+  const [activeEvent, setActiveEventObj] = useState<ESPNEvent | null>(null);
+  const [competitors, setCompetitors] = useState<ESPNCompetitor[]>([]);
+  const [loadingLeaderboard, setLoadingLeaderboard] = useState<boolean>(true);
+
+  const [selectedPlayerId, setSelectedPlayerId] = useState<string>('');
+  const [playerSummary, setPlayerSummary] = useState<ESPNPlayerSummary | null>(null);
+  const [loadingSummary, setLoadingSummary] = useState<boolean>(false);
+
+  // 1. Fetch ESPN Scoreboard (Events List)
+  useEffect(() => {
+    async function fetchScoreboard() {
+      try {
+        const res = await fetch('/api/espn/scoreboard');
+        if (res.ok) {
+          const data = await res.json();
+          setEvents(data.events || []);
+        }
+      } catch (err) {
+        console.error('Failed to fetch ESPN Scoreboard:', err);
+      }
+    }
+    fetchScoreboard();
+  }, []);
+
+  // 2. Determine Active Event (Firestore config vs default first active event)
+  const activeEventId = config?.activeEventId || (events[0]?.id || '');
+
+  // 3. Fetch Active Event Leaderboard
+  useEffect(() => {
+    if (!activeEventId) return;
+
+    async function fetchLeaderboard() {
+      setLoadingLeaderboard(true);
+      try {
+        const res = await fetch(`/api/espn/leaderboard?event=${activeEventId}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.events && data.events[0]) {
+            setActiveEventObj(data.events[0]);
+            const comps = data.events[0]?.competitions?.[0]?.competitors || [];
+            setCompetitors(comps);
+
+            // Auto-select first tracked player or first field competitor
+            if (comps.length > 0 && !selectedPlayerId) {
+              const firstTracked = comps.find((c: ESPNCompetitor) =>
+                trackedPlayers.some((p) => p.playerId === c.athlete.id)
+              );
+              setSelectedPlayerId(firstTracked ? firstTracked.athlete.id : comps[0].athlete.id);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch ESPN Leaderboard:', err);
+      } finally {
+        setLoadingLeaderboard(false);
+      }
+    }
+
+    fetchLeaderboard();
+  }, [activeEventId]);
+
+  // 4. Fetch Hole-by-Hole Player Summary when selected player changes
+  useEffect(() => {
+    if (!activeEventId || !selectedPlayerId) return;
+
+    async function fetchPlayerSummary() {
+      setLoadingSummary(true);
+      try {
+        const res = await fetch(
+          `/api/espn/playersummary?eventId=${activeEventId}&playerId=${selectedPlayerId}`
+        );
+        if (res.ok) {
+          const data = await res.json();
+          setPlayerSummary(data);
+        } else {
+          setPlayerSummary(null);
+        }
+      } catch (err) {
+        console.error('Failed to fetch Player Summary:', err);
+        setPlayerSummary(null);
+      } finally {
+        setLoadingSummary(false);
+      }
+    }
+
+    fetchPlayerSummary();
+  }, [activeEventId, selectedPlayerId]);
+
+  // Tracked competitor objects matching Firestore trackedPlayers roster
+  const trackedCompetitors = competitors.filter((c) =>
+    trackedPlayers.some((p) => p.playerId === c.athlete.id)
+  );
+
+  const trackedPlayerIds = trackedPlayers.map((p) => p.playerId);
+  const selectedCompetitor = competitors.find((c) => c.athlete.id === selectedPlayerId);
+
+  // Admin Actions
+  const handleSelectEvent = async (eventId: string) => {
+    await setActiveEvent(eventId, new Date().getFullYear(), user?.email || 'aicodevibes@gmail.com');
+  };
+
+  const handleToggleTrackPlayer = async (comp: ESPNCompetitor) => {
+    const isTracked = trackedPlayerIds.includes(comp.athlete.id);
+    if (isTracked) {
+      await removeTrackedPlayer(comp.athlete.id);
+    } else {
+      const newPlayer: TrackedPlayer = {
+        playerId: comp.athlete.id,
+        name: comp.athlete.displayName,
+        headshotUrl: comp.athlete.headshot?.href,
+        country: comp.athlete.country?.abbreviation,
+        displayOrder: trackedPlayers.length + 1,
+      };
+      await addTrackedPlayer(newPlayer);
+    }
+  };
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+      {/* Top Navigation Header */}
+      <Header eventName={activeEvent?.name} />
+
+      {/* Main Content Dashboard Container */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 lg:px-8 py-6 space-y-6">
+        {/* Section 1: Tracked Players Hero Summary Grid */}
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-extrabold uppercase tracking-wider text-slate-300 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              Custom Golfer Watchlist
+            </h2>
+            <span className="text-xs text-slate-400">
+              {trackedCompetitors.length} Golfer(s) Tracked
+            </span>
+          </div>
+
+          <TrackedPlayerHeroGrid
+            trackedCompetitors={trackedCompetitors}
+            loading={loadingLeaderboard || playersLoading}
+            selectedPlayerId={selectedPlayerId}
+            onSelectPlayer={(id) => setSelectedPlayerId(id)}
+          />
+        </section>
+
+        {/* Section 2: Split View (60% Scorecard Matrix + 40% Live Leaderboard) */}
+        <section className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Left Column (7/12): 18-Hole Matrix Scorecard */}
+          <div className="lg:col-span-7 space-y-4">
+            <ScorecardMatrix
+              playerSummary={playerSummary}
+              loading={loadingSummary}
+              playerName={selectedCompetitor?.athlete.displayName}
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+          </div>
+
+          {/* Right Column (5/12): Live Tournament Leaderboard */}
+          <div className="lg:col-span-5 space-y-4">
+            <LiveLeaderboard
+              competitors={competitors}
+              loading={loadingLeaderboard}
+              trackedPlayerIds={trackedPlayerIds}
+              onToggleTrackPlayer={handleToggleTrackPlayer}
+              selectedPlayerId={selectedPlayerId}
+              onSelectPlayer={(id) => setSelectedPlayerId(id)}
+            />
+          </div>
+        </section>
       </main>
+
+      {/* Admin Floating Drawer (Only rendered for aicodevibes@gmail.com) */}
+      {isAdmin && (
+        <AdminManagementDrawer
+          events={events}
+          activeEventId={activeEventId}
+          onSelectEvent={handleSelectEvent}
+          trackedPlayers={trackedPlayers}
+          onRemoveTrackedPlayer={async (id) => removeTrackedPlayer(id)}
+        />
+      )}
+
+      {/* Footer */}
+      <footer className="border-t border-slate-900 bg-slate-950 py-4 text-center text-xs text-slate-500">
+        PGA Performance Pulse • Live Data via ESPN API & Firebase App Hosting
+      </footer>
     </div>
   );
 }
