@@ -1,11 +1,12 @@
 'use client';
 
 import React from 'react';
-import { ParticipantStanding } from '@/types/contest';
+import { ParticipantStanding, ContestConfig } from '@/types/contest';
 import { Trophy, Scissors } from 'lucide-react';
 
 interface ParticipantStandingsProps {
   standings: ParticipantStanding[];
+  contestConfig: ContestConfig | null;
   loading?: boolean;
 }
 
@@ -33,7 +34,7 @@ function rankBadgeClass(rank: number, isCut: boolean): string {
   return 'bg-surface-container-high text-on-surface-variant';
 }
 
-export function ParticipantStandings({ standings, loading }: ParticipantStandingsProps) {
+export function ParticipantStandings({ standings, contestConfig, loading }: ParticipantStandingsProps) {
   if (loading) {
     return (
       <div className="rounded-xl bg-surface-container-low border border-outline-variant p-6 animate-pulse space-y-4">
@@ -168,28 +169,34 @@ export function ParticipantStandings({ standings, loading }: ParticipantStanding
             Overall Standings
           </h3>
           <p className="text-xs text-on-surface-variant mt-0.5">
-            12-Participant US Open Pool · Best 2 daily drafted scores
+            {standings.length}-Participant Pool · Best 2 daily drafted scores
           </p>
         </div>
 
         {/* Prize allocation pills */}
         <div className="flex items-center gap-2 flex-wrap">
-          {[
-            { pos: '1st', pool: '$600', cls: 'bg-amber-400 text-amber-950' },
-            { pos: '2nd', pool: '$320', cls: 'bg-slate-300 text-slate-800' },
-            { pos: '3rd', pool: '$180', cls: 'bg-amber-700 text-white' },
-            { pos: '4th', pool: '$100', cls: 'bg-emerald-600 text-white' },
-          ].map((item) => (
-            <div
-              key={item.pos}
-              className="flex items-center gap-1 border border-outline-variant rounded-lg px-2.5 py-1.5 bg-surface-container text-center"
-            >
-              <span className={`text-[10px] font-black px-1.5 py-px rounded ${item.cls}`}>
-                {item.pos}
-              </span>
-              <span className="text-xs font-bold text-on-surface">{item.pool}</span>
-            </div>
-          ))}
+          {(contestConfig?.mainPayouts || [600, 320, 180, 100]).map((payout, idx) => {
+            const ordinals = ['1st', '2nd', '3rd', '4th', '5th', '6th'];
+            const pos = ordinals[idx] || `${idx + 1}th`;
+            const classes = [
+              'bg-amber-400 text-amber-950',
+              'bg-slate-300 text-slate-800',
+              'bg-amber-700 text-white',
+              'bg-emerald-600 text-white',
+            ];
+            const cls = classes[idx] || 'bg-surface-container-high text-on-surface-variant';
+            return (
+              <div
+                key={pos}
+                className="flex items-center gap-1 border border-outline-variant rounded-lg px-2.5 py-1.5 bg-surface-container text-center"
+              >
+                <span className={`text-[10px] font-black px-1.5 py-px rounded ${cls}`}>
+                  {pos}
+                </span>
+                <span className="text-xs font-bold text-on-surface">${payout}</span>
+              </div>
+            );
+          })}
         </div>
       </div>
 

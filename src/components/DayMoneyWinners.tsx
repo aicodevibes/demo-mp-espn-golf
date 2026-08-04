@@ -1,15 +1,16 @@
 'use client';
 
 import React from 'react';
-import { DayMoneyRoundResult } from '@/types/contest';
+import { DayMoneyRoundResult, ContestConfig } from '@/types/contest';
 import { DollarSign, Trophy, Award } from 'lucide-react';
 
 interface DayMoneyWinnersProps {
   dayMoneyResults: DayMoneyRoundResult[];
+  contestConfig: ContestConfig | null;
   loading?: boolean;
 }
 
-export function DayMoneyWinners({ dayMoneyResults, loading }: DayMoneyWinnersProps) {
+export function DayMoneyWinners({ dayMoneyResults, contestConfig, loading }: DayMoneyWinnersProps) {
   if (loading) {
     return (
       <div className="p-card rounded-xl bg-surface-container-low border border-outline-variant animate-pulse space-y-4">
@@ -33,10 +34,10 @@ export function DayMoneyWinners({ dayMoneyResults, loading }: DayMoneyWinnersPro
           </div>
           <div>
             <h3 className="text-sm font-bold text-on-surface flex items-center gap-2">
-              Day Money Winners ($75.00 / Day)
+              Day Money Winners (${(contestConfig?.dayMoneyPool ?? 75).toFixed(2)} / Day)
             </h3>
             <p className="text-xs text-on-surface-variant">
-              Awarded to the participant holding the lowest drafted round score ($300 total purse)
+              Awarded to the participant holding the lowest drafted round score (${((contestConfig?.dayMoneyPool ?? 75) * 4).toFixed(0)} total purse)
             </p>
           </div>
         </div>

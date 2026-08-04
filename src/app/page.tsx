@@ -13,6 +13,7 @@ import {
   useActiveConfig,
   useTrackedPlayers,
   useParticipants,
+  useContestConfig,
   setActiveEvent,
   addTrackedPlayer,
   removeTrackedPlayer,
@@ -34,7 +35,6 @@ export default function DashboardPage() {
   const { user, isAdmin } = useAuth();
   const { config, loading: configLoading } = useActiveConfig();
   const { players: trackedPlayers, loading: playersLoading } = useTrackedPlayers();
-  const { participants, loading: participantsLoading } = useParticipants();
 
   const [events, setEvents] = useState<ESPNEvent[]>([]);
   const [activeEvent, setActiveEventObj] = useState<ESPNEvent | null>(null);
@@ -63,6 +63,9 @@ export default function DashboardPage() {
 
   // 2. Set Active Event ID (from Firestore config or default to 1st event)
   const activeEventId = config?.activeEventId || events[0]?.id;
+
+  const { config: contestConfig, loading: contestConfigLoading } = useContestConfig(activeEventId);
+  const { participants, loading: participantsLoading } = useParticipants(activeEventId);
 
   // 3. Fetch Active Event Leaderboard
   useEffect(() => {
@@ -112,12 +115,12 @@ export default function DashboardPage() {
 
   // Calculate 12-Participant Standings & Day Money Results
   const participantStandings = useMemo(() => {
-    return calculateParticipantStandings(participants, competitors, activeEvent?.status);
-  }, [participants, competitors, activeEvent]);
+    return calculateParticipantStandings(participants, competitors, contestConfig, activeEvent?.status);
+  }, [participants, competitors, contestConfig, activeEvent]);
 
   const dayMoneyResults = useMemo(() => {
-    return calculateDayMoneyWinners(participants, competitors, activeEvent?.status);
-  }, [participants, competitors, activeEvent]);
+    return calculateDayMoneyWinners(participants, competitors, contestConfig, activeEvent?.status);
+  }, [participants, competitors, contestConfig, activeEvent]);
 
   // Vercel Performance Rule: rerender-memo & js-index-maps
   const displayCompetitors = useMemo(() => {
@@ -208,12 +211,20 @@ export default function DashboardPage() {
 
         {/* Section 2: US Open Draft Contest - Day Money Winners */}
         <section>
-          <DayMoneyWinners dayMoneyResults={dayMoneyResults} loading={loadingLeaderboard || participantsLoading} />
+          <DayMoneyWinners
+            dayMoneyResults={dayMoneyResults}
+            contestConfig={contestConfig}
+            loading={loadingLeaderboard || participantsLoading || contestConfigLoading}
+          />
         </section>
 
         {/* Section 3: US Open Draft Contest - Official Participant Standings */}
         <section>
-          <ParticipantStandings standings={participantStandings} loading={loadingLeaderboard || participantsLoading} />
+          <ParticipantStandings
+            standings={participantStandings}
+            contestConfig={contestConfig}
+            loading={loadingLeaderboard || participantsLoading || contestConfigLoading}
+          />
         </section>
 
         {/* Section 4: Split View (60% Scorecard Matrix + 40% Live Field Leaderboard) */}
