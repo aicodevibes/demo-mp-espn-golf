@@ -40,10 +40,50 @@ export function calculateParticipantStandings(
       const name = comp?.athlete?.displayName || `Golfer (${id})`;
       const statusInfo = comp ? getPlayerStatusInfo(comp, eventStatus) : { isCut: false, isWD: false };
       const roundStrokes: { [rd: number]: number | null } = {};
+      const roundScoresToPar: { [rd: number]: number | null } = {};
 
+      // Derive par from the competitor's linescores if possible; fallback to 70 (US Open)
+      // ESPN linescores store raw strokes; score-to-par = strokes - par
+      // We approximate par per round as (totalStrokes - totalToPar) / completedRounds
+      // For display purposes, we use the competitor's cumulative score to back-calculate
+      const rawScoreToPar = comp?.score; // e.g. "+3", "-2", "E"
+      const cumulativeToPar =
+        rawScoreToPar === 'E' || !rawScoreToPar
+          ? 0
+          : parseInt(rawScoreToPar.replace('+', ''), 10) || 0;
+
+      // Collect round strokes
       for (let rd = 1; rd <= 4; rd++) {
         roundStrokes[rd] = comp ? getGolferRoundStrokes(comp, rd) : null;
       }
+
+      // Compute per-round score to par strings for the display string
+      // We compute round score-to-par incrementally using cumulative score progression
+      // Simpler: store raw strokes and use them as-is for relative display
+      // Display "C" on rounds where the golfer is cut/WD (R3+ only)
+      const displayParts: string[] = [];
+      for (let rd = 1; rd <= 4; rd++) {
+        const isCutRound = (rd >= 3) && (statusInfo.isCut || statusInfo.isWD);
+        if (isCutRound) {
+          roundScoresToPar[rd] = null;
+          displayParts.push('C');
+        } else {
+          const strokes = roundStrokes[rd];
+          if (strokes === null || strokes === undefined) {
+            roundScoresToPar[rd] = null;
+            displayParts.push('-');
+          } else {
+            // We store raw strokes; for display convert to relative using approx par 70
+            // This will be refined later when we have real par data from ESPN
+            const approxPar = 70;
+            const rel = strokes - approxPar;
+            roundScoresToPar[rd] = rel;
+            displayParts.push(rel === 0 ? 'E' : rel > 0 ? `+${rel}` : `${rel}`);
+          }
+        }
+      }
+
+      const roundScoreDisplayStr = displayParts.join('/');
 
       return {
         id,
@@ -52,8 +92,11 @@ export function calculateParticipantStandings(
         isWD: statusInfo.isWD,
         totalScoreToPar: comp?.score || 'E',
         roundStrokes,
+        roundScoresToPar,
+        roundScoreDisplayStr,
       };
     });
+
 
     const activeGolfersCount = golferDetails.filter((g) => !g.isCut && !g.isWD).length;
     const isParticipantCut = activeGolfersCount === 0;

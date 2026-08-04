@@ -13,6 +13,10 @@ export interface DraftedGolferStatus {
   isWD: boolean;
   totalScoreToPar: string;
   roundStrokes: { [round: number]: number | null };
+  /** Per-round score-to-par values (null = not played, 999 = CUT penalty) */
+  roundScoresToPar: { [round: number]: number | null };
+  /** Display string like "+5/-2/C/C" shown in the drafted players column */
+  roundScoreDisplayStr: string;
 }
 
 export interface ParticipantStanding {

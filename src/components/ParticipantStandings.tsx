@@ -2,19 +2,43 @@
 
 import React from 'react';
 import { ParticipantStanding } from '@/types/contest';
-import { Trophy, Award, Scissors } from 'lucide-react';
+import { Trophy, Scissors } from 'lucide-react';
 
 interface ParticipantStandingsProps {
   standings: ParticipantStanding[];
   loading?: boolean;
 }
 
+/** Format a numeric daily team score for display (raw strokes sum → relative display) */
+function formatTeamDayScore(score: number | null | undefined): string {
+  if (score === null || score === undefined) return '-';
+  // score is raw strokes (e.g. 138). For now display as-is until we wire par.
+  // Once real ESPN par data is available this becomes relative to par.
+  return score.toString();
+}
+
+/** Format total score to par string */
+function formatTotal(total: number): string {
+  if (total === 0) return 'E';
+  return total > 0 ? `+${total}` : `${total}`;
+}
+
+/** Rank badge styling */
+function rankBadgeClass(rank: number, isCut: boolean): string {
+  if (isCut) return 'bg-red-500/10 text-red-500 text-[9px]';
+  if (rank === 1) return 'bg-amber-400 text-amber-950';
+  if (rank === 2) return 'bg-slate-300 text-slate-800';
+  if (rank === 3) return 'bg-amber-700 text-white';
+  if (rank === 4) return 'bg-emerald-600 text-white';
+  return 'bg-surface-container-high text-on-surface-variant';
+}
+
 export function ParticipantStandings({ standings, loading }: ParticipantStandingsProps) {
   if (loading) {
     return (
-      <div className="p-card rounded-xl bg-surface-container-low border border-outline-variant animate-pulse space-y-4">
-        <div className="h-6 w-48 bg-surface-container-high rounded" />
-        <div className="h-64 bg-surface-container-lowest rounded-lg border border-outline-variant/60" />
+      <div className="rounded-xl bg-surface-container-low border border-outline-variant p-6 animate-pulse space-y-4">
+        <div className="h-6 w-56 bg-surface-container-high rounded" />
+        <div className="h-80 bg-surface-container-lowest rounded-lg border border-outline-variant/60" />
       </div>
     );
   }
@@ -22,100 +46,112 @@ export function ParticipantStandings({ standings, loading }: ParticipantStanding
   const activeStandings = standings.filter((s) => !s.isCut);
   const cutStandings = standings.filter((s) => s.isCut);
 
-  const topFourWinners = standings.filter((s) => s.rank <= 4 && !s.isCut);
-
-  const renderStandingRow = (s: ParticipantStanding, idx: number) => {
+  const renderRow = (s: ParticipantStanding) => {
     const isTopFour = s.rank <= 4 && !s.isCut;
+    const rowClass = s.isCut
+      ? 'opacity-60 text-on-surface-variant'
+      : isTopFour
+      ? 'bg-amber-400/5'
+      : '';
 
     return (
       <tr
         key={s.participant.id}
-        className={`transition text-xs ${
-          isTopFour
-            ? 'bg-amber-500/5 hover:bg-amber-500/10 font-medium'
-            : s.isCut
-            ? 'bg-surface-container-high/60 text-on-surface-variant opacity-75'
-            : 'bg-surface-container-lowest hover:bg-surface-container text-on-surface'
-        }`}
+        className={`border-b border-outline-variant/40 transition-colors hover:bg-surface-container ${rowClass}`}
       >
-        {/* Rank Position Badge */}
-        <td className="py-3 px-3 text-center font-bold">
+        {/* POS */}
+        <td className="py-3 pl-4 pr-2 text-center align-middle w-12">
           <span
-            className={`inline-flex items-center justify-center w-7 h-7 rounded-full font-black text-xs ${
-              s.rank === 1
-                ? 'bg-amber-400 text-amber-950 shadow-xs'
-                : s.rank === 2
-                ? 'bg-slate-300 text-slate-900 shadow-xs'
-                : s.rank === 3
-                ? 'bg-amber-700 text-white shadow-xs'
-                : s.rank === 4
-                ? 'bg-tertiary text-on-tertiary shadow-xs'
-                : s.isCut
-                ? 'bg-error/15 text-error text-[10px]'
-                : 'bg-surface-container-high text-on-surface-variant'
-            }`}
+            className={`inline-flex items-center justify-center w-7 h-7 rounded-full font-black text-xs shadow-xs ${rankBadgeClass(s.rank, s.isCut)}`}
           >
             {s.isCut ? 'CUT' : s.rank}
           </span>
         </td>
 
-        {/* Participant Name */}
-        <td className="py-3 px-3 text-left font-bold text-on-surface">
-          <div className="flex items-center gap-2">
-            <span>{s.participant.name}</span>
-            {isTopFour && (
-              <span className="text-[10px] font-extrabold text-amber-900 bg-amber-200 px-1.5 py-0.2 rounded">
-                Payout
+        {/* PARTICIPANT NAME */}
+        <td className="py-3 px-3 align-middle w-32">
+          <div className="flex flex-col">
+            <span className="font-bold text-sm text-on-surface leading-tight">
+              {s.participant.name}
+            </span>
+            {isTopFour && s.projectedPayout > 0 && (
+              <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 mt-0.5">
+                ${s.projectedPayout.toFixed(0)} prize
               </span>
             )}
           </div>
         </td>
 
-        {/* Drafted Players List with Cut Badges */}
-        <td className="py-3 px-3 text-left">
-          <div className="flex flex-wrap gap-1.5">
+        {/* DRAFTED PLAYERS — multi-line, name + round score string */}
+        <td className="py-2 px-3 align-middle">
+          <div className="flex flex-col gap-0.5">
             {s.draftedGolferDetails.map((g) => (
-              <span
+              <div
                 key={g.id}
-                className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded border ${
-                  g.isCut
-                    ? 'bg-error/10 text-error border-error/30 font-semibold'
-                    : g.isWD
-                    ? 'bg-secondary-container text-secondary border-outline-variant font-semibold'
-                    : 'bg-surface-container-low text-on-surface border-outline-variant/60 font-medium'
-                }`}
+                className="flex items-baseline justify-between gap-3 min-w-0"
               >
-                {g.name}
-                {g.isCut && <span className="text-[9px] font-black uppercase">CUT</span>}
-                {g.isWD && <span className="text-[9px] font-black uppercase">WD</span>}
-              </span>
+                {/* Name + status badge */}
+                <div className="flex items-center gap-1.5 min-w-0 flex-shrink-0">
+                  <span
+                    className={`text-xs leading-snug truncate ${
+                      g.isCut || g.isWD
+                        ? 'text-on-surface-variant line-through'
+                        : 'text-on-surface'
+                    }`}
+                  >
+                    {g.name}
+                  </span>
+                  {g.isCut && (
+                    <span className="text-[9px] font-black uppercase text-red-500 bg-red-500/10 px-1 py-px rounded leading-none shrink-0">
+                      CUT
+                    </span>
+                  )}
+                  {g.isWD && (
+                    <span className="text-[9px] font-black uppercase text-orange-500 bg-orange-500/10 px-1 py-px rounded leading-none shrink-0">
+                      WD
+                    </span>
+                  )}
+                </div>
+                {/* Per-round score string */}
+                <span className="text-[11px] font-mono text-on-surface-variant tabular-nums shrink-0">
+                  {g.roundScoreDisplayStr}
+                </span>
+              </div>
             ))}
           </div>
         </td>
 
-        {/* Round Scores (R1, R2, R3, R4) */}
+        {/* R1 / R2 / R3 / R4 — team daily scores */}
         {[1, 2, 3, 4].map((rd) => {
-          const score = s.dailyScores[rd];
+          const raw = s.dailyScores[rd];
+          const display = raw != null ? formatTeamDayScore(raw) : '-';
           return (
-            <td key={rd} className="py-3 px-2 text-center font-semibold text-on-surface-variant">
-              {score !== null && score !== undefined ? score : '-'}
+            <td
+              key={rd}
+              className="py-3 px-2 text-center align-middle w-12 text-sm font-semibold text-on-surface-variant tabular-nums"
+            >
+              {display}
             </td>
           );
         })}
 
-        {/* Total Score */}
-        <td className="py-3 px-3 text-center font-black text-sm text-on-surface">
-          {s.totalScore}
+        {/* TOTAL */}
+        <td className="py-3 px-3 text-center align-middle w-16">
+          <span className={`text-base font-black tabular-nums ${
+            s.totalScore < 0 ? 'text-tertiary' : s.totalScore > 0 ? 'text-error' : 'text-on-surface'
+          }`}>
+            {s.isCut ? 'CUT' : formatTotal(s.totalScore)}
+          </span>
         </td>
 
-        {/* Projected Payout */}
-        <td className="py-3 px-3 text-right font-black text-sm">
+        {/* PAYOUT */}
+        <td className="py-3 pr-4 pl-2 text-right align-middle w-24">
           {s.projectedPayout > 0 ? (
-            <span className="text-tertiary bg-tertiary/15 px-2 py-0.5 rounded border border-tertiary/30">
+            <span className="text-xs font-extrabold text-tertiary bg-tertiary/10 border border-tertiary/25 px-2 py-0.5 rounded">
               ${s.projectedPayout.toFixed(2)}
             </span>
           ) : (
-            <span className="text-on-surface-variant text-xs font-normal">-</span>
+            <span className="text-on-surface-variant/40 text-xs">—</span>
           )}
         </td>
       </tr>
@@ -123,76 +159,78 @@ export function ParticipantStandings({ standings, loading }: ParticipantStanding
   };
 
   return (
-    <div className="rounded-xl bg-surface-container-low border border-outline-variant p-card space-y-5 shadow-xs">
-      {/* Top Section: Payout Summary Cards */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-outline-variant pb-4">
+    <div className="rounded-xl bg-surface-container-low border border-outline-variant shadow-xs overflow-hidden">
+      {/* Header */}
+      <div className="px-5 py-4 border-b border-outline-variant flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface-container-lowest">
         <div>
-          <h3 className="text-base font-bold text-on-surface flex items-center gap-2">
-            <Trophy className="w-5 h-5 text-tertiary" /> Official Contest Standings
+          <h3 className="text-sm font-extrabold uppercase tracking-widest text-on-surface flex items-center gap-2">
+            <Trophy className="w-4 h-4 text-amber-400 shrink-0" />
+            Overall Standings
           </h3>
-          <p className="text-xs text-on-surface-variant">
-            12-Participant US Open Pool • Sum of 2 best daily drafted scores
+          <p className="text-xs text-on-surface-variant mt-0.5">
+            12-Participant US Open Pool · Best 2 daily drafted scores
           </p>
         </div>
 
-        {/* Top 4 Prize Allocations Banner */}
-        <div className="grid grid-cols-4 gap-2 w-full md:w-auto">
+        {/* Prize allocation pills */}
+        <div className="flex items-center gap-2 flex-wrap">
           {[
-            { pos: '1st', pool: '$600.00', bg: 'bg-amber-400 text-amber-950' },
-            { pos: '2nd', pool: '$320.00', bg: 'bg-slate-300 text-slate-900' },
-            { pos: '3rd', pool: '$180.00', bg: 'bg-amber-700 text-white' },
-            { pos: '4th', pool: '$100.00', bg: 'bg-tertiary text-on-tertiary' },
+            { pos: '1st', pool: '$600', cls: 'bg-amber-400 text-amber-950' },
+            { pos: '2nd', pool: '$320', cls: 'bg-slate-300 text-slate-800' },
+            { pos: '3rd', pool: '$180', cls: 'bg-amber-700 text-white' },
+            { pos: '4th', pool: '$100', cls: 'bg-emerald-600 text-white' },
           ].map((item) => (
             <div
               key={item.pos}
-              className="bg-surface-container-lowest border border-outline-variant rounded-lg p-2 text-center"
+              className="flex items-center gap-1 border border-outline-variant rounded-lg px-2.5 py-1.5 bg-surface-container text-center"
             >
-              <span className={`inline-block px-1.5 py-0.2 rounded text-[10px] font-black ${item.bg}`}>
+              <span className={`text-[10px] font-black px-1.5 py-px rounded ${item.cls}`}>
                 {item.pos}
               </span>
-              <p className="text-xs font-black text-on-surface mt-1">{item.pool}</p>
+              <span className="text-xs font-bold text-on-surface">{item.pool}</span>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Main Standings Table */}
+      {/* Table */}
       <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse min-w-160">
+        <table className="w-full min-w-[700px] border-collapse">
           <thead>
-            <tr className="bg-surface-container-high text-[11px] font-bold text-on-surface-variant uppercase tracking-wider border-b border-outline-variant">
-              <th className="py-2.5 px-3 text-center w-12">POS</th>
-              <th className="py-2.5 px-3">PARTICIPANT</th>
-              <th className="py-2.5 px-3">DRAFTED PLAYERS</th>
+            <tr className="bg-surface-container text-[10px] font-extrabold tracking-widest uppercase text-on-surface-variant border-b border-outline-variant">
+              <th className="py-2.5 pl-4 pr-2 text-center w-12">POS</th>
+              <th className="py-2.5 px-3 text-left w-32">PARTICIPANT</th>
+              <th className="py-2.5 px-3 text-left">DRAFTED PLAYERS</th>
               <th className="py-2.5 px-2 text-center w-12">R1</th>
               <th className="py-2.5 px-2 text-center w-12">R2</th>
               <th className="py-2.5 px-2 text-center w-12">R3</th>
               <th className="py-2.5 px-2 text-center w-12">R4</th>
-              <th className="py-2.5 px-3 text-center w-16 bg-surface-container-highest text-tertiary">TOT</th>
-              <th className="py-2.5 px-3 text-right w-24">PAYOUT</th>
+              <th className="py-2.5 px-3 text-center w-16 text-tertiary">TOTAL</th>
+              <th className="py-2.5 pr-4 pl-2 text-right w-24">PAYOUT</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-outline-variant/60">
-            {/* Active Participants */}
-            {activeStandings.map((s, idx) => renderStandingRow(s, idx))}
+          <tbody>
+            {/* Active participants */}
+            {activeStandings.map((s) => renderRow(s))}
 
-            {/* ✂️ Participant Cut Line Divider */}
+            {/* Cut line divider */}
             {cutStandings.length > 0 && (
               <tr>
-                <td colSpan={9} className="py-2 px-1">
-                  <div className="flex items-center gap-2 my-1">
-                    <div className="h-px bg-error/30 flex-1" />
-                    <span className="text-[10px] font-extrabold tracking-wider uppercase text-error bg-error/10 px-2.5 py-0.5 rounded-full border border-error/30 flex items-center gap-1 shadow-xs">
-                      <Scissors className="w-3 h-3 text-error" /> 36-Hole Participant Cut Line ({cutStandings.length} Cut)
+                <td colSpan={9} className="py-2 px-4">
+                  <div className="flex items-center gap-3">
+                    <div className="h-px bg-red-500/30 flex-1" />
+                    <span className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-widest text-red-500 bg-red-500/10 border border-red-500/25 px-3 py-1 rounded-full shrink-0">
+                      <Scissors className="w-3 h-3" />
+                      36-Hole Cut · {cutStandings.length} Eliminated
                     </span>
-                    <div className="h-px bg-error/30 flex-1" />
+                    <div className="h-px bg-red-500/30 flex-1" />
                   </div>
                 </td>
               </tr>
             )}
 
-            {/* Cut Participants */}
-            {cutStandings.map((s, idx) => renderStandingRow(s, activeStandings.length + idx))}
+            {/* Cut participants */}
+            {cutStandings.map((s) => renderRow(s))}
           </tbody>
         </table>
       </div>
