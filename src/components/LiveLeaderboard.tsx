@@ -64,12 +64,12 @@ export function LiveLeaderboard({
 
   if (competitors.length === 0) {
     return (
-      <div className="rounded-xl bg-slate-900/80 border border-slate-800 p-6 text-center space-y-2 shadow-xl">
-        <Calendar className="w-8 h-8 text-amber-400 mx-auto" />
-        <h3 className="text-sm font-bold text-slate-200">
+      <div className="rounded-xl bg-surface-container-low border border-outline-variant p-6 text-center space-y-2 shadow-xs">
+        <Calendar className="w-8 h-8 text-secondary mx-auto" />
+        <h3 className="text-sm font-bold text-on-surface">
           ⚪ Tournament Scheduled
         </h3>
-        <p className="text-xs text-slate-400 max-w-xs mx-auto">
+        <p className="text-xs text-on-surface-variant max-w-xs mx-auto">
           The player field roster and tee times have not yet been released by ESPN for this event.
         </p>
       </div>
@@ -93,28 +93,28 @@ export function LiveLeaderboard({
         onClick={() => onSelectPlayer?.(playerId)}
         className={`group flex items-center justify-between p-2.5 rounded-lg border text-xs cursor-pointer transition ${
           winnerInfo.isWinner
-            ? 'bg-amber-950/40 border-amber-500/60 text-amber-100 font-medium'
+            ? 'bg-amber-50 border-amber-400 text-amber-950 font-medium'
             : statusInfo.isCut
-            ? 'bg-rose-950/20 border-rose-900/40 text-slate-300 opacity-80'
+            ? 'bg-surface-container-high border-outline-variant/60 text-on-surface-variant opacity-75'
             : statusInfo.isWD
-            ? 'bg-amber-950/20 border-amber-900/40 text-slate-300 opacity-80'
+            ? 'bg-surface-container-high border-outline-variant/60 text-on-surface-variant opacity-75'
             : isSelected
-            ? 'bg-emerald-950/40 border-emerald-500/80 text-white'
-            : 'bg-slate-950/50 hover:bg-slate-900 border-slate-800/80 text-slate-200'
+            ? 'bg-primary-container border-primary-container text-on-primary-container font-semibold'
+            : 'bg-surface-container-lowest hover:bg-surface-container border-outline-variant/80 text-on-surface'
         }`}
       >
         <div className="flex items-center gap-2.5">
           <span className="w-8 text-center font-bold">
             {statusInfo.isCut ? (
-              <span className="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-400 border border-rose-500/40 font-extrabold text-[10px]">
+              <span className="px-1.5 py-0.5 rounded bg-error/15 text-error border border-error/30 font-extrabold text-[10px]">
                 CUT
               </span>
             ) : statusInfo.isWD ? (
-              <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/40 font-extrabold text-[10px]">
+              <span className="px-1.5 py-0.5 rounded bg-secondary-container text-secondary border border-outline-variant font-extrabold text-[10px]">
                 WD
               </span>
             ) : (
-              <span className="text-slate-400">
+              <span className="text-on-surface-variant">
                 {comp.status?.position?.displayName || comp.order || '-'}
               </span>
             )}
@@ -129,22 +129,22 @@ export function LiveLeaderboard({
 
           <div>
             <div className="flex items-center gap-1.5">
-              <p className="font-semibold text-slate-200 group-hover:text-emerald-400 transition truncate max-w-27.5 sm:max-w-35">
+              <p className="font-semibold text-on-surface group-hover:text-tertiary transition truncate max-w-27.5 sm:max-w-35">
                 {comp.athlete.displayName}
               </p>
 
               {winnerInfo.isWinner ? (
-                <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-amber-300 bg-amber-500/20 px-1.5 py-0.5 rounded border border-amber-400/50">
-                  <Trophy className="w-3 h-3 text-amber-400" /> Champion
+                <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-amber-900 bg-amber-200 px-1.5 py-0.5 rounded border border-amber-400">
+                  <Trophy className="w-3 h-3 text-amber-700" /> Champion
                 </span>
               ) : winnerInfo.badgeLabel ? (
-                <span className="inline-flex items-center gap-1 text-[9px] font-bold text-slate-300 bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700">
+                <span className="inline-flex items-center gap-1 text-[9px] font-bold text-on-surface-variant bg-surface-container px-1.5 py-0.5 rounded border border-outline-variant/60">
                   {winnerInfo.badgeLabel}
                 </span>
               ) : null}
             </div>
 
-            <p className="text-[10px] text-slate-400">
+            <p className="text-[10px] text-on-surface-variant">
               Thru: {comp.status?.thru || 'F'}
             </p>
           </div>
@@ -154,10 +154,10 @@ export function LiveLeaderboard({
           <span
             className={`font-extrabold text-sm ${
               isUnderPar
-                ? 'text-emerald-400'
+                ? 'text-tertiary'
                 : isOverPar
-                ? 'text-rose-400'
-                : 'text-slate-300'
+                ? 'text-error'
+                : 'text-on-surface-variant'
             }`}
           >
             {score}
@@ -171,15 +171,15 @@ export function LiveLeaderboard({
                 onToggleTrackPlayer(comp);
               }}
               title={isTracked ? 'Remove from watchlist' : 'Add to watchlist'}
-              className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded transition ${
+              className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded transition cursor-pointer ${
                 isTracked
-                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
-                  : 'bg-emerald-600 text-white hover:bg-emerald-500 shadow-sm'
+                  ? 'bg-tertiary/15 text-tertiary border border-tertiary/40'
+                  : 'bg-tertiary text-on-tertiary hover:bg-tertiary/90 shadow-xs'
               }`}
             >
               {isTracked ? (
                 <>
-                  <CheckCircle2 className="w-3 h-3 text-emerald-400" /> Tracked
+                  <CheckCircle2 className="w-3 h-3 text-tertiary" /> Tracked
                 </>
               ) : (
                 <>
@@ -194,14 +194,14 @@ export function LiveLeaderboard({
   };
 
   return (
-    <div className="rounded-xl bg-slate-900/80 border border-slate-800 p-4 space-y-3 shadow-xl">
+    <div className="rounded-xl bg-surface-container-low border border-outline-variant p-4 space-y-3 shadow-xs">
       {/* Header & Status Badges */}
-      <div className="border-b border-slate-800 pb-3 space-y-1.5">
+      <div className="border-b border-outline-variant pb-3 space-y-1.5">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold text-slate-100 flex items-center gap-2">
-            <Trophy className="w-4 h-4 text-emerald-400" /> Live Field Leaderboard
+          <h3 className="text-sm font-bold text-on-surface flex items-center gap-2">
+            <Trophy className="w-4 h-4 text-tertiary" /> Live Field Leaderboard
           </h3>
-          <span className="text-xs font-semibold text-slate-400">
+          <span className="text-xs font-semibold text-on-surface-variant">
             {competitors.length} Field
           </span>
         </div>
@@ -209,21 +209,21 @@ export function LiveLeaderboard({
         {/* Date & Event Status Subheader */}
         <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
           {formattedDates && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-400 bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
-              <Calendar className="w-3 h-3 text-slate-400" /> {formattedDates}
+            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-on-secondary-container bg-secondary-container px-2 py-0.5 rounded border border-outline-variant/60">
+              <Calendar className="w-3 h-3 text-secondary" /> {formattedDates}
             </span>
           )}
 
           {eventState === 'in' ? (
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30 animate-pulse">
-              <Activity className="w-3 h-3 text-emerald-400" /> Live ({statusDetail})
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-on-tertiary bg-tertiary px-2 py-0.5 rounded shadow-xs animate-pulse">
+              <Activity className="w-3 h-3 text-white" /> Live ({statusDetail})
             </span>
           ) : eventState === 'post' ? (
-            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/30">
-              <Trophy className="w-3 h-3 text-amber-400" /> Final
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-on-primary-container bg-primary-container px-2 py-0.5 rounded border border-primary-container">
+              <Trophy className="w-3 h-3 text-tertiary" /> Final
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-400 bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
+            <span className="inline-flex items-center gap-1 text-[10px] font-medium text-on-secondary-container bg-secondary-container px-2 py-0.5 rounded border border-outline-variant/60">
               Scheduled
             </span>
           )}
@@ -232,13 +232,13 @@ export function LiveLeaderboard({
 
       {/* Search Input */}
       <div className="relative">
-        <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-500" />
+        <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-outline" />
         <input
           type="text"
           placeholder="Filter field golfers..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-9 pr-3 py-1.5 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-emerald-500"
+          className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg pl-9 pr-3 py-1.5 text-xs text-on-surface placeholder:text-on-surface-variant focus:outline-none focus:border-tertiary"
         />
       </div>
 
@@ -250,11 +250,11 @@ export function LiveLeaderboard({
         {/* ✂️ 36-Hole Cut Line Divider */}
         {cutCompetitors.length > 0 && (
           <div className="flex items-center gap-2 py-2 px-1 my-2">
-            <div className="h-px bg-rose-500/40 flex-1" />
-            <span className="text-[10px] font-extrabold tracking-wider uppercase text-rose-400 bg-rose-500/10 px-2.5 py-0.5 rounded-full border border-rose-500/30 shadow-sm">
+            <div className="h-px bg-error/30 flex-1" />
+            <span className="text-[10px] font-extrabold tracking-wider uppercase text-error bg-error/10 px-2.5 py-0.5 rounded-full border border-error/30 shadow-xs">
               ✂️ 36-Hole Cut Line ({cutCompetitors.length} Cut / WD)
             </span>
-            <div className="h-px bg-rose-500/40 flex-1" />
+            <div className="h-px bg-error/30 flex-1" />
           </div>
         )}
 

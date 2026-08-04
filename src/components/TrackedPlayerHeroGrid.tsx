@@ -6,8 +6,6 @@ import { Trophy, Activity, Award } from 'lucide-react';
 import { GolferHeadshot } from './GolferHeadshot';
 import { getWinnerStatus, getPlayerStatusInfo } from '@/lib/espn';
 
-
-
 interface TrackedPlayerHeroGridProps {
   trackedCompetitors: ESPNCompetitor[];
   allCompetitors?: ESPNCompetitor[];
@@ -25,10 +23,10 @@ export function TrackedPlayerHeroGrid({
 }: TrackedPlayerHeroGridProps) {
   if (!trackedCompetitors || trackedCompetitors.length === 0) {
     return (
-      <div className="p-6 rounded-xl bg-slate-900/40 border border-slate-800 text-center">
-        <Trophy className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-        <h4 className="text-sm font-semibold text-slate-300">No Tracked Golfers Selected</h4>
-        <p className="text-xs text-slate-400 mt-1">
+      <div className="p-card rounded-xl bg-surface-container-low border border-outline-variant text-center">
+        <Trophy className="w-8 h-8 text-secondary mx-auto mb-2" />
+        <h4 className="text-sm font-semibold text-on-surface">No Tracked Golfers Selected</h4>
+        <p className="text-xs text-on-surface-variant mt-1">
           Use the Admin Controls to pin golfers to your main hero watchlist.
         </p>
       </div>
@@ -51,43 +49,42 @@ export function TrackedPlayerHeroGrid({
           <div
             key={`${playerId}-${idx}`}
             onClick={() => onSelectPlayer?.(playerId)}
-            className={`cursor-pointer group relative overflow-hidden rounded-xl border p-4 transition-all duration-200 ${
+            className={`cursor-pointer group relative overflow-hidden rounded-xl border p-card transition-all duration-200 ${
               winnerInfo.isWinner
-                ? 'bg-linear-to-b from-amber-950/60 to-slate-900 border-amber-400 shadow-xl shadow-amber-950/50'
+                ? 'bg-surface-container-lowest border-amber-500 shadow-md ring-2 ring-amber-500/20'
                 : statusInfo.isCut
-                ? 'bg-slate-900/40 border-rose-950/60 opacity-80'
+                ? 'bg-surface-container-high border-outline-variant opacity-75'
                 : statusInfo.isWD
-                ? 'bg-slate-900/40 border-amber-950/60 opacity-80'
+                ? 'bg-surface-container-high border-outline-variant opacity-75'
                 : isSelected
-                ? 'bg-linear-to-b from-emerald-950/60 to-slate-900 border-emerald-500 shadow-lg shadow-emerald-950/40'
-                : 'bg-slate-900/60 hover:bg-slate-900 border-slate-800 hover:border-slate-700'
+                ? 'bg-surface-container-lowest border-tertiary shadow-md ring-2 ring-tertiary/20'
+                : 'bg-surface-container-lowest hover:bg-surface-container-low border-outline-variant hover:border-outline'
             }`}
           >
             {/* Top Winner or Rank Badge */}
             <div className="flex items-center justify-between gap-2 mb-3">
-              <span className="text-[11px] font-bold text-slate-400 bg-slate-950/80 px-2 py-0.5 rounded border border-slate-800">
+              <span className="text-[11px] font-bold text-on-surface-variant bg-surface-container-high px-2 py-0.5 rounded border border-outline-variant/60">
                 Pos: {comp.status?.position?.displayName || comp.order || '-'}
               </span>
 
               {winnerInfo.isWinner ? (
-                <span className="inline-flex items-center gap-1 text-[11px] font-extrabold text-amber-300 bg-amber-500/20 px-2.5 py-0.5 rounded-full border border-amber-400 shadow-sm animate-pulse">
-                  <Trophy className="w-3 h-3 text-amber-400" /> {winnerInfo.badgeLabel}
+                <span className="inline-flex items-center gap-1 text-[11px] font-extrabold text-amber-900 bg-amber-100 px-2.5 py-0.5 rounded-full border border-amber-300 shadow-xs animate-pulse">
+                  <Trophy className="w-3 h-3 text-amber-600" /> {winnerInfo.badgeLabel}
                 </span>
               ) : statusInfo.isCut ? (
-                <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-rose-400 bg-rose-500/20 px-2 py-0.5 rounded border border-rose-500/40">
+                <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-error bg-error/10 px-2 py-0.5 rounded border border-error/30">
                   ✂️ Missed Cut
                 </span>
               ) : statusInfo.isWD ? (
-                <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-amber-400 bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/40">
+                <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-secondary bg-secondary-container px-2 py-0.5 rounded border border-outline-variant">
                   🚪 Withdrawn
                 </span>
               ) : winnerInfo.badgeLabel ? (
-                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-300 bg-slate-800 px-2 py-0.5 rounded border border-slate-700">
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-on-surface-variant bg-surface-container px-2 py-0.5 rounded border border-outline-variant/60">
                   {winnerInfo.badgeLabel}
                 </span>
               ) : null}
             </div>
-
 
             <div className="flex items-start justify-between gap-3">
               {/* Headshot & Bio */}
@@ -105,17 +102,17 @@ export function TrackedPlayerHeroGrid({
                     <img
                       src={comp.athlete.flag.href}
                       alt={comp.athlete.country?.abbreviation || 'Flag'}
-                      className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full border border-slate-900"
+                      className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full border border-surface-container-lowest shadow-xs"
                     />
                   )}
                 </div>
 
                 <div>
-                  <h3 className="text-sm font-bold text-slate-100 group-hover:text-emerald-400 transition truncate max-w-30">
+                  <h3 className="text-sm font-bold text-on-surface group-hover:text-tertiary transition truncate max-w-30">
                     {comp.athlete.displayName}
                   </h3>
-                  <p className="text-[11px] text-slate-400">
-                    Thru: <span className="font-semibold text-slate-300">{comp.status?.thru || 'F'}</span>
+                  <p className="text-[11px] text-on-surface-variant">
+                    Thru: <span className="font-semibold text-on-surface">{comp.status?.thru || 'F'}</span>
                   </p>
                 </div>
               </div>
@@ -125,15 +122,15 @@ export function TrackedPlayerHeroGrid({
                 <div
                   className={`text-xl font-black ${
                     isUnderPar
-                      ? 'text-emerald-400'
+                      ? 'text-tertiary'
                       : isOverPar
-                      ? 'text-rose-400'
-                      : 'text-slate-300'
+                      ? 'text-error'
+                      : 'text-on-surface-variant'
                   }`}
                 >
                   {score}
                 </div>
-                <div className="text-[10px] uppercase font-bold tracking-wider text-slate-500">
+                <div className="text-[10px] uppercase font-bold tracking-wider text-outline">
                   Total
                 </div>
               </div>

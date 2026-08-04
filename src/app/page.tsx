@@ -167,7 +167,7 @@ export default function DashboardPage() {
   }, [trackedPlayerIdsSet, trackedPlayers]);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+    <div className="min-h-screen bg-surface text-on-surface flex flex-col">
       {/* Top Navigation Header */}
       <Header eventName={activeEvent?.name} eventObj={activeEvent || undefined} />
 
@@ -176,11 +176,11 @@ export default function DashboardPage() {
         {/* Section 1: Tracked Players Hero Summary Grid */}
         <section className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-extrabold uppercase tracking-wider text-slate-300 flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <h2 className="text-sm font-extrabold uppercase tracking-wider text-on-surface flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-tertiary animate-pulse" />
               Custom Golfer Watchlist
             </h2>
-            <span className="text-xs text-slate-400">
+            <span className="text-xs text-on-surface-variant">
               {trackedPlayers.length} Golfer(s) Tracked
             </span>
           </div>

@@ -36,7 +36,6 @@ export function AdminManagementDrawer({
   const upcomingEvents = React.useMemo(() => events.filter((e) => e.status?.type?.state === 'pre'), [events]);
 
   const handleEventChange = async (eventId: string) => {
-
     setSaving(true);
     await onSelectEvent(eventId);
     setSaving(false);
@@ -53,25 +52,25 @@ export function AdminManagementDrawer({
       {/* Floating Admin Toggle Button */}
       <button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-2.5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-xl shadow-emerald-950/60 border border-emerald-400/40 transition-all hover:scale-105"
+        className="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-2.5 rounded-full bg-tertiary hover:bg-tertiary/90 text-on-tertiary font-bold text-xs shadow-lg border border-tertiary transition-all hover:scale-105 cursor-pointer"
       >
         <Settings className="w-4 h-4" /> Admin Controls
       </button>
 
       {/* Drawer Overlay */}
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex justify-end bg-black/70 backdrop-blur-sm animate-fadeIn">
-          <div className="w-full max-w-md bg-slate-950 border-l border-slate-800 h-full p-6 flex flex-col justify-between shadow-2xl overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex justify-end bg-primary/40 backdrop-blur-xs animate-fadeIn">
+          <div className="w-full max-w-md bg-surface-container border-l border-outline-variant h-full p-6 flex flex-col justify-between shadow-2xl overflow-y-auto">
             <div className="space-y-6">
               {/* Header */}
-              <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+              <div className="flex items-center justify-between border-b border-outline-variant pb-4">
                 <div className="flex items-center gap-2">
-                  <Settings className="w-5 h-5 text-emerald-400" />
-                  <h2 className="text-base font-bold text-slate-100">Event & Roster Controls</h2>
+                  <Settings className="w-5 h-5 text-tertiary" />
+                  <h2 className="text-base font-bold text-on-surface">Event & Roster Controls</h2>
                 </div>
                 <button
                   onClick={() => setIsOpen(false)}
-                  className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-900 transition"
+                  className="p-1 rounded-lg text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high transition cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -79,14 +78,14 @@ export function AdminManagementDrawer({
 
               {/* Tournament Selector Section */}
               <div className="space-y-2">
-                <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                  <Calendar className="w-4 h-4 text-emerald-400" /> Active PGA Tournament
+                <label className="text-xs font-bold text-on-surface flex items-center gap-1.5">
+                  <Calendar className="w-4 h-4 text-tertiary" /> Active PGA Tournament
                 </label>
                 <select
                   value={activeEventId || ''}
                   onChange={(e) => handleEventChange(e.target.value)}
                   disabled={saving}
-                  className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-100 font-medium focus:outline-none focus:border-emerald-500"
+                  className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg px-3 py-2 text-xs text-on-surface font-medium focus:outline-none focus:border-tertiary"
                 >
                   <option value="" disabled>
                     -- Select Active Event --
@@ -125,46 +124,45 @@ export function AdminManagementDrawer({
                     </optgroup>
                   )}
                 </select>
-                <p className="text-[11px] text-slate-400">
+                <p className="text-[11px] text-on-surface-variant">
                   Changing the active tournament updates live leaderboards for all visitors.
                 </p>
               </div>
 
-
               {/* Golfer Inventory Search & Add Section */}
-              <div className="space-y-3 pt-2 border-t border-slate-900">
-                <label className="text-xs font-bold text-slate-300 flex items-center justify-between">
+              <div className="space-y-3 pt-2 border-t border-outline-variant">
+                <label className="text-xs font-bold text-on-surface flex items-center justify-between">
                   <span className="flex items-center gap-1.5">
-                    <UserPlus className="w-4 h-4 text-emerald-400" /> Select Golfers from Field
+                    <UserPlus className="w-4 h-4 text-tertiary" /> Select Golfers from Field
                   </span>
-                  <span className="text-[11px] text-slate-400">
+                  <span className="text-[11px] text-on-surface-variant">
                     {fieldCompetitors.length} Available
                   </span>
                 </label>
 
                 {/* Search Bar */}
                 <div className="relative">
-                  <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-500" />
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-outline" />
                   <input
                     type="text"
                     placeholder="Search golfer to add..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-lg pl-9 pr-3 py-2 text-xs text-slate-100 placeholder:text-slate-500 focus:outline-none focus:border-emerald-500"
+                    className="w-full bg-surface-container-lowest border border-outline-variant rounded-lg pl-9 pr-3 py-2 text-xs text-on-surface placeholder:text-on-surface-variant focus:outline-none focus:border-tertiary"
                   />
                 </div>
 
                 {/* Scrollable Inventory List */}
                 <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
                   {filteredCompetitors.length === 0 ? (
-                    <p className="text-xs text-slate-500 text-center py-3">No matching golfers found.</p>
+                    <p className="text-xs text-on-surface-variant text-center py-3">No matching golfers found.</p>
                   ) : (
                     filteredCompetitors.map((comp) => {
                       const isTracked = trackedPlayerIds.includes(comp.athlete.id);
                       return (
                         <div
                           key={comp.athlete.id}
-                          className="flex items-center justify-between p-2 rounded-lg bg-slate-900/60 border border-slate-800/80 text-xs"
+                          className="flex items-center justify-between p-2 rounded-lg bg-surface-container-lowest border border-outline-variant text-xs"
                         >
                           <div className="flex items-center gap-2">
                             <GolferHeadshot
@@ -173,19 +171,19 @@ export function AdminManagementDrawer({
                               size={24}
                             />
 
-                            <span className="font-semibold text-slate-200 truncate max-w-35">
+                            <span className="font-semibold text-on-surface truncate max-w-35">
                               {comp.athlete.displayName}
                             </span>
                           </div>
 
                           {isTracked ? (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-tertiary bg-tertiary/15 px-2 py-0.5 rounded border border-tertiary/30">
                               <Check className="w-3 h-3" /> Tracked
                             </span>
                           ) : (
                             <button
                               onClick={() => onAddTrackedPlayer?.(comp)}
-                              className="inline-flex items-center gap-1 text-[11px] font-bold text-white bg-emerald-600 hover:bg-emerald-500 px-2.5 py-1 rounded transition shadow-sm"
+                              className="inline-flex items-center gap-1 text-[11px] font-bold text-on-tertiary bg-tertiary hover:bg-tertiary/90 px-2.5 py-1 rounded transition shadow-xs cursor-pointer"
                             >
                               <Plus className="w-3 h-3" /> + Add
                             </button>
@@ -198,13 +196,13 @@ export function AdminManagementDrawer({
               </div>
 
               {/* Active Tracked Roster Section */}
-              <div className="space-y-3 pt-2 border-t border-slate-900">
-                <label className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                  <Check className="w-4 h-4 text-emerald-400" /> Active Watchlist ({trackedPlayers.length})
+              <div className="space-y-3 pt-2 border-t border-outline-variant">
+                <label className="text-xs font-bold text-on-surface flex items-center gap-1.5">
+                  <Check className="w-4 h-4 text-tertiary" /> Active Watchlist ({trackedPlayers.length})
                 </label>
 
                 {trackedPlayers.length === 0 ? (
-                  <p className="text-xs text-slate-400 bg-slate-900/40 p-3 rounded-lg border border-slate-800 text-center">
+                  <p className="text-xs text-on-surface-variant bg-surface-container-low p-3 rounded-lg border border-outline-variant text-center">
                     Your tracked watchlist is currently empty. Use the search list above to add golfers.
                   </p>
                 ) : (
@@ -212,7 +210,7 @@ export function AdminManagementDrawer({
                     {trackedPlayers.map((p) => (
                       <div
                         key={p.playerId}
-                        className="flex items-center justify-between p-2 rounded-lg bg-slate-900 border border-slate-800 text-xs"
+                        className="flex items-center justify-between p-2 rounded-lg bg-surface-container-lowest border border-outline-variant text-xs"
                       >
                         <div className="flex items-center gap-2.5">
                           <GolferHeadshot
@@ -220,12 +218,12 @@ export function AdminManagementDrawer({
                             src={p.headshotUrl}
                             size={24}
                           />
-                          <span className="font-semibold text-slate-200">{p.name}</span>
+                          <span className="font-semibold text-on-surface">{p.name}</span>
                         </div>
 
                         <button
                           onClick={() => onRemoveTrackedPlayer(p.playerId)}
-                          className="p-1 rounded text-rose-400 hover:text-rose-300 hover:bg-rose-950/40 transition"
+                          className="p-1 rounded text-error hover:bg-error/10 transition cursor-pointer"
                           title="Remove player"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -238,10 +236,10 @@ export function AdminManagementDrawer({
             </div>
 
             {/* Footer */}
-            <div className="pt-4 border-t border-slate-800">
+            <div className="pt-4 border-t border-outline-variant">
               <button
                 onClick={() => setIsOpen(false)}
-                className="w-full py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 font-semibold text-xs transition"
+                className="w-full py-2 rounded-lg bg-secondary hover:bg-secondary/90 text-on-secondary font-semibold text-xs transition cursor-pointer"
               >
                 Close Drawer
               </button>
