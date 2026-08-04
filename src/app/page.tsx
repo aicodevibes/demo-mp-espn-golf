@@ -6,10 +6,13 @@ import { Header } from '@/components/Header';
 import { TrackedPlayerHeroGrid } from '@/components/TrackedPlayerHeroGrid';
 import { ScorecardMatrix } from '@/components/ScorecardMatrix';
 import { LiveLeaderboard } from '@/components/LiveLeaderboard';
+import { ParticipantStandings } from '@/components/ParticipantStandings';
+import { DayMoneyWinners } from '@/components/DayMoneyWinners';
 import { useAuth } from '@/context/AuthContext';
 import {
   useActiveConfig,
   useTrackedPlayers,
+  useParticipants,
   setActiveEvent,
   addTrackedPlayer,
   removeTrackedPlayer,
@@ -18,7 +21,7 @@ import {
 } from '@/lib/firebase/firestore';
 import { ESPNEvent, ESPNCompetitor, ESPNPlayerSummary } from '@/types/espn';
 import { formatPlayerSummaryFromCompetitor } from '@/lib/espn';
-
+import { calculateParticipantStandings, calculateDayMoneyWinners } from '@/lib/scoring';
 
 // Vercel Performance Rule: bundle-dynamic-imports
 // Dynamically import heavy Admin Control Drawer only when needed
@@ -31,6 +34,7 @@ export default function DashboardPage() {
   const { user, isAdmin } = useAuth();
   const { config, loading: configLoading } = useActiveConfig();
   const { players: trackedPlayers, loading: playersLoading } = useTrackedPlayers();
+  const { participants, loading: participantsLoading } = useParticipants();
 
   const [events, setEvents] = useState<ESPNEvent[]>([]);
   const [activeEvent, setActiveEventObj] = useState<ESPNEvent | null>(null);
@@ -96,7 +100,6 @@ export default function DashboardPage() {
   }, [activeEventId]);
 
   // Vercel Performance Rule: rerender-derived-state & js-set-map-lookups
-  // O(1) Set lookup for tracked player IDs
   const trackedPlayerIdsSet = useMemo(
     () => new Set(trackedPlayers.map((p) => p.playerId)),
     [trackedPlayers]
@@ -106,6 +109,15 @@ export default function DashboardPage() {
     () => Array.from(trackedPlayerIdsSet),
     [trackedPlayerIdsSet]
   );
+
+  // Calculate 12-Participant Standings & Day Money Results
+  const participantStandings = useMemo(() => {
+    return calculateParticipantStandings(participants, competitors, activeEvent?.status);
+  }, [participants, competitors, activeEvent]);
+
+  const dayMoneyResults = useMemo(() => {
+    return calculateDayMoneyWinners(participants, competitors, activeEvent?.status);
+  }, [participants, competitors, activeEvent]);
 
   // Vercel Performance Rule: rerender-memo & js-index-maps
   const displayCompetitors = useMemo(() => {
@@ -172,7 +184,7 @@ export default function DashboardPage() {
       <Header eventName={activeEvent?.name} eventObj={activeEvent || undefined} />
 
       {/* Main Content Dashboard Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 lg:px-8 py-6 space-y-6">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 lg:px-8 py-6 space-y-8">
         {/* Section 1: Tracked Players Hero Summary Grid */}
         <section className="space-y-3">
           <div className="flex items-center justify-between">
@@ -194,7 +206,17 @@ export default function DashboardPage() {
           />
         </section>
 
-        {/* Section 2: Split View (60% Scorecard Matrix + 40% Live Leaderboard) */}
+        {/* Section 2: US Open Draft Contest - Day Money Winners */}
+        <section>
+          <DayMoneyWinners dayMoneyResults={dayMoneyResults} loading={loadingLeaderboard || participantsLoading} />
+        </section>
+
+        {/* Section 3: US Open Draft Contest - Official Participant Standings */}
+        <section>
+          <ParticipantStandings standings={participantStandings} loading={loadingLeaderboard || participantsLoading} />
+        </section>
+
+        {/* Section 4: Split View (60% Scorecard Matrix + 40% Live Field Leaderboard) */}
         <section className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Left Column (7/12): 18-Hole Matrix Scorecard */}
           <div className="lg:col-span-7 space-y-4">

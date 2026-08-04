@@ -14,6 +14,8 @@ import {
 
 import { db } from './config';
 import { useEffect, useState } from 'react';
+import { Participant } from '@/types/contest';
+import { MOCK_LOSINGER_PARTICIPANTS } from './seedData';
 
 export interface AppConfig {
   activeEventId: string;
@@ -158,3 +160,37 @@ export function useTrackedPlayers() {
 
   return { players, loading };
 }
+
+export function useParticipants() {
+  const [participants, setParticipants] = useState<Participant[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    const participantsRef = collection(db, 'participants');
+    const unsubscribe = onSnapshot(
+      participantsRef,
+      (snapshot) => {
+        if (!snapshot.empty) {
+          const list: Participant[] = [];
+          snapshot.forEach((docSnap) => {
+            list.push({ id: docSnap.id, ...docSnap.data() } as Participant);
+          });
+          setParticipants(list);
+        } else {
+          setParticipants(MOCK_LOSINGER_PARTICIPANTS);
+        }
+        setLoading(false);
+      },
+      (error) => {
+        console.warn('Firestore participants read error (using Losinger mock seed):', error);
+        setParticipants(MOCK_LOSINGER_PARTICIPANTS);
+        setLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
+
+  return { participants, loading };
+}
+

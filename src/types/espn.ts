@@ -48,6 +48,7 @@ export interface ESPNCompetitor {
 
   score?: string;
   linescores?: Array<{
+    period?: number;
     value: number;
     displayValue?: string;
   }>;
