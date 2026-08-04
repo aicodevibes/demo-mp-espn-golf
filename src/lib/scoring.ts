@@ -6,15 +6,15 @@ import {
   DraftedGolferStatus,
   DayMoneyRoundResult,
   DayMoneyWinner,
+  ContestConfig,
 } from '@/types/contest';
 
-const MAIN_PAYOUTS = [600, 320, 180, 100];
-const DAY_MONEY_POOL = 75;
+const DEFAULT_MAIN_PAYOUTS = [600, 320, 180, 100];
+const DEFAULT_DAY_MONEY_POOL = 75;
 
 /**
  * Helper to extract round strokes from ESPN competitor linescores
  */
-
 export function getGolferRoundStrokes(comp: ESPNCompetitor, round: number): number | null {
   if (!comp || !comp.linescores) return null;
   const ls = comp.linescores.find((l) => l.period === round);
@@ -23,13 +23,69 @@ export function getGolferRoundStrokes(comp: ESPNCompetitor, round: number): numb
 }
 
 /**
+ * Helper to calculate score-to-par for a specific round dynamically
+ */
+export function getGolferRoundScoreToPar(
+  comp: ESPNCompetitor,
+  round: number,
+  coursePar?: number | null
+): number | null {
+  const strokes = getGolferRoundStrokes(comp, round);
+  if (strokes === null) return null;
+
+  // If strokes is already a relative score (e.g. -5, +3, 0 when strokes < 40)
+  if (Math.abs(strokes) <= 20) {
+    return strokes;
+  }
+
+  // If explicit course par is provided
+  if (coursePar && coursePar > 50) {
+    return strokes - coursePar;
+  }
+
+  // Check if linescore displayValue is a relative score string like "-2", "+3", "E"
+  const ls = comp.linescores?.find((l) => l.period === round);
+  if (ls?.displayValue) {
+    const dv = ls.displayValue.trim();
+    if (dv === 'E') return 0;
+    if (dv.startsWith('+') || dv.startsWith('-')) {
+      const parsed = parseInt(dv.replace('+', ''), 10);
+      if (!isNaN(parsed) && Math.abs(parsed) <= 25) return parsed;
+    }
+  }
+
+  // Derive course par dynamically from cumulative score-to-par (comp.score) and completed linescores
+  if (comp.score && comp.linescores && comp.linescores.length > 0) {
+    const rawToPar = comp.score.trim();
+    const toPar = rawToPar === 'E' ? 0 : parseInt(rawToPar.replace('+', ''), 10);
+    if (!isNaN(toPar)) {
+      const completed = comp.linescores.filter((l) => typeof l.value === 'number' && l.value > 40);
+      if (completed.length > 0) {
+        const totalStrokes = completed.reduce((sum, l) => sum + l.value, 0);
+        const inferredPar = Math.round((totalStrokes - toPar) / completed.length);
+        if (inferredPar > 50) {
+          return strokes - inferredPar;
+        }
+      }
+    }
+  }
+
+  // Default fallback if par cannot be inferred (assume 72 as standard PGA par)
+  return strokes - 72;
+}
+
+/**
  * Calculates participant daily scores, total scores, cut status, and payouts
  */
 export function calculateParticipantStandings(
   participants: Participant[],
   allCompetitors: ESPNCompetitor[],
+  contestConfig?: ContestConfig | null,
   eventStatus?: any
 ): ParticipantStanding[] {
+  const mainPayouts = contestConfig?.mainPayouts || DEFAULT_MAIN_PAYOUTS;
+  const coursePar = contestConfig?.coursePar ?? null;
+
   const compMap = new Map<string, ESPNCompetitor>(
     allCompetitors.map((c) => [c.athlete?.id || c.id, c])
   );
@@ -42,42 +98,23 @@ export function calculateParticipantStandings(
       const roundStrokes: { [rd: number]: number | null } = {};
       const roundScoresToPar: { [rd: number]: number | null } = {};
 
-      // Derive par from the competitor's linescores if possible; fallback to 70 (US Open)
-      // ESPN linescores store raw strokes; score-to-par = strokes - par
-      // We approximate par per round as (totalStrokes - totalToPar) / completedRounds
-      // For display purposes, we use the competitor's cumulative score to back-calculate
-      const rawScoreToPar = comp?.score; // e.g. "+3", "-2", "E"
-      const cumulativeToPar =
-        rawScoreToPar === 'E' || !rawScoreToPar
-          ? 0
-          : parseInt(rawScoreToPar.replace('+', ''), 10) || 0;
-
-      // Collect round strokes
+      // Collect round strokes & compute score-to-par
       for (let rd = 1; rd <= 4; rd++) {
         roundStrokes[rd] = comp ? getGolferRoundStrokes(comp, rd) : null;
       }
 
-      // Compute per-round score to par strings for the display string
-      // We compute round score-to-par incrementally using cumulative score progression
-      // Simpler: store raw strokes and use them as-is for relative display
-      // Display "C" on rounds where the golfer is cut/WD (R3+ only)
       const displayParts: string[] = [];
       for (let rd = 1; rd <= 4; rd++) {
-        const isCutRound = (rd >= 3) && (statusInfo.isCut || statusInfo.isWD);
+        const isCutRound = rd >= 3 && (statusInfo.isCut || statusInfo.isWD);
         if (isCutRound) {
           roundScoresToPar[rd] = null;
           displayParts.push('C');
         } else {
-          const strokes = roundStrokes[rd];
-          if (strokes === null || strokes === undefined) {
-            roundScoresToPar[rd] = null;
+          const rel = comp ? getGolferRoundScoreToPar(comp, rd, coursePar) : null;
+          roundScoresToPar[rd] = rel;
+          if (rel === null) {
             displayParts.push('-');
           } else {
-            // We store raw strokes; for display convert to relative using approx par 70
-            // This will be refined later when we have real par data from ESPN
-            const approxPar = 70;
-            const rel = strokes - approxPar;
-            roundScoresToPar[rd] = rel;
             displayParts.push(rel === 0 ? 'E' : rel > 0 ? `+${rel}` : `${rel}`);
           }
         }
@@ -96,7 +133,6 @@ export function calculateParticipantStandings(
         roundScoreDisplayStr,
       };
     });
-
 
     const activeGolfersCount = golferDetails.filter((g) => !g.isCut && !g.isWD).length;
     const isParticipantCut = activeGolfersCount === 0;
@@ -158,16 +194,15 @@ export function calculateParticipantStandings(
 
   // Calculate Top 4 Prize Pools with Tie Splitting
   for (let i = 0; i < standings.length; i++) {
-    if (standings[i].isCut || i >= 4) continue;
-    
-    // Find tied group range
-    let tieCount = 1;
-    let poolSum = MAIN_PAYOUTS[i] || 0;
+    if (standings[i].isCut || i >= mainPayouts.length) continue;
 
-    for (let j = i + 1; j < standings.length && j < 4; j++) {
+    let tieCount = 1;
+    let poolSum = mainPayouts[i] || 0;
+
+    for (let j = i + 1; j < standings.length && j < mainPayouts.length; j++) {
       if (standings[j].totalScore === standings[i].totalScore && !standings[j].isCut) {
         tieCount++;
-        poolSum += MAIN_PAYOUTS[j] || 0;
+        poolSum += mainPayouts[j] || 0;
       } else {
         break;
       }
@@ -189,8 +224,11 @@ export function calculateParticipantStandings(
 export function calculateDayMoneyWinners(
   participants: Participant[],
   allCompetitors: ESPNCompetitor[],
+  contestConfig?: ContestConfig | null,
   eventStatus?: any
 ): DayMoneyRoundResult[] {
+  const dayMoneyPool = contestConfig?.dayMoneyPool ?? DEFAULT_DAY_MONEY_POOL;
+
   const compMap = new Map<string, ESPNCompetitor>(
     allCompetitors.map((c) => [c.athlete?.id || c.id, c])
   );
@@ -208,13 +246,11 @@ export function calculateDayMoneyWinners(
 
   for (let rd = 1; rd <= 4; rd++) {
     let minScore: number | null = null;
-    const golferMinScores: { golferId: string; golferName: string; score: number; owners: Participant[] }[] = [];
 
     golferOwnerMap.forEach((owners, golferId) => {
       const comp = compMap.get(golferId);
       if (!comp) return;
       const statusInfo = getPlayerStatusInfo(comp, eventStatus);
-      // Cut/WD golfers ineligible on R3 & R4
       if ((rd === 3 || rd === 4) && (statusInfo.isCut || statusInfo.isWD)) return;
 
       const score = getGolferRoundStrokes(comp, rd);
@@ -244,14 +280,14 @@ export function calculateDayMoneyWinners(
               golferId,
               golferName,
               dailyScore: minScore!,
-              payout: 0, // Computed below after total winner count is known
+              payout: 0,
             });
           });
         }
       });
 
       if (winners.length > 0) {
-        const splitPayout = Math.round((DAY_MONEY_POOL / winners.length) * 100) / 100;
+        const splitPayout = Math.round((dayMoneyPool / winners.length) * 100) / 100;
         winners.forEach((w) => (w.payout = splitPayout));
       }
     }
@@ -260,9 +296,10 @@ export function calculateDayMoneyWinners(
       round: rd,
       lowScore: minScore,
       winners,
-      totalPool: DAY_MONEY_POOL,
+      totalPool: dayMoneyPool,
     });
   }
 
   return results;
 }
+

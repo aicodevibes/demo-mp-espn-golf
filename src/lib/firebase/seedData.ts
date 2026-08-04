@@ -1,6 +1,6 @@
 import { Participant } from '@/types/contest';
 
-export const MOCK_LOSINGER_PARTICIPANTS: Participant[] = [
+export const DEFAULT_CONTEST_PARTICIPANTS: Participant[] = [
   {
     id: 'p-pat',
     name: 'Pat',
@@ -69,3 +69,6 @@ export const MOCK_LOSINGER_PARTICIPANTS: Participant[] = [
     draftedPlayerIds: ['4604625', '3092582', '4587'],
   },
 ];
+
+export const MOCK_LOSINGER_PARTICIPANTS = DEFAULT_CONTEST_PARTICIPANTS;
+
