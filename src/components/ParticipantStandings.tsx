@@ -75,7 +75,7 @@ export function ParticipantStandings({ standings, contestConfig, loading }: Part
             <span className="font-bold text-sm text-on-surface leading-tight">
               {s.participant.name}
             </span>
-            {isTopFour && s.projectedPayout > 0 && (
+            {contestConfig?.isFinalized && isTopFour && s.projectedPayout > 0 && (
               <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 mt-0.5">
                 ${s.projectedPayout.toFixed(0)} prize
               </span>
@@ -147,7 +147,7 @@ export function ParticipantStandings({ standings, contestConfig, loading }: Part
 
         {/* PAYOUT */}
         <td className="py-3 pr-4 pl-2 text-right align-middle w-24">
-          {s.projectedPayout > 0 ? (
+          {contestConfig?.isFinalized && s.projectedPayout > 0 ? (
             <span className="text-xs font-extrabold text-tertiary bg-tertiary/10 border border-tertiary/25 px-2 py-0.5 rounded">
               ${s.projectedPayout.toFixed(2)}
             </span>

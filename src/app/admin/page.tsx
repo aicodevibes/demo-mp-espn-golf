@@ -128,12 +128,14 @@ export default function AdminPage() {
   const [formDataStartDate, setFormDataStartDate] = useState('');
   const [formDataEndDate, setFormDataEndDate] = useState('');
   const [formDataCoursePar, setFormDataCoursePar] = useState<number | ''>('');
+  const [formDataIsFinalized, setFormDataIsFinalized] = useState(false);
 
   // Sync form states with selected config
   useEffect(() => {
     if (selectedContestConfig) {
       setFormDataName(selectedContestConfig.eventName || '');
       setFormDataCoursePar(selectedContestConfig.coursePar ?? '');
+      setFormDataIsFinalized(selectedContestConfig.isFinalized || false);
       // Try to find the event in scoreboard to prepopulate dates if empty
       const matchedEvent = events.find((e) => e.id === selectedEventId);
       if (matchedEvent) {
@@ -146,6 +148,7 @@ export default function AdminPage() {
       setFormDataStartDate(matchedEvent?.date?.split('T')[0] || '');
       setFormDataEndDate(matchedEvent?.date?.split('T')[0] || '');
       setFormDataCoursePar('');
+      setFormDataIsFinalized(false);
     }
   }, [selectedContestConfig, selectedEventId, events]);
 
@@ -185,6 +188,7 @@ export default function AdminPage() {
         {
           eventName: formDataName,
           coursePar: formDataCoursePar === '' ? null : Number(formDataCoursePar),
+          isFinalized: formDataIsFinalized,
           season: new Date().getFullYear(),
         },
         user?.email || 'admin@demo-mp.com'
@@ -298,6 +302,37 @@ export default function AdminPage() {
     } catch (err) {
       console.error(err);
       alert('Reset failed.');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  // Mock auto-assign rosters
+  const handleAutoAssignRosters = async () => {
+    if (!selectedEventId) return;
+    if (competitors.length < 36) {
+      alert('Not enough competitors in the tournament field to assign 3 unique players to 12 participants.');
+      return;
+    }
+    if (!confirm('This will auto-assign 3 unique golfers from the current ESPN field to each of the 12 participants. Continue?')) {
+      return;
+    }
+    setSyncing(true);
+    try {
+      const shuffledGolfers = [...fieldGolfers].sort(() => 0.5 - Math.random());
+      const updatedParticipants = selectedParticipants.map((p, idx) => {
+        const startIndex = idx * 3;
+        const draftedPlayerIds = shuffledGolfers.slice(startIndex, startIndex + 3).map((g) => g.id);
+        return {
+          ...p,
+          draftedPlayerIds,
+        };
+      });
+      await setParticipantsForEvent(selectedEventId, updatedParticipants);
+      alert('Auto-assigned 3 unique field golfers to all participants!');
+    } catch (err) {
+      console.error(err);
+      alert('Auto-assignment failed.');
     } finally {
       setSyncing(false);
     }
@@ -512,6 +547,20 @@ export default function AdminPage() {
                       className="w-full bg-surface-container border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface outline-none focus:border-outline"
                     />
                   </div>
+                  
+                  {/* Finalize Checkbox */}
+                  <div className="flex items-center gap-2 md:col-span-2 pt-2">
+                    <input
+                      type="checkbox"
+                      id="isFinalizedCheckbox"
+                      checked={formDataIsFinalized}
+                      onChange={(e) => setFormDataIsFinalized(e.target.checked)}
+                      className="rounded border-outline-variant bg-surface text-primary focus:ring-primary w-4 h-4"
+                    />
+                    <label htmlFor="isFinalizedCheckbox" className="text-xs font-bold text-on-surface cursor-pointer select-none">
+                      Finalize Standings & Payouts (Hides overall payouts on dashboard until checked)
+                    </label>
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-3 pt-2">
@@ -565,6 +614,14 @@ export default function AdminPage() {
                     className="inline-flex items-center gap-1 bg-secondary text-on-secondary hover:bg-secondary/95 text-[11px] font-bold px-3 py-2 rounded transition disabled:opacity-50"
                   >
                     <Users className="w-3.5 h-3.5" /> Seed Default Names
+                  </button>
+
+                  <button
+                    onClick={handleAutoAssignRosters}
+                    disabled={syncing || selectedParticipants.length === 0}
+                    className="inline-flex items-center gap-1 bg-tertiary text-on-tertiary hover:bg-tertiary/95 text-[11px] font-bold px-3 py-2 rounded transition disabled:opacity-50"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" /> Auto-Assign Field Golfers
                   </button>
 
                   <button

@@ -7,10 +7,11 @@ import { DollarSign, Trophy, Award } from 'lucide-react';
 interface DayMoneyWinnersProps {
   dayMoneyResults: DayMoneyRoundResult[];
   contestConfig: ContestConfig | null;
+  eventStatus?: any;
   loading?: boolean;
 }
 
-export function DayMoneyWinners({ dayMoneyResults, contestConfig, loading }: DayMoneyWinnersProps) {
+export function DayMoneyWinners({ dayMoneyResults, contestConfig, eventStatus, loading }: DayMoneyWinnersProps) {
   if (loading) {
     return (
       <div className="p-card rounded-xl bg-surface-container-low border border-outline-variant animate-pulse space-y-4">
@@ -49,8 +50,11 @@ export function DayMoneyWinners({ dayMoneyResults, contestConfig, loading }: Day
       {/* 4-Day Winners Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {dayMoneyResults.map((result) => {
-          const hasWinners = result.winners && result.winners.length > 0;
-          const isTie = result.winners.length > 1;
+          const isRoundComplete =
+            eventStatus?.type?.state === 'post' ||
+            (eventStatus?.period && eventStatus.period > result.round);
+          const hasWinners = isRoundComplete && result.winners && result.winners.length > 0;
+          const isTie = result.winners && result.winners.length > 1;
 
           return (
             <div

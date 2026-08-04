@@ -14,8 +14,8 @@ import {
 
 import { db } from './config';
 import { useEffect, useState } from 'react';
-import { Participant } from '@/types/contest';
-import { MOCK_LOSINGER_PARTICIPANTS } from './seedData';
+import { Participant, ContestConfig } from '@/types/contest';
+import { DEFAULT_CONTEST_PARTICIPANTS } from './seedData';
 
 export interface AppConfig {
   activeEventId: string;
@@ -34,14 +34,42 @@ export interface TrackedPlayer {
 }
 
 // Config CRUD
-export async function setActiveEvent(eventId: string, season: number = new Date().getFullYear(), userEmail: string = 'aicodevibes@gmail.com') {
+export async function setActiveEvent(
+  eventId: string,
+  season: number = new Date().getFullYear(),
+  userEmail: string = 'aicodevibes@gmail.com'
+) {
   const configRef = doc(db, 'config', 'app');
-  await setDoc(configRef, {
-    activeEventId: eventId,
-    activeSeason: season,
-    updatedAt: serverTimestamp(),
-    updatedBy: userEmail,
-  }, { merge: true });
+  await setDoc(
+    configRef,
+    {
+      activeEventId: eventId,
+      activeSeason: season,
+      updatedAt: serverTimestamp(),
+      updatedBy: userEmail,
+    },
+    { merge: true }
+  );
+
+  // Ensure default ContestConfig exists for the active event
+  if (eventId) {
+    const contestConfigRef = doc(db, 'events', eventId, 'contestConfig', 'default');
+    const snap = await getDoc(contestConfigRef);
+    if (!snap.exists()) {
+      await setDoc(contestConfigRef, {
+        espnEventId: eventId,
+        eventName: 'PGA Golf Pool',
+        season,
+        mainPayouts: [600, 320, 180, 100],
+        dayMoneyPool: 75,
+        coursePar: null,
+        isFinalized: false,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        updatedBy: userEmail,
+      });
+    }
+  }
 }
 
 export async function getActiveConfig(): Promise<AppConfig | null> {
@@ -52,6 +80,80 @@ export async function getActiveConfig(): Promise<AppConfig | null> {
   }
   return null;
 }
+
+// Per-Event ContestConfig CRUD
+export async function getContestConfig(eventId: string): Promise<ContestConfig | null> {
+  if (!eventId) return null;
+  const contestConfigRef = doc(db, 'events', eventId, 'contestConfig', 'default');
+  const snap = await getDoc(contestConfigRef);
+  if (snap.exists()) {
+    return snap.data() as ContestConfig;
+  }
+  return null;
+}
+
+export async function setContestConfig(
+  eventId: string,
+  config: Partial<ContestConfig>,
+  userEmail: string = 'aicodevibes@gmail.com'
+): Promise<void> {
+  if (!eventId) return;
+  const contestConfigRef = doc(db, 'events', eventId, 'contestConfig', 'default');
+  await setDoc(
+    contestConfigRef,
+    {
+      ...config,
+      espnEventId: eventId,
+      updatedAt: serverTimestamp(),
+      updatedBy: userEmail,
+    },
+    { merge: true }
+  );
+}
+
+// Per-Event Participants CRUD
+export async function getParticipantsForEvent(eventId: string): Promise<Participant[]> {
+  if (!eventId) return [];
+  const participantsRef = collection(db, 'events', eventId, 'participants');
+  const snap = await getDocs(participantsRef);
+  const list: Participant[] = [];
+  snap.forEach((docSnap) => {
+    list.push({ id: docSnap.id, ...docSnap.data() } as Participant);
+  });
+  return list;
+}
+
+export async function setParticipantsForEvent(eventId: string, participants: Participant[]): Promise<void> {
+  if (!eventId) return;
+  const batch = writeBatch(db);
+  const participantsRef = collection(db, 'events', eventId, 'participants');
+  
+  // Clear existing documents in subcollection
+  const existing = await getDocs(participantsRef);
+  existing.forEach((docSnap) => {
+    batch.delete(docSnap.ref);
+  });
+
+  participants.forEach((p) => {
+    const pRef = doc(db, 'events', eventId, 'participants', p.id);
+    batch.set(pRef, p);
+  });
+
+  await batch.commit();
+}
+
+export async function addParticipantToEvent(eventId: string, participant: Participant): Promise<void> {
+  if (!eventId || !participant.id) return;
+  const pRef = doc(db, 'events', eventId, 'participants', participant.id);
+  await setDoc(pRef, participant, { merge: true });
+}
+
+export async function removeParticipantFromEvent(eventId: string, participantId: string): Promise<void> {
+  if (!eventId || !participantId) return;
+  const pRef = doc(db, 'events', eventId, 'participants', participantId);
+  await deleteDoc(pRef);
+}
+
 
 // Tracked Players CRUD
 export async function addTrackedPlayer(player: TrackedPlayer) {
@@ -161,12 +263,50 @@ export function useTrackedPlayers() {
   return { players, loading };
 }
 
-export function useParticipants() {
+export function useContestConfig(eventId: string | null | undefined) {
+  const [config, setConfig] = useState<ContestConfig | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    if (!eventId) {
+      setConfig(null);
+      setLoading(false);
+      return;
+    }
+
+    const contestConfigRef = doc(db, 'events', eventId, 'contestConfig', 'default');
+    const unsubscribe = onSnapshot(
+      contestConfigRef,
+      (docSnap) => {
+        if (docSnap.exists()) {
+          setConfig(docSnap.data() as ContestConfig);
+        } else {
+          setConfig(null);
+        }
+        setLoading(false);
+      },
+      (error) => {
+        console.warn('Firestore contestConfig read error:', error);
+        setConfig(null);
+        setLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [eventId]);
+
+  return { config, loading };
+}
+
+export function useParticipants(eventId?: string | null) {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    const participantsRef = collection(db, 'participants');
+    const participantsRef = eventId
+      ? collection(db, 'events', eventId, 'participants')
+      : collection(db, 'participants');
+
     const unsubscribe = onSnapshot(
       participantsRef,
       (snapshot) => {
@@ -177,20 +317,21 @@ export function useParticipants() {
           });
           setParticipants(list);
         } else {
-          setParticipants(MOCK_LOSINGER_PARTICIPANTS);
+          setParticipants(DEFAULT_CONTEST_PARTICIPANTS);
         }
         setLoading(false);
       },
       (error) => {
-        console.warn('Firestore participants read error (using Losinger mock seed):', error);
-        setParticipants(MOCK_LOSINGER_PARTICIPANTS);
+        console.warn('Firestore participants read error (using default seed):', error);
+        setParticipants(DEFAULT_CONTEST_PARTICIPANTS);
         setLoading(false);
       }
     );
 
     return () => unsubscribe();
-  }, []);
+  }, [eventId]);
 
   return { participants, loading };
 }
+
 

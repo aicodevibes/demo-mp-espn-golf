@@ -44,3 +44,17 @@ export interface DayMoneyRoundResult {
   winners: DayMoneyWinner[];
   totalPool: number;
 }
+
+export interface ContestConfig {
+  espnEventId: string;
+  eventName: string;
+  season: number;
+  mainPayouts: number[];
+  dayMoneyPool: number;
+  coursePar: number | null;
+  isFinalized?: boolean;
+  createdAt?: any;
+  updatedAt?: any;
+  updatedBy?: string;
+}
+

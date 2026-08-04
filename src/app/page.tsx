@@ -214,6 +214,7 @@ export default function DashboardPage() {
           <DayMoneyWinners
             dayMoneyResults={dayMoneyResults}
             contestConfig={contestConfig}
+            eventStatus={activeEvent?.status}
             loading={loadingLeaderboard || participantsLoading || contestConfigLoading}
           />
         </section>
