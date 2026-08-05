@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calculateParticipantStandings, calculateDayMoneyWinners, getGolferRoundScoreToPar } from '../scoring';
+import { calculateParticipantStandings, calculateDayMoneyWinners, getGolferRoundScoreToPar, calculateGreedyStandings } from '../scoring';
 import { Participant, ContestConfig } from '@/types/contest';
 import { ESPNCompetitor } from '@/types/espn';
 
@@ -95,6 +95,20 @@ describe('Scoring Engine (lib/scoring.ts)', () => {
     // Inferred coursePar = (140 - (-4)) / 2 = 72
     expect(getGolferRoundScoreToPar(comp, 1, null)).toBe(-4);
     expect(getGolferRoundScoreToPar(comp, 2, null)).toBe(0);
+  });
+  it('computes calculateGreedyStandings independently of main tournament cut status', () => {
+    const greedyParticipants: Participant[] = [
+      { id: 'p1', name: 'Pat', draftedPlayerIds: ['g1', 'g2', 'g3'], isGreedyParticipant: true, greedyPlayerId: 'g1' },
+      { id: 'p2', name: 'Greg', draftedPlayerIds: ['g4', 'g5', 'g6'], isGreedyParticipant: true, greedyPlayerId: 'g5' },
+    ];
+
+    const greedyStandings = calculateGreedyStandings(greedyParticipants, sampleCompetitors, 70);
+    expect(greedyStandings).toHaveLength(2);
+    // g1 score: -2 (rank 2), g5 score: -7 (rank 1)
+    expect(greedyStandings[0].participant.name).toBe('Greg');
+    expect(greedyStandings[0].rank).toBe(1);
+    expect(greedyStandings[1].participant.name).toBe('Pat');
+    expect(greedyStandings[1].rank).toBe(2);
   });
 });
 

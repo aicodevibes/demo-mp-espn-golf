@@ -7,6 +7,7 @@ import {
   DayMoneyRoundResult,
   DayMoneyWinner,
   ContestConfig,
+  GreedyStanding,
 } from '@/types/contest';
 
 const DEFAULT_MAIN_PAYOUTS = [600, 320, 180, 100];
@@ -320,4 +321,78 @@ export function calculateDayMoneyWinners(
 
   return results;
 }
+
+/**
+ * Calculates Greedy Side-Bet Standings.
+ * Tracks performance of each participant's designated Greedy Golfer independently of main contest cut status.
+ */
+export function calculateGreedyStandings(
+  participants: Participant[],
+  allCompetitors: ESPNCompetitor[],
+  coursePar?: number | null
+): GreedyStanding[] {
+  const compMap = new Map<string, ESPNCompetitor>(
+    allCompetitors.map((c) => [c.athlete?.id || c.id, c])
+  );
+
+  const greedyParticipants = (participants || []).filter(
+    (p) => p.isGreedyParticipant || Boolean(p.greedyPlayerId)
+  );
+
+  const standings: GreedyStanding[] = greedyParticipants.map((p) => {
+    const comp = p.greedyPlayerId ? compMap.get(p.greedyPlayerId) : null;
+    const name = comp?.athlete?.displayName || (p.greedyPlayerId ? `Golfer (${p.greedyPlayerId})` : 'Unassigned');
+    const statusInfo = comp ? getPlayerStatusInfo(comp) : { isCut: false, isWD: false };
+
+    const roundStrokes: { [rd: number]: number | null } = {};
+    const roundScoresToPar: { [rd: number]: number | null } = {};
+
+    for (let rd = 1; rd <= 4; rd++) {
+      roundStrokes[rd] = comp ? getGolferRoundStrokes(comp, rd) : null;
+      roundScoresToPar[rd] = comp ? getGolferRoundScoreToPar(comp, rd, coursePar) : null;
+    }
+
+    const rawScoreStr = comp?.score || 'E';
+    let numericScoreToPar = 0;
+    if (rawScoreStr === 'E') {
+      numericScoreToPar = 0;
+    } else if (rawScoreStr.startsWith('+') || rawScoreStr.startsWith('-')) {
+      const parsed = parseInt(rawScoreStr.replace('+', ''), 10);
+      numericScoreToPar = isNaN(parsed) ? 0 : parsed;
+    }
+
+    return {
+      rank: 0,
+      participant: p,
+      greedyGolfer: p.greedyPlayerId
+        ? {
+            id: p.greedyPlayerId,
+            name,
+            scoreToPar: rawScoreStr,
+            numericScoreToPar,
+            roundStrokes,
+            roundScoresToPar,
+            isCut: statusInfo.isCut,
+            isWD: statusInfo.isWD,
+          }
+        : null,
+      numericScoreToPar,
+    };
+  });
+
+  // Sort greedy standings by score-to-par ascending (lower score is better)
+  standings.sort((a, b) => a.numericScoreToPar - b.numericScoreToPar);
+
+  // Assign ranks
+  let currentRank = 1;
+  for (let i = 0; i < standings.length; i++) {
+    if (i > 0 && standings[i].numericScoreToPar !== standings[i - 1].numericScoreToPar) {
+      currentRank = i + 1;
+    }
+    standings[i].rank = currentRank;
+  }
+
+  return standings;
+}
+
 

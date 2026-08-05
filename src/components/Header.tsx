@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { ShieldCheck, LogIn, LogOut, Trophy, Calendar, Activity } from 'lucide-react';
+import { ShieldCheck, LogIn, LogOut, Trophy, Calendar, Activity, Award } from 'lucide-react';
 import { ESPNEvent } from '@/types/espn';
 import { formatEventDates } from '@/lib/espn';
 
@@ -71,6 +71,13 @@ export function Header({ eventName, eventObj }: HeaderProps) {
 
         {/* User Auth & Navigation Section */}
         <div className="flex items-center gap-3">
+          <a
+            href="/greedy"
+            className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 transition"
+          >
+            <Award className="w-3.5 h-3.5" /> Greedy Bet
+          </a>
+
           {loading ? (
             <div className="h-8 w-24 bg-surface-container-high animate-pulse rounded-lg" />
           ) : user ? (

@@ -58,3 +58,19 @@ export interface ContestConfig {
   updatedBy?: string;
 }
 
+export interface GreedyStanding {
+  rank: number;
+  participant: Participant;
+  greedyGolfer: {
+    id: string;
+    name: string;
+    scoreToPar: string;
+    numericScoreToPar: number;
+    roundStrokes: { [round: number]: number | null };
+    roundScoresToPar: { [round: number]: number | null };
+    isCut: boolean;
+    isWD: boolean;
+  } | null;
+  numericScoreToPar: number;
+}
+

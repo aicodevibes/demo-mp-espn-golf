@@ -21,6 +21,7 @@ A unified Golf Tournament Wager App featuring:
 - [Research ESPN Player Fuzzy Name & ID Matching](file:///c:/Dev/demo-mp/.scratch/admin-and-wager-social/issues/06-research-espn-player-name-matching.md) — Multi-tier name normalization (diacritics, shortName, last name, exact ID) in `src/lib/espn/golferMatcher.ts`.
 - [Admin Google Auth Portal & Protected Route](file:///c:/Dev/demo-mp/.scratch/admin-and-wager-social/issues/01-admin-google-auth-portal.md) — Integrated inline Google Sign-In portal on `/admin` with dev fallback toggle and Access Denied UI for non-admin accounts.
 - [Comma-Delimited Participant Roster Management in Admin](file:///c:/Dev/demo-mp/.scratch/admin-and-wager-social/issues/02-admin-comma-delimited-roster-management.md) — Implemented `golferMatcher.ts` fuzzy player matching, comma-delimited roster text inputs with live preview chips, 4th-golfer cut replacement support, and 1-click batch roster paste modal in `src/app/admin/page.tsx`.
+- [Dedicated /greedy Page for Greedy Side Bet](file:///c:/Dev/demo-mp/.scratch/admin-and-wager-social/issues/03-greedy-side-bet-dedicated-page.md) — Built dedicated `/greedy` route featuring hero stat cards, 4-round golfer score matrix, winner-take-all pot calculation, and header navigation pill.
 
 ## Not yet specified
 
