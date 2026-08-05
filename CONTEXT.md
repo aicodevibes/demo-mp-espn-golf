@@ -1,22 +1,33 @@
-# Apex Links Precision - Domain Glossary
+# Texas-Florida Golf Majors Showdown - Domain Glossary
 
-## UI & Theme Terms
+## Contest & Leaderboard Terms
+
+### Participant Views & Watchlists
+- **Top View**: The default hero watchlist view on the dashboard displaying the 1st through 4th field leaders in the live tournament leaderboard.
+- **Participant Roster Watchlist**: A participant-specific hero view displaying the drafted golfers assigned to a selected contest participant.
+- **Participant View Selector**: Top-level selector allowing users to switch between the default Top View and individual participant roster watchlists.
+- **Overall Standings**: The primary contest leaderboard ranking pool participants by their cumulative team daily scores (best drafted golfer scores per round), displaying rank badges (1st–4th), prize payouts, per-round totals, and a 36-hole cut divider.
+- **Top 10 Tournament Leaders**: Live PGA tournament field leaders, including all competitors tied at position T10 or higher.
+- **Other Drafted Golfers**: In-field drafted pool golfers who are currently competing outside the top 10 positions.
+- **Full PGA Field**: Comprehensive tournament field leaderboard with player search and a project cut line divider.
+- **Field Leaderboard Evaluator**: Pure domain evaluation seam that categorizes competitors into Top 10 leaders (including ties), other drafted golfers, active field, and cut field lists in a single pass.
+
+### Scoring & Financial Terms
+- **Daily Score**: Sum of the top drafted golfer stroke scores for a participant in a single round.
+- **Day Money**: Side pool prize awarded per round to the participant holding the lowest drafted golfer round score.
+- **Wager Settlement Ledger**: Payout breakdown tracking entry fees collected, main prize distributions, day money earnings, and net balance settlements.
+
+## Design & UI Theme System
 
 ### Surface Hierarchy
-The layered surface structure used to build visual depth across cards, tables, and drawers:
+The layered surface structure establishing visual depth and theme consistency:
 - **Surface**: Primary application page backdrop (`#f7f9fb`).
-- **Surface Container (Lowest / Low / High)**: Clean white or soft grey containers (`#ffffff` / `#f2f4f6` / `#e8eaec`) used for leaderboard tables, scorecards, and hero grid cards.
-- **Primary Color**: Deep midnight navy (`#000e24`) used for high-contrast titles and structural anchors.
-- **Tertiary Color**: Vibrant golf green (`#006d3a`) reserved for under-par performance scores (`-5`, birdies, eagles), active leader indicators, and primary action controls.
+- **Surface Container (Lowest / Low / High)**: Soft grey and white containers (`#ffffff` / `#f2f4f6` / `#e8eaec`) establishing container hierarchy for tables, scorecards, and cards.
+- **Primary Accent / Golf Green**: Reserved for under-par scores (`-5`, birdies, eagles), active leader indicators, and primary interactive elements.
 - **Error Color**: Warning red (`#ba1a1a`) used for over-par score indicators (`+3`) and missed-cut dividers.
 
-### Component Layout Patterns
-- **Scrollable Leaderboard Viewport**: Fixed-height container (`max-h-[520px] overflow-y-auto`) designed to display approximately 10 player rows at a time while enabling smooth internal scrolling for longer field lists without increasing page scroll length.
-- **Top 10 Tie Inclusion**: The Top 10 Tournament Leaders component dynamically expands its dataset to include all competitors sharing position T10 or higher. All ties within the top 10 positions are accessible via the scrollable viewport. The "Other Drafted Golfers" component excludes all competitors present in the Top 10 list.
-- **Global Player Selection Sync**: Clicking any golfer across leaderboards updates the globally selected player state, updating visual selection highlights across components and loading the golfer's round performance (R1–R4) in the Scorecard Matrix.
-- **Standardized Surface Hierarchy**: Every primary dashboard component utilizes `bg-surface-container-low` (`#f2f4f6`) for its outer container card shell, with `bg-surface-container-lowest` (`#ffffff`) for inner table headers and row items, establishing visual depth and theme consistency.
-- **Fixed 18-Hole Matrix Grid**: The Scorecard Matrix component always maps all 18 holes (1–9 front nine and 10–18 back nine). Unplayed holes render a clean, unhighlighted `-` cell, ensuring `OUT`, `IN`, and `TOT` summary columns remain locked to their table headers.
-- **CompetitorRow Module**: A deep UI module (`src/components/CompetitorRow.tsx`) encapsulating competitor rank, headshot, golfer displayName, status badges (CUT/WD/DQ), drafted participant tags, and score formatting behind a clean, unified interface.
-- **PlayerDraftedByMap Adapter**: A pure domain function in `src/lib/scoring.ts` (`createPlayerDraftedByMap`) that transforms a participant roster array into a fast `Map<playerId, participantNames[]>` lookup map for UI leaderboards.
-- **PlayerScorecardNormalizer Adapter**: Deepened domain adapter function in `src/lib/espn/summary.ts` (`formatPlayerSummaryFromCompetitor`) that normalizes ESPN linescores into complete 18-hole round objects (`holes 1..18` with unplayed defaults), allowing UI scorecard components to remain shallow and presentation-only.
-- **ContestEngine Seam**: Deep evaluation module (`src/lib/contestEngine.ts`) presenting a unified seam (`evaluateContest`) that atomically calculates participant standings, day money winners, drafted player maps, greedy side bets, and net wager balances in a single pass.
+### Rank Badging & Clean Header System
+- **Rank Badges**: High-contrast, solid badge styling for top positions (1st Gold, 2nd Silver, 3rd Bronze, 4th Green).
+- **Clean Component Headers**: Uppercase, icon-free section headers without sub-header text for a crisp presentation.
+- **Global Player Selection Sync**: Selecting any golfer updates the global player state, updating visual selection highlights across components and rendering the golfer's 18-hole scorecard matrix.
+- **Fixed 18-Hole Scorecard Matrix**: Scorecard view mapping all 18 holes (1–9 front nine and 10–18 back nine), locking `OUT`, `IN`, and `TOT` summary columns to their table headers with unplayed holes rendering as `-`.

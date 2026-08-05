@@ -47,20 +47,10 @@ export function Top10Leaderboard({
     <div className="bg-surface-container-low border border-outline-variant rounded-xl p-4 sm:p-5 space-y-4 shadow-xs">
       {/* Header Title */}
       <div className="flex items-center justify-between border-b border-outline-variant/60 pb-3">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center">
-            <Trophy className="w-4 h-4 text-amber-500" />
-          </div>
-          <div>
-            <h3 className="text-sm font-black uppercase tracking-wider text-on-surface">
-              Top 10 Tournament Leaders
-            </h3>
-            <p className="text-[11px] text-on-surface-variant">
-              Live PGA field leaders & contest participant drafting badges
-            </p>
-          </div>
-        </div>
-        <span className="text-xs font-bold text-amber-600 bg-amber-50 dark:bg-amber-950/40 px-2.5 py-1 rounded-full border border-amber-300 dark:border-amber-700">
+        <h3 className="text-sm font-black uppercase tracking-wider text-on-surface">
+          Top 10 Tournament Leaders
+        </h3>
+        <span className="text-xs font-bold text-on-surface-variant bg-surface-container-high px-2.5 py-1 rounded-full border border-outline-variant/60">
           Top 10
         </span>
       </div>

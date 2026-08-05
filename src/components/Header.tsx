@@ -29,7 +29,7 @@ export function Header({ eventName, eventObj }: HeaderProps) {
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-lg font-bold tracking-tight text-on-surface">
-                Apex Links Golf Pulse
+                Texas-Florida Golf Majors Showdown
               </h1>
               {isAdmin && (
                 <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-tertiary/10 text-tertiary border border-tertiary/30">

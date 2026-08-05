@@ -4,8 +4,7 @@ import React, { useState, useMemo } from 'react';
 import { ESPNCompetitor, ESPNEvent } from '@/types/espn';
 import { Search, Scissors } from 'lucide-react';
 import { Participant } from '@/types/contest';
-import { getPlayerStatusInfo } from '@/lib/espn';
-import { createPlayerDraftedByMap } from '@/lib/scoring';
+import { evaluateFieldLeaderboard } from '@/lib/fieldLeaderboard';
 import { CompetitorRow } from './CompetitorRow';
 
 interface FullFieldLeaderboardProps {
@@ -25,34 +24,14 @@ export function FullFieldLeaderboard({
 }: FullFieldLeaderboardProps) {
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  const playerDraftedByMap = useMemo(() => {
-    return createPlayerDraftedByMap(participants);
-  }, [participants]);
-
-  const filteredCompetitors = useMemo(() => {
-    const safeCompetitors = Array.isArray(competitors) ? competitors : [];
-    if (!searchQuery.trim()) return safeCompetitors;
-    const q = searchQuery.toLowerCase().trim();
-    return safeCompetitors.filter((c) =>
-      c?.athlete?.displayName?.toLowerCase().includes(q)
-    );
-  }, [competitors, searchQuery]);
-
-  const { activeCompetitors, cutCompetitors } = useMemo(() => {
-    const active: ESPNCompetitor[] = [];
-    const cut: ESPNCompetitor[] = [];
-
-    filteredCompetitors.forEach((comp) => {
-      const status = getPlayerStatusInfo(comp, eventObj?.status);
-      if (status.isInactive) {
-        cut.push(comp);
-      } else {
-        active.push(comp);
-      }
+  const { activeFieldCompetitors, cutFieldCompetitors, playerDraftedByMap } = useMemo(() => {
+    return evaluateFieldLeaderboard({
+      competitors,
+      participants,
+      eventStatus: eventObj?.status,
+      searchQuery,
     });
-
-    return { activeCompetitors: active, cutCompetitors: cut };
-  }, [filteredCompetitors, eventObj]);
+  }, [competitors, participants, eventObj, searchQuery]);
 
   return (
     <div className="bg-surface-container-low border border-outline-variant rounded-xl p-4 sm:p-5 space-y-4 shadow-xs">
@@ -60,11 +39,8 @@ export function FullFieldLeaderboard({
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-outline-variant/60 pb-3">
         <div>
           <h3 className="text-sm font-black uppercase tracking-wider text-on-surface">
-            Full PGA Tournament Field
+            Full PGA Field
           </h3>
-          <p className="text-[11px] text-on-surface-variant">
-            Complete tournament field standings ({competitors.length} competitors)
-          </p>
         </div>
 
         {/* Search Bar */}
@@ -82,7 +58,7 @@ export function FullFieldLeaderboard({
 
       {/* Active Competitors List */}
       <div className="space-y-2 max-h-[520px] overflow-y-auto pr-1">
-        {activeCompetitors.map((comp, idx) => {
+        {activeFieldCompetitors.map((comp, idx) => {
           const playerId = comp.athlete?.id || comp.id || `active-${idx}`;
           const isSelected = selectedPlayerId === playerId;
           const draftedBy = playerDraftedByMap.get(playerId) || [];
@@ -101,12 +77,12 @@ export function FullFieldLeaderboard({
         })}
 
         {/* Cut Line Divider */}
-        {cutCompetitors.length > 0 && (
+        {cutFieldCompetitors.length > 0 && (
           <div className="pt-4 pb-2">
             <div className="flex items-center gap-3">
               <div className="h-px bg-error/30 flex-1" />
               <span className="text-[11px] font-black uppercase tracking-wider text-error bg-error/10 border border-error/30 px-3 py-1 rounded-full flex items-center gap-1.5">
-                <Scissors className="w-3.5 h-3.5" /> Project Cut Line ({cutCompetitors.length} Golfers Cut / WD)
+                <Scissors className="w-3.5 h-3.5" /> Project Cut Line ({cutFieldCompetitors.length} Golfers Cut / WD)
               </span>
               <div className="h-px bg-error/30 flex-1" />
             </div>
@@ -114,7 +90,7 @@ export function FullFieldLeaderboard({
         )}
 
         {/* Cut / Inactive Competitors */}
-        {cutCompetitors.map((comp, idx) => {
+        {cutFieldCompetitors.map((comp, idx) => {
           const playerId = comp.athlete?.id || comp.id || `cut-${idx}`;
           const isSelected = selectedPlayerId === playerId;
           const draftedBy = playerDraftedByMap.get(playerId) || [];
@@ -124,7 +100,7 @@ export function FullFieldLeaderboard({
               key={`field-cut-${playerId}-${idx}`}
               competitor={comp}
               draftedBy={draftedBy}
-              rankDisplay={comp.status?.position?.displayName || activeCompetitors.length + idx + 1}
+              rankDisplay={comp.status?.position?.displayName || activeFieldCompetitors.length + idx + 1}
               isSelected={isSelected}
               eventStatus={eventObj?.status}
               onSelectPlayer={onSelectPlayer}

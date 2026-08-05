@@ -28,12 +28,12 @@ function formatTotal(total: number): string {
 
 /** Rank badge styling */
 function rankBadgeClass(rank: number, isCut: boolean): string {
-  if (isCut) return 'bg-red-500/10 text-red-500 text-[9px]';
-  if (rank === 1) return 'bg-amber-400 text-amber-950';
-  if (rank === 2) return 'bg-slate-300 text-slate-800';
-  if (rank === 3) return 'bg-amber-700 text-white';
-  if (rank === 4) return 'bg-emerald-600 text-white';
-  return 'bg-surface-container-high text-on-surface-variant';
+  if (isCut) return 'bg-red-500/10 text-red-500 border border-red-500/20 text-[9px] font-extrabold';
+  if (rank === 1) return 'bg-amber-500 text-amber-950 font-black';
+  if (rank === 2) return 'bg-slate-300 text-slate-900 font-extrabold';
+  if (rank === 3) return 'bg-amber-700 text-white font-bold';
+  if (rank === 4) return 'bg-emerald-600 text-white font-bold';
+  return 'bg-surface-container-high text-on-surface-variant font-bold';
 }
 
 export function ParticipantStandings({
@@ -60,7 +60,7 @@ export function ParticipantStandings({
     const rowClass = s.isCut
       ? 'opacity-60 text-on-surface-variant'
       : isTopFour
-      ? 'bg-amber-400/5'
+      ? 'bg-surface-container-lowest font-medium'
       : '';
 
     return (
@@ -71,7 +71,7 @@ export function ParticipantStandings({
         {/* POS */}
         <td className="py-3 pl-4 pr-2 text-center align-middle w-12">
           <span
-            className={`inline-flex items-center justify-center w-7 h-7 rounded-full font-black text-xs shadow-xs ${rankBadgeClass(s.rank, s.isCut)}`}
+            className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-xs shadow-xs ${rankBadgeClass(s.rank, s.isCut)}`}
           >
             {s.isCut ? 'CUT' : s.rank}
           </span>
@@ -87,7 +87,7 @@ export function ParticipantStandings({
               {s.participant.name}
             </span>
             {contestConfig?.isFinalized && isTopFour && s.projectedPayout > 0 && (
-              <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 mt-0.5">
+              <span className="text-[10px] font-extrabold text-tertiary mt-0.5">
                 ${s.projectedPayout.toFixed(0)} prize
               </span>
             )}
@@ -121,12 +121,12 @@ export function ParticipantStandings({
                     {g.name}
                   </span>
                   {g.isCut && (
-                    <span className="text-[9px] font-black uppercase text-red-500 bg-red-500/10 px-1 py-px rounded leading-none shrink-0">
+                    <span className="text-[9px] font-black uppercase text-red-500 bg-red-500/10 px-1 py-px rounded leading-none shrink-0 border border-red-500/20">
                       CUT
                     </span>
                   )}
                   {g.isWD && (
-                    <span className="text-[9px] font-black uppercase text-orange-500 bg-orange-500/10 px-1 py-px rounded leading-none shrink-0">
+                    <span className="text-[9px] font-black uppercase text-orange-500 bg-orange-500/10 px-1 py-px rounded leading-none shrink-0 border border-orange-500/20">
                       WD
                     </span>
                   )}
@@ -182,13 +182,9 @@ export function ParticipantStandings({
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-outline-variant/60 pb-3">
         <div>
-          <h3 className="text-sm font-extrabold uppercase tracking-widest text-on-surface flex items-center gap-2">
-            <Trophy className="w-4 h-4 text-amber-400 shrink-0" />
+          <h3 className="text-sm font-black uppercase tracking-wider text-on-surface">
             Overall Standings
           </h3>
-          <p className="text-xs text-on-surface-variant mt-0.5">
-            {standings.length}-Participant Pool · Best 2 daily drafted scores
-          </p>
         </div>
 
         {/* Prize allocation pills */}
@@ -197,18 +193,18 @@ export function ParticipantStandings({
             const ordinals = ['1st', '2nd', '3rd', '4th', '5th', '6th'];
             const pos = ordinals[idx] || `${idx + 1}th`;
             const classes = [
-              'bg-amber-400 text-amber-950',
-              'bg-slate-300 text-slate-800',
-              'bg-amber-700 text-white',
-              'bg-emerald-600 text-white',
+              'bg-amber-500 text-amber-950 font-black',
+              'bg-slate-300 text-slate-900 font-extrabold',
+              'bg-amber-700 text-white font-bold',
+              'bg-emerald-600 text-white font-bold',
             ];
-            const cls = classes[idx] || 'bg-surface-container-high text-on-surface-variant';
+            const cls = classes[idx] || 'bg-surface-container-high text-on-surface-variant font-bold';
             return (
               <div
                 key={pos}
                 className="flex items-center gap-1 border border-outline-variant/60 rounded-lg px-2.5 py-1.5 bg-surface-container-lowest text-center"
               >
-                <span className={`text-[10px] font-black px-1.5 py-px rounded ${cls}`}>
+                <span className={`text-[10px] px-1.5 py-px rounded ${cls}`}>
                   {pos}
                 </span>
                 <span className="text-xs font-bold text-on-surface">${payout}</span>
@@ -222,7 +218,7 @@ export function ParticipantStandings({
       <div className="overflow-x-auto rounded-lg border border-outline-variant/60 bg-surface-container-lowest">
         <table className="w-full min-w-[700px] border-collapse">
           <thead>
-            <tr className="bg-surface-container-high text-[10px] font-extrabold tracking-widest uppercase text-on-surface-variant border-b border-outline-variant">
+            <tr className="bg-surface-container-high text-[10px] font-black tracking-wider uppercase text-on-surface-variant border-b border-outline-variant">
               <th className="py-2.5 pl-4 pr-2 text-center w-12">POS</th>
               <th className="py-2.5 px-3 text-left w-32">PARTICIPANT</th>
               <th className="py-2.5 px-3 text-left">DRAFTED PLAYERS</th>
@@ -244,8 +240,7 @@ export function ParticipantStandings({
                 <td colSpan={9} className="py-2 px-4">
                   <div className="flex items-center gap-3">
                     <div className="h-px bg-red-500/30 flex-1" />
-                    <span className="flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-widest text-red-500 bg-red-500/10 border border-red-500/25 px-3 py-1 rounded-full shrink-0">
-                      <Scissors className="w-3 h-3" />
+                    <span className="text-[10px] font-black uppercase tracking-wider text-red-500 bg-red-500/10 border border-red-500/25 px-3 py-1 rounded-full shrink-0">
                       36-Hole Cut · {cutStandings.length} Eliminated
                     </span>
                     <div className="h-px bg-red-500/30 flex-1" />
@@ -262,3 +257,4 @@ export function ParticipantStandings({
     </div>
   );
 }
+

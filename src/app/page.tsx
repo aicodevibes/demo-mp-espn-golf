@@ -46,7 +46,7 @@ export default function DashboardPage() {
   const [loadingLeaderboard, setLoadingLeaderboard] = useState<boolean>(true);
 
   const [selectedPlayerId, setSelectedPlayerId] = useState<string>('');
-  const [selectedParticipantId, setSelectedParticipantId] = useState<string>('');
+  const [selectedParticipantId, setSelectedParticipantId] = useState<string>('top_view');
   const [playerSummary, setPlayerSummary] = useState<ESPNPlayerSummary | null>(null);
   const [loadingSummary, setLoadingSummary] = useState<boolean>(false);
 
@@ -136,32 +136,40 @@ export default function DashboardPage() {
   const playerDraftedByMap = contestEvaluation.playerDraftedByMap;
 
 
+  const isTopView = selectedParticipantId === 'top_view' || !selectedParticipantId;
+
   // Find active selected participant
   const activeParticipant = useMemo(() => {
-    if (!selectedParticipantId) return participants[0] || null;
-    return participants.find((p) => p.id === selectedParticipantId) || participants[0] || null;
-  }, [participants, selectedParticipantId]);
+    if (isTopView) return null;
+    return participants.find((p) => p.id === selectedParticipantId) || null;
+  }, [participants, selectedParticipantId, isTopView]);
 
   // Vercel Performance Rule: rerender-memo & js-index-maps
   const displayCompetitors = useMemo(() => {
     const compMap = new Map(competitors.map((c) => [c.athlete?.id || c.id, c]));
 
-    // 1. Display selected participant's 3 drafted golfers if available
+    // 1. Top View: 1st through 4th golfer in tournament leaderboard
+    if (isTopView) {
+      if (competitors.length > 0) {
+        return competitors.slice(0, 4);
+      }
+      if (trackedPlayers.length > 0) {
+        return trackedPlayers.slice(0, 4).map((p) => {
+          return compMap.get(p.playerId) || createSyntheticCompetitor(p.playerId, p.name, p.headshotUrl, p.country);
+        });
+      }
+      return [];
+    }
+
+    // 2. Selected Participant View: display their drafted golfers
     if (activeParticipant && activeParticipant.draftedPlayerIds && activeParticipant.draftedPlayerIds.length > 0) {
       return activeParticipant.draftedPlayerIds.map((playerId) => {
         return compMap.get(playerId) || createSyntheticCompetitor(playerId);
       });
     }
 
-    // 2. Fallback to trackedPlayers if no drafted players assigned
-    if (trackedPlayers.length > 0) {
-      return trackedPlayers.map((p) => {
-        return compMap.get(p.playerId) || createSyntheticCompetitor(p.playerId, p.name, p.headshotUrl, p.country);
-      });
-    }
-
-    return competitors.slice(0, 3);
-  }, [competitors, activeParticipant, trackedPlayers]);
+    return competitors.slice(0, 4);
+  }, [competitors, activeParticipant, trackedPlayers, isTopView]);
 
   // Auto-select 1st golfer of newly displayed participant watchlist
   useEffect(() => {
@@ -258,45 +266,14 @@ export default function DashboardPage() {
 
       {/* Main Content Dashboard Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 lg:px-8 py-6 space-y-8">
-        {/* Section 1: Top Component - Official Participant Standings */}
-        <section>
-          <ParticipantStandings
-            standings={participantStandings}
-            contestConfig={contestConfig}
-            loading={loadingLeaderboard || participantsLoading || contestConfigLoading}
-            onSelectParticipant={(pId) => setSelectedParticipantId(pId)}
-            onSelectPlayer={(pId) => setSelectedPlayerId(pId)}
-          />
-        </section>
-
-        {/* Section 2: Side-by-Side - Top 10 Leaderboard & Drafted Golfers */}
-        <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <Top10Leaderboard
-            competitors={competitors}
-            participants={participants}
-            eventObj={activeEvent || undefined}
-            selectedPlayerId={selectedPlayerId}
-            onSelectPlayer={(id) => setSelectedPlayerId(id)}
-          />
-
-          <DraftedPlayersLeaderboard
-            competitors={competitors}
-            participants={participants}
-            eventObj={activeEvent || undefined}
-            selectedPlayerId={selectedPlayerId}
-            onSelectPlayer={(id) => setSelectedPlayerId(id)}
-          />
-        </section>
-
-        {/* Section 3: Selected Participant Golfer Watchlist */}
+        {/* Section 1: Participant View Selector & Watchlist Hero Grid */}
         <section className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3 bg-surface-container-low p-3.5 rounded-xl border border-outline-variant/60">
             <div className="flex items-center gap-2">
-              <h2 className="text-sm font-extrabold uppercase tracking-wider text-on-surface flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-tertiary animate-pulse" />
-                {activeParticipant ? `${activeParticipant.name}'s Watchlist` : 'Participant Watchlist'}
+              <h2 className="text-sm font-black uppercase tracking-wider text-on-surface">
+                {isTopView ? 'Top View Watchlist (1st - 4th Golfers)' : activeParticipant ? `${activeParticipant.name}'s Watchlist` : 'Participant Watchlist'}
               </h2>
-              <span className="text-xs font-semibold text-on-surface-variant bg-surface-container-high px-2 py-0.5 rounded border border-outline-variant/60">
+              <span className="text-xs font-bold text-on-surface-variant bg-surface-container-high px-2 py-0.5 rounded-full border border-outline-variant/60">
                 {displayCompetitors.length} Golfer{displayCompetitors.length === 1 ? '' : 's'}
               </span>
             </div>
@@ -312,10 +289,9 @@ export default function DashboardPage() {
                 onChange={(e) => setSelectedParticipantId(e.target.value)}
                 className="bg-surface-container-lowest border border-outline-variant rounded-lg px-3 py-1.5 text-xs font-bold text-on-surface outline-none focus:border-tertiary shadow-xs cursor-pointer"
               >
+                <option value="top_view">Top View (1st - 4th Golfers)</option>
                 {participantsLoading ? (
-                  <option value="">Loading Participants...</option>
-                ) : participants.length === 0 ? (
-                  <option value="">No Participants Configured</option>
+                  <option value="" disabled>Loading Participants...</option>
                 ) : (
                   participants.map((p) => (
                     <option key={p.id} value={p.id}>
@@ -332,6 +308,36 @@ export default function DashboardPage() {
             allCompetitors={competitors}
             eventStatus={activeEvent?.status}
             selectedPlayerId={selectedPlayerId || selectedCompetitor?.athlete?.id || selectedCompetitor?.id}
+            onSelectPlayer={(id) => setSelectedPlayerId(id)}
+          />
+        </section>
+
+        {/* Section 2: Official Participant Standings */}
+        <section>
+          <ParticipantStandings
+            standings={participantStandings}
+            contestConfig={contestConfig}
+            loading={loadingLeaderboard || participantsLoading || contestConfigLoading}
+            onSelectParticipant={(pId) => setSelectedParticipantId(pId)}
+            onSelectPlayer={(pId) => setSelectedPlayerId(pId)}
+          />
+        </section>
+
+        {/* Section 3: Side-by-Side - Top 10 Leaderboard & Drafted Golfers */}
+        <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Top10Leaderboard
+            competitors={competitors}
+            participants={participants}
+            eventObj={activeEvent || undefined}
+            selectedPlayerId={selectedPlayerId}
+            onSelectPlayer={(id) => setSelectedPlayerId(id)}
+          />
+
+          <DraftedPlayersLeaderboard
+            competitors={competitors}
+            participants={participants}
+            eventObj={activeEvent || undefined}
+            selectedPlayerId={selectedPlayerId}
             onSelectPlayer={(id) => setSelectedPlayerId(id)}
           />
         </section>

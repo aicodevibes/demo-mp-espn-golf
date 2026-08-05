@@ -68,19 +68,19 @@ export function TrackedPlayerHeroGrid({
               </span>
 
               {winnerInfo.isWinner ? (
-                <span className="inline-flex items-center gap-1 text-[11px] font-extrabold text-amber-900 bg-amber-100 px-2.5 py-0.5 rounded-full border border-amber-300 shadow-xs animate-pulse">
-                  <Trophy className="w-3 h-3 text-amber-600" /> {winnerInfo.badgeLabel}
+                <span className="inline-flex items-center text-[11px] font-black text-amber-950 bg-amber-500 px-2.5 py-0.5 rounded-full shadow-xs">
+                  {winnerInfo.badgeLabel}
                 </span>
               ) : statusInfo.isCut ? (
-                <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-error bg-error/10 px-2 py-0.5 rounded border border-error/30">
-                  ✂️ Missed Cut
+                <span className="inline-flex items-center text-[10px] font-extrabold text-error bg-error/10 px-2 py-0.5 rounded border border-error/30">
+                  Missed Cut
                 </span>
               ) : statusInfo.isWD ? (
-                <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-secondary bg-secondary-container px-2 py-0.5 rounded border border-outline-variant">
-                  🚪 Withdrawn
+                <span className="inline-flex items-center text-[10px] font-extrabold text-secondary bg-secondary-container px-2 py-0.5 rounded border border-outline-variant">
+                  Withdrawn
                 </span>
               ) : winnerInfo.badgeLabel ? (
-                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-on-surface-variant bg-surface-container px-2 py-0.5 rounded border border-outline-variant/60">
+                <span className="inline-flex items-center text-[10px] font-bold text-on-surface-variant bg-surface-container px-2 py-0.5 rounded border border-outline-variant/60">
                   {winnerInfo.badgeLabel}
                 </span>
               ) : null}

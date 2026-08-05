@@ -9,7 +9,7 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
 
-  /* Apex Links Precision Colors */
+  /* Texas-Florida Golf Majors Showdown Colors */
   --color-surface: #f7f9fb;
   --color-surface-dim: #d8dadc;
   --color-surface-bright: #f7f9fb;
@@ -40,7 +40,7 @@
   --color-error: #ba1a1a;
   --color-on-error: #ffffff;
 
-  /* Apex Links Precision Spacing & Padding Tokens */
+  /* Texas-Florida Golf Majors Showdown Spacing & Padding Tokens */
   --spacing-page-margin: 32px;
   --spacing-gutter: 24px;
   --spacing-stack-sm: 8px;

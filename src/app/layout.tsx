@@ -6,7 +6,7 @@ import { AuthProvider } from '@/context/AuthContext';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'PGA Performance Pulse - Personal PGA Tour Event & Player Tracker',
+  title: 'Texas-Florida Golf Majors Showdown',
   description: 'Track live PGA Tour events, leaderboards, player headshots, and 18-hole scorecards in real-time.',
 };
 

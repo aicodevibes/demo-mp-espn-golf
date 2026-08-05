@@ -28,29 +28,21 @@ export function WagerSettlementLedger({
     <section className="bg-surface-container-low border border-outline-variant rounded-2xl p-6 space-y-6 shadow-xs">
       {/* Header Banner */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-outline-variant/60 pb-4">
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-tertiary/10 text-tertiary flex items-center justify-center border border-tertiary/30 shrink-0">
-            <DollarSign className="w-6 h-6 text-tertiary" />
-          </div>
-          <div>
-            <h2 className="text-lg font-black tracking-tight text-on-surface flex items-center gap-2">
-              Wager Settlement & Payout Ledger
-            </h2>
-            <p className="text-xs text-on-surface-variant">
-              Final tournament payout allocations, day money earnings, and net balance settlements.
-            </p>
-          </div>
+        <div>
+          <h2 className="text-base font-black uppercase tracking-wider text-on-surface">
+            Wager Settlement & Payout Ledger
+          </h2>
         </div>
 
         {/* Lock / Final Badge */}
         <div>
           {isFinal ? (
-            <span className="inline-flex items-center gap-1 text-xs font-extrabold px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
-              <CheckCircle2 className="w-3.5 h-3.5" /> Official Final Settlement
+            <span className="inline-flex items-center gap-1 text-xs font-extrabold px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-500 border border-emerald-500/30">
+              Official Final Settlement
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1 text-xs font-bold px-3 py-1 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30">
-              <Lock className="w-3.5 h-3.5" /> Locked Until Final (Live Projection)
+            <span className="inline-flex items-center gap-1 text-xs font-bold px-3 py-1 rounded-full bg-surface-container-high text-on-surface-variant border border-outline-variant/60">
+              Live Projection
             </span>
           )}
         </div>
@@ -87,7 +79,7 @@ export function WagerSettlementLedger({
           <span className="text-[10px] font-extrabold uppercase tracking-wider text-on-surface-variant block">
             Total Day Money
           </span>
-          <p className="text-lg font-black text-amber-600 dark:text-amber-400">
+          <p className="text-lg font-black text-tertiary">
             ${summary.totalDayMoneyDistributed}
           </p>
         </div>
@@ -95,10 +87,9 @@ export function WagerSettlementLedger({
 
       {/* Locked Notice Banner */}
       {!isFinal && (
-        <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-3 text-xs text-amber-800 dark:text-amber-300">
-          <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+        <div className="p-4 rounded-xl bg-surface-container-lowest border border-outline-variant/60 flex items-start gap-3 text-xs text-on-surface-variant">
           <div>
-            <span className="font-extrabold block mb-0.5">Final Winnings Calculation Locked</span>
+            <span className="font-extrabold text-on-surface block mb-0.5">Final Winnings Calculation Locked</span>
             Per contest rules, final net payouts and winnings distribution are calculated upon completion of Round 4 final scoring. Below is the live projected payout ledger based on current leaderboard positions.
           </div>
         </div>

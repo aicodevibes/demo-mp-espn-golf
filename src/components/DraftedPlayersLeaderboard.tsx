@@ -61,20 +61,10 @@ export function DraftedPlayersLeaderboard({
     <div className="bg-surface-container-low border border-outline-variant rounded-xl p-4 sm:p-5 space-y-4 shadow-xs">
       {/* Header Title */}
       <div className="flex items-center justify-between border-b border-outline-variant/60 pb-3">
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-tertiary/10 border border-tertiary/30 flex items-center justify-center">
-            <Users className="w-4 h-4 text-tertiary" />
-          </div>
-          <div>
-            <h3 className="text-sm font-black uppercase tracking-wider text-on-surface">
-              Other Drafted Golfers (Outside Top 10)
-            </h3>
-            <p className="text-[11px] text-on-surface-variant">
-              In-field drafted golfers competing outside the top 10
-            </p>
-          </div>
-        </div>
-        <span className="text-xs font-bold text-tertiary bg-tertiary/10 px-2.5 py-1 rounded-full border border-tertiary/30">
+        <h3 className="text-sm font-black uppercase tracking-wider text-on-surface">
+          Other Drafted Golfers (Outside Top 10)
+        </h3>
+        <span className="text-xs font-bold text-on-surface-variant bg-surface-container-high px-2.5 py-1 rounded-full border border-outline-variant/60">
           {outsideTop10DraftedCompetitors.length} Golfer{outsideTop10DraftedCompetitors.length === 1 ? '' : 's'}
         </span>
       </div>

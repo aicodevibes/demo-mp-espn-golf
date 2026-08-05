@@ -77,15 +77,15 @@ export function CompetitorRow({
 
             {/* Participant Drafted Badge */}
             {isDrafted && (
-              <span className="inline-flex items-center gap-1 text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-tertiary/15 text-tertiary border border-tertiary/40">
-                <User className="w-3 h-3" /> Drafted by {draftedBy.join(', ')}
+              <span className="inline-flex items-center text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-tertiary/15 text-tertiary border border-tertiary/40">
+                Drafted by {draftedBy.join(', ')}
               </span>
             )}
 
             {/* CUT Badge */}
             {statusInfo.isCut && (
               <span className="text-[9px] font-black uppercase text-red-500 bg-red-500/10 px-1.5 py-0.5 rounded border border-red-500/20">
-                ✂️ Missed Cut
+                Missed Cut
               </span>
             )}
 

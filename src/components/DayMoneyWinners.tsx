@@ -29,21 +29,11 @@ export function DayMoneyWinners({ dayMoneyResults, contestConfig, eventStatus, l
     <div className="rounded-xl bg-surface-container-low border border-outline-variant p-card space-y-4 shadow-xs">
       {/* Section Header */}
       <div className="flex items-center justify-between border-b border-outline-variant pb-3">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-tertiary/15 text-tertiary flex items-center justify-center font-bold">
-            <DollarSign className="w-5 h-5 text-tertiary" />
-          </div>
-          <div>
-            <h3 className="text-sm font-bold text-on-surface flex items-center gap-2">
-              Day Money Winners (${(contestConfig?.dayMoneyPool ?? 75).toFixed(2)} / Day)
-            </h3>
-            <p className="text-xs text-on-surface-variant">
-              Awarded to the participant holding the lowest drafted round score (${((contestConfig?.dayMoneyPool ?? 75) * 4).toFixed(0)} total purse)
-            </p>
-          </div>
-        </div>
-        <span className="hidden sm:inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded bg-secondary-container text-on-secondary-container border border-outline-variant/60">
-          <Trophy className="w-3.5 h-3.5 text-secondary" /> Daily Side Pool
+        <h3 className="text-sm font-black uppercase tracking-wider text-on-surface">
+          Day Money Winners (${(contestConfig?.dayMoneyPool ?? 75).toFixed(2)} / Day)
+        </h3>
+        <span className="hidden sm:inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full bg-surface-container-high text-on-surface-variant border border-outline-variant/60">
+          Daily Side Pool
         </span>
       </div>
 

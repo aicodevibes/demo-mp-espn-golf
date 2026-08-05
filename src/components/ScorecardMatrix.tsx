@@ -79,7 +79,7 @@ export function ScorecardMatrix({
 
     if (type.includes('eagle') || diff <= -2) {
       return (
-        <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-amber-100 text-amber-900 border-2 border-amber-400 font-extrabold text-xs shadow-xs">
+        <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-amber-500 text-amber-950 border border-amber-400 font-black text-xs shadow-xs">
           {strokes}
         </span>
       );
@@ -113,19 +113,17 @@ export function ScorecardMatrix({
       {/* Header & Round Tabs */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-outline-variant pb-3">
         <div>
-          <h3 className="text-base font-bold text-on-surface flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-tertiary" />
+          <h3 className="text-sm font-black uppercase tracking-wider text-on-surface">
             {playerName}'s Hole-by-Hole Scorecard
           </h3>
-          <p className="text-xs text-on-surface-variant">Traditional 18-Hole Round Performance Matrix</p>
           {statusInfo?.isCut && (
             <span className="inline-flex items-center gap-1 mt-1.5 text-[11px] font-extrabold px-2 py-0.5 rounded bg-error/15 text-error border border-error/30">
-              ✂️ Missed 36-Hole Cut
+              Missed 36-Hole Cut
             </span>
           )}
           {statusInfo?.isWD && (
             <span className="inline-flex items-center gap-1 mt-1.5 text-[11px] font-extrabold px-2 py-0.5 rounded bg-secondary-container text-secondary border border-outline-variant">
-              🚪 Withdrawn (WD)
+              Withdrawn (WD)
             </span>
           )}
         </div>
@@ -204,7 +202,7 @@ export function ScorecardMatrix({
       {/* Legend Footer */}
       <div className="flex flex-wrap items-center justify-center gap-4 pt-2 text-[11px] text-on-surface-variant border-t border-outline-variant/60">
         <div className="flex items-center gap-1.5">
-          <span className="w-3.5 h-3.5 rounded-full bg-amber-100 border border-amber-400" />
+          <span className="w-3.5 h-3.5 rounded-full bg-amber-500 border border-amber-400" />
           <span>Eagle or Better</span>
         </div>
         <div className="flex items-center gap-1.5">

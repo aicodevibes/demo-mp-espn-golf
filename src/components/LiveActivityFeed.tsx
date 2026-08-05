@@ -155,30 +155,13 @@ export function LiveActivityFeed({
 
   return (
     <div className={`rounded-xl bg-surface-container-low border border-outline-variant p-card space-y-4 shadow-xs ${className}`}>
-      {/* Card Header with Glowing Title */}
+      {/* Card Header */}
       <div className="flex items-center justify-between border-b border-outline-variant pb-3 flex-wrap gap-2">
-        <div className="flex items-center gap-2.5">
-          <div className="relative flex items-center justify-center">
-            <span className="animate-ping absolute inline-flex h-3 w-3 rounded-full bg-emerald-400 opacity-75" />
-            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
-          </div>
-          <div className="w-8 h-8 rounded-lg bg-emerald-500/15 text-emerald-400 flex items-center justify-center font-bold border border-emerald-500/30 shadow-[0_0_12px_rgba(16,185,129,0.25)]">
-            <Radio className="w-4 h-4 text-emerald-400 animate-pulse" />
-          </div>
-          <div>
-            <h3 className="text-base font-extrabold text-on-surface tracking-tight flex items-center gap-2">
-              <span className="bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 bg-clip-text text-transparent drop-shadow-[0_0_8px_rgba(16,185,129,0.3)]">
-                Live Activity Feed
-              </span>
-            </h3>
-            <p className="text-xs text-on-surface-variant">
-              Real-time updates, side bets, cut lines, and leaderboard highlights
-            </p>
-          </div>
-        </div>
+        <h3 className="text-sm font-black uppercase tracking-wider text-on-surface">
+          Live Activity Feed
+        </h3>
 
-        <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-xs">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+        <span className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full bg-surface-container-high text-on-surface-variant border border-outline-variant/60">
           Live Feed
         </span>
       </div>

@@ -1,4 +1,4 @@
-## PGA Golf Tracker Demo (demo-mp-espn-golf)
+## Texas-Florida Golf Majors Showdown (demo-mp-espn-golf)
 
 A **Next.js** (App Router) application that visualizes live PGA Tour data via the **ESPN public API**. It includes:
 
