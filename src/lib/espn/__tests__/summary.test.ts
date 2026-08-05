@@ -106,5 +106,33 @@ describe('formatPlayerSummaryFromCompetitor', () => {
     expect(summary.rounds[1].holes[1].par).toBe(5);
     expect(summary.rounds[1].holes[3].par).toBe(3);
   });
+
+  it('correctly uses event courseHoles for unplayed golfers before tee-off (e.g. Kevin Streelman)', () => {
+    const mockUnplayedGolferSummary = {
+      profile: {
+        id: '1077',
+        displayName: 'Kevin Streelman',
+      },
+      rounds: [
+        { period: 1, displayValue: '-' }, // linescores is undefined
+        { period: 2, displayValue: '-' },
+      ],
+      courseHoles: [4, 4, 3, 4, 5, 4, 3, 4, 4, 4, 4, 3, 4, 4, 5, 3, 4, 4], // Wyndham (Par 70)
+    };
+
+    const summary = formatPlayerSummaryFromESPNData(mockUnplayedGolferSummary as any);
+
+    expect(summary.player.displayName).toBe('Kevin Streelman');
+    expect(summary.rounds.length).toBe(2);
+
+    // Hole 3 should be Par 3 (not default 4)
+    expect(summary.rounds[0].holes[2].par).toBe(3);
+    // Hole 5 should be Par 5 (not default 4)
+    expect(summary.rounds[0].holes[4].par).toBe(5);
+
+    // Sum of pars should be 70
+    const totalPar = summary.rounds[0].holes.reduce((sum, h) => sum + h.par, 0);
+    expect(totalPar).toBe(70);
+  });
 });
 

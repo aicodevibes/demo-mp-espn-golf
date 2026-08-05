@@ -2,7 +2,8 @@ import { ESPNCompetitor, ESPNPlayerSummary, ESPNRoundLinescore, ESPNHoleScore } 
 
 export function formatPlayerSummaryFromESPNData(
   rawSummary: any,
-  fallbackComp?: ESPNCompetitor | null
+  fallbackComp?: ESPNCompetitor | null,
+  eventCourseHoles?: number[]
 ): ESPNPlayerSummary {
   if (!rawSummary && !fallbackComp) {
     return {
@@ -17,6 +18,14 @@ export function formatPlayerSummaryFromESPNData(
 
   // Map to hold known hole pars across rounds (e.g., hole 1 -> 4, hole 2 -> 5)
   const knownHoleParsMap = new Map<number, number>();
+
+  // Pass 0: Pre-populate from explicit courseHoles list if provided by event or API
+  const courseHolesList: number[] = rawSummary?.courseHoles || eventCourseHoles || [];
+  courseHolesList.forEach((parVal, hIdx) => {
+    if (typeof parVal === 'number' && parVal > 0 && hIdx < 18) {
+      knownHoleParsMap.set(hIdx + 1, parVal);
+    }
+  });
 
   // Pass 1: Gather any explicit hole pars from all available rounds/linescores
   rawRounds.forEach((rd: any) => {
@@ -52,13 +61,11 @@ export function formatPlayerSummaryFromESPNData(
       const diffStr = h.scoreType?.displayValue || 'E';
       const diff = parseInt(diffStr, 10) || 0;
 
-      let par = 4;
+      let par = knownHoleParsMap.get(holeNum) || 4;
       if (typeof h.par === 'number' && h.par > 0) {
         par = h.par;
       } else if (strokes > 0 && diff !== undefined && !isNaN(diff) && strokes - diff > 0) {
         par = strokes - diff;
-      } else if (knownHoleParsMap.has(holeNum)) {
-        par = knownHoleParsMap.get(holeNum)!;
       }
 
       let scoreTypeLabel = 'par';
@@ -115,8 +122,11 @@ export function formatPlayerSummaryFromESPNData(
   };
 }
 
-export function formatPlayerSummaryFromCompetitor(comp: ESPNCompetitor): ESPNPlayerSummary {
-  return formatPlayerSummaryFromESPNData(comp, comp);
+export function formatPlayerSummaryFromCompetitor(
+  comp: ESPNCompetitor,
+  eventCourseHoles?: number[]
+): ESPNPlayerSummary {
+  return formatPlayerSummaryFromESPNData(comp, comp, eventCourseHoles);
 }
 
 export function createSyntheticCompetitor(
