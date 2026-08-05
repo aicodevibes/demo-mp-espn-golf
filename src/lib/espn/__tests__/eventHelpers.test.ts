@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatEventDates, getWinnerStatus } from '../eventHelpers';
+import { formatEventDates, getWinnerStatus, getTop10WithTies } from '../eventHelpers';
 
 describe('formatEventDates', () => {
   it('formats start and end dates into human readable range', () => {
@@ -68,5 +68,28 @@ describe('getWinnerStatus', () => {
     expect(runnerUpInfo.isWinner).toBe(false);
     expect(runnerUpInfo.isPlayoff).toBe(true);
     expect(runnerUpInfo.badgeLabel).toBe('2nd (Playoff)');
+  });
+});
+
+describe('getTop10WithTies', () => {
+  it('returns all competitors when list has 10 or fewer items', () => {
+    const list = Array.from({ length: 8 }, (_, i) => ({ id: `p-${i}`, score: `-${i}` })) as any[];
+    expect(getTop10WithTies(list)).toHaveLength(8);
+  });
+
+  it('includes competitors tied for 10th place beyond index 9', () => {
+    const list = [
+      ...Array.from({ length: 9 }, (_, i) => ({ id: `p-${i}`, score: `-${20 - i}`, status: { position: { displayName: `${i + 1}` } } })),
+      { id: 'p-9', score: '-10', status: { position: { displayName: 'T10' } } },
+      { id: 'p-10', score: '-10', status: { position: { displayName: 'T10' } } },
+      { id: 'p-11', score: '-10', status: { position: { displayName: 'T10' } } },
+      { id: 'p-12', score: '-9', status: { position: { displayName: 'T13' } } },
+    ] as any[];
+
+    const result = getTop10WithTies(list);
+    expect(result).toHaveLength(12);
+    expect(result.map((c) => c.id)).toContain('p-10');
+    expect(result.map((c) => c.id)).toContain('p-11');
+    expect(result.map((c) => c.id)).not.toContain('p-12');
   });
 });

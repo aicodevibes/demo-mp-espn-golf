@@ -13,10 +13,17 @@ export function formatPlayerSummaryFromCompetitor(comp: ESPNCompetitor): ESPNPla
       const par = strokes > 0 ? (strokes - diff > 0 ? strokes - diff : 4) : 4;
 
       let scoreTypeLabel = 'par';
-      if (diff <= -2) scoreTypeLabel = 'eagle';
-      else if (diff === -1) scoreTypeLabel = 'birdie';
-      else if (diff === 1) scoreTypeLabel = 'bogey';
-      else if (diff >= 2) scoreTypeLabel = 'double';
+      if (strokes === 0) {
+        scoreTypeLabel = 'unplayed';
+      } else if (diff <= -2) {
+        scoreTypeLabel = 'eagle';
+      } else if (diff === -1) {
+        scoreTypeLabel = 'birdie';
+      } else if (diff === 1) {
+        scoreTypeLabel = 'bogey';
+      } else if (diff >= 2) {
+        scoreTypeLabel = 'double';
+      }
 
       return {
         hole: holeNum,

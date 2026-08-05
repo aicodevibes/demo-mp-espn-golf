@@ -6,6 +6,7 @@ export {
   formatEventDates,
   getWinnerStatus,
   getPlayerStatusInfo,
+  getTop10WithTies,
   type WinnerStatusInfo,
   type PlayerStatusInfo,
 } from './eventHelpers';

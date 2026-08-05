@@ -157,3 +157,36 @@ export function getPlayerStatusInfo(comp: ESPNCompetitor, eventStatus?: any): Pl
 
   return { isCut: finalIsCut, isWD, isDQ, isMDF, isInactive, badgeLabel };
 }
+
+/**
+ * Returns all competitors in the Top 10 positions, expanding beyond 10 items
+ * to include any competitors tied for 10th place (T10).
+ */
+export function getTop10WithTies(competitors: ESPNCompetitor[] = []): ESPNCompetitor[] {
+  if (!competitors || competitors.length <= 10) return competitors || [];
+
+  const initial10 = competitors.slice(0, 10);
+  const tenthComp = initial10[9];
+  if (!tenthComp) return initial10;
+
+  const tenthPos = tenthComp.status?.position?.displayName;
+  const tenthScore = tenthComp.score;
+
+  const additionalTies: ESPNCompetitor[] = [];
+  for (let i = 10; i < competitors.length; i++) {
+    const c = competitors[i];
+    const cPos = c.status?.position?.displayName;
+    const cScore = c.score;
+
+    const isPosMatch = Boolean(tenthPos && cPos && (cPos === tenthPos || cPos === `T${tenthPos.replace('T', '')}`));
+    const isScoreMatch = tenthScore !== undefined && cScore !== undefined && cScore === tenthScore;
+
+    if (isPosMatch || isScoreMatch) {
+      additionalTies.push(c);
+    } else {
+      break;
+    }
+  }
+
+  return [...initial10, ...additionalTies];
+}

@@ -8,6 +8,8 @@ interface ParticipantStandingsProps {
   standings: ParticipantStanding[];
   contestConfig: ContestConfig | null;
   loading?: boolean;
+  onSelectParticipant?: (participantId: string) => void;
+  onSelectPlayer?: (playerId: string) => void;
 }
 
 /** Format a numeric daily team score for display (raw strokes sum → relative display) */
@@ -34,7 +36,13 @@ function rankBadgeClass(rank: number, isCut: boolean): string {
   return 'bg-surface-container-high text-on-surface-variant';
 }
 
-export function ParticipantStandings({ standings, contestConfig, loading }: ParticipantStandingsProps) {
+export function ParticipantStandings({
+  standings,
+  contestConfig,
+  loading,
+  onSelectParticipant,
+  onSelectPlayer,
+}: ParticipantStandingsProps) {
   if (loading) {
     return (
       <div className="rounded-xl bg-surface-container-low border border-outline-variant p-6 animate-pulse space-y-4">
@@ -70,9 +78,12 @@ export function ParticipantStandings({ standings, contestConfig, loading }: Part
         </td>
 
         {/* PARTICIPANT NAME */}
-        <td className="py-3 px-3 align-middle w-32">
+        <td
+          className={`py-3 px-3 align-middle w-32 ${onSelectParticipant ? 'cursor-pointer' : ''}`}
+          onClick={() => onSelectParticipant?.(s.participant.id)}
+        >
           <div className="flex flex-col">
-            <span className="font-bold text-sm text-on-surface leading-tight">
+            <span className="font-bold text-sm text-on-surface hover:text-tertiary transition leading-tight">
               {s.participant.name}
             </span>
             {contestConfig?.isFinalized && isTopFour && s.projectedPayout > 0 && (
@@ -89,7 +100,14 @@ export function ParticipantStandings({ standings, contestConfig, loading }: Part
             {s.draftedGolferDetails.map((g) => (
               <div
                 key={g.id}
-                className="flex items-baseline justify-between gap-3 min-w-0"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelectParticipant?.(s.participant.id);
+                  onSelectPlayer?.(g.id);
+                }}
+                className={`flex items-baseline justify-between gap-3 min-w-0 ${
+                  onSelectPlayer ? 'cursor-pointer hover:bg-surface-container-high rounded px-1 py-0.5 transition' : ''
+                }`}
               >
                 {/* Name + status badge */}
                 <div className="flex items-center gap-1.5 min-w-0 flex-shrink-0">
@@ -97,7 +115,7 @@ export function ParticipantStandings({ standings, contestConfig, loading }: Part
                     className={`text-xs leading-snug truncate ${
                       g.isCut || g.isWD
                         ? 'text-on-surface-variant line-through'
-                        : 'text-on-surface'
+                        : 'text-on-surface font-medium'
                     }`}
                   >
                     {g.name}
@@ -160,9 +178,9 @@ export function ParticipantStandings({ standings, contestConfig, loading }: Part
   };
 
   return (
-    <div className="rounded-xl bg-surface-container-low border border-outline-variant shadow-xs overflow-hidden">
+    <div className="bg-surface-container-low border border-outline-variant rounded-xl p-4 sm:p-5 space-y-4 shadow-xs">
       {/* Header */}
-      <div className="px-5 py-4 border-b border-outline-variant flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface-container-lowest">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-outline-variant/60 pb-3">
         <div>
           <h3 className="text-sm font-extrabold uppercase tracking-widest text-on-surface flex items-center gap-2">
             <Trophy className="w-4 h-4 text-amber-400 shrink-0" />
@@ -188,7 +206,7 @@ export function ParticipantStandings({ standings, contestConfig, loading }: Part
             return (
               <div
                 key={pos}
-                className="flex items-center gap-1 border border-outline-variant rounded-lg px-2.5 py-1.5 bg-surface-container text-center"
+                className="flex items-center gap-1 border border-outline-variant/60 rounded-lg px-2.5 py-1.5 bg-surface-container-lowest text-center"
               >
                 <span className={`text-[10px] font-black px-1.5 py-px rounded ${cls}`}>
                   {pos}
@@ -201,10 +219,10 @@ export function ParticipantStandings({ standings, contestConfig, loading }: Part
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto rounded-lg border border-outline-variant/60 bg-surface-container-lowest">
         <table className="w-full min-w-[700px] border-collapse">
           <thead>
-            <tr className="bg-surface-container text-[10px] font-extrabold tracking-widest uppercase text-on-surface-variant border-b border-outline-variant">
+            <tr className="bg-surface-container-high text-[10px] font-extrabold tracking-widest uppercase text-on-surface-variant border-b border-outline-variant">
               <th className="py-2.5 pl-4 pr-2 text-center w-12">POS</th>
               <th className="py-2.5 px-3 text-left w-32">PARTICIPANT</th>
               <th className="py-2.5 px-3 text-left">DRAFTED PLAYERS</th>

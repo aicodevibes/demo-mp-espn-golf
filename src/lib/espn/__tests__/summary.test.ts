@@ -39,4 +39,23 @@ describe('formatPlayerSummaryFromCompetitor', () => {
     expect(summary.rounds[0].holes[0].scoreType).toBe('birdie');
     expect(summary.rounds[1].displayValue).toBe('66');
   });
+
+  it('assigns scoreType unplayed when a hole has 0 strokes', () => {
+    const mockCompetitor = {
+      id: '123',
+      linescores: [
+        {
+          period: 1,
+          value: 0,
+          linescores: [
+            { period: 1, value: 0, scoreType: { displayValue: 'E' } },
+          ],
+        },
+      ],
+    };
+
+    const summary = formatPlayerSummaryFromCompetitor(mockCompetitor as any);
+    expect(summary.rounds[0].holes[0].strokes).toBe(0);
+    expect(summary.rounds[0].holes[0].scoreType).toBe('unplayed');
+  });
 });

@@ -53,21 +53,36 @@ export function ScorecardMatrix({
   ) || playerSummary.rounds[0];
 
   const holes = currentRoundData?.holes || [];
-  const frontNine = holes.filter((h) => h.hole >= 1 && h.hole <= 9);
-  const backNine = holes.filter((h) => h.hole >= 10 && h.hole <= 18);
+  const holesMap = new Map(holes.map((h) => [h.hole, h]));
+
+  const frontNine = [1, 2, 3, 4, 5, 6, 7, 8, 9].map((holeNum) => {
+    return holesMap.get(holeNum) || { hole: holeNum, par: 4, strokes: 0, scoreType: 'unplayed' };
+  });
+
+  const backNine = [10, 11, 12, 13, 14, 15, 16, 17, 18].map((holeNum) => {
+    return holesMap.get(holeNum) || { hole: holeNum, par: 4, strokes: 0, scoreType: 'unplayed' };
+  });
 
   const frontParTotal = frontNine.reduce((acc, h) => acc + (h.par || 0), 0);
-  const frontScoreTotal = frontNine.reduce((acc, h) => acc + (h.strokes || 0), 0);
+  const frontScoreTotal = frontNine.filter((h) => (h.strokes || 0) > 0).reduce((acc, h) => acc + h.strokes, 0);
 
   const backParTotal = backNine.reduce((acc, h) => acc + (h.par || 0), 0);
-  const backScoreTotal = backNine.reduce((acc, h) => acc + (h.strokes || 0), 0);
+  const backScoreTotal = backNine.filter((h) => (h.strokes || 0) > 0).reduce((acc, h) => acc + h.strokes, 0);
 
   const grandParTotal = frontParTotal + backParTotal;
   const grandScoreTotal = frontScoreTotal + backScoreTotal;
 
   const renderScoreBadge = (scoreType: string, strokes: number, par: number) => {
+    if (!strokes || strokes === 0) {
+      return <span className="font-semibold text-on-surface-variant text-xs">-</span>;
+    }
+
     const diff = strokes - par;
     const type = scoreType?.toLowerCase() || '';
+
+    if (type.includes('unplayed')) {
+      return <span className="font-semibold text-on-surface-variant text-xs">-</span>;
+    }
 
     if (type.includes('eagle') || diff <= -2) {
       return (
@@ -97,7 +112,7 @@ export function ScorecardMatrix({
         </span>
       );
     }
-    return <span className="font-semibold text-on-surface text-xs">{strokes || '-'}</span>;
+    return <span className="font-semibold text-on-surface text-xs">{strokes}</span>;
   };
 
   return (

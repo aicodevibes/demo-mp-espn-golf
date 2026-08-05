@@ -5,7 +5,9 @@ import dynamic from 'next/dynamic';
 import { Header } from '@/components/Header';
 import { TrackedPlayerHeroGrid } from '@/components/TrackedPlayerHeroGrid';
 import { ScorecardMatrix } from '@/components/ScorecardMatrix';
-import { LiveLeaderboard } from '@/components/LiveLeaderboard';
+import { Top10Leaderboard } from '@/components/Top10Leaderboard';
+import { DraftedPlayersLeaderboard } from '@/components/DraftedPlayersLeaderboard';
+import { FullFieldLeaderboard } from '@/components/FullFieldLeaderboard';
 import { ParticipantStandings } from '@/components/ParticipantStandings';
 import { DayMoneyWinners } from '@/components/DayMoneyWinners';
 import { useAuth } from '@/context/AuthContext';
@@ -42,6 +44,7 @@ export default function DashboardPage() {
   const [loadingLeaderboard, setLoadingLeaderboard] = useState<boolean>(true);
 
   const [selectedPlayerId, setSelectedPlayerId] = useState<string>('');
+  const [selectedParticipantId, setSelectedParticipantId] = useState<string>('');
   const [playerSummary, setPlayerSummary] = useState<ESPNPlayerSummary | null>(null);
   const [loadingSummary, setLoadingSummary] = useState<boolean>(false);
 
@@ -66,6 +69,13 @@ export default function DashboardPage() {
 
   const { config: contestConfig, loading: contestConfigLoading } = useContestConfig(activeEventId);
   const { participants, loading: participantsLoading } = useParticipants(activeEventId);
+
+  // Auto-select 1st participant when loaded
+  useEffect(() => {
+    if (participants.length > 0 && !selectedParticipantId) {
+      setSelectedParticipantId(participants[0].id);
+    }
+  }, [participants, selectedParticipantId]);
 
   // 3. Fetch Active Event Leaderboard
   useEffect(() => {
@@ -122,27 +132,67 @@ export default function DashboardPage() {
     return calculateDayMoneyWinners(participants, competitors, contestConfig, activeEvent?.status);
   }, [participants, competitors, contestConfig, activeEvent]);
 
+  // Find active selected participant
+  const activeParticipant = useMemo(() => {
+    if (!selectedParticipantId) return participants[0] || null;
+    return participants.find((p) => p.id === selectedParticipantId) || participants[0] || null;
+  }, [participants, selectedParticipantId]);
+
   // Vercel Performance Rule: rerender-memo & js-index-maps
   const displayCompetitors = useMemo(() => {
-    if (trackedPlayers.length === 0) return competitors.slice(0, 4);
-
     const compMap = new Map(competitors.map((c) => [c.athlete?.id || c.id, c]));
 
-    return trackedPlayers.map((p) => {
-      const match = compMap.get(p.playerId);
-      if (match) return match;
-      return {
-        id: p.playerId,
-        score: 'E',
-        athlete: {
+    // 1. Display selected participant's 3 drafted golfers if available
+    if (activeParticipant && activeParticipant.draftedPlayerIds && activeParticipant.draftedPlayerIds.length > 0) {
+      return activeParticipant.draftedPlayerIds.map((playerId) => {
+        const match = compMap.get(playerId);
+        if (match) return match;
+        return {
+          id: playerId,
+          score: 'E',
+          athlete: {
+            id: playerId,
+            displayName: `Golfer (${playerId})`,
+            headshot: { href: '' },
+            country: { abbreviation: '' },
+          },
+        } as ESPNCompetitor;
+      });
+    }
+
+    // 2. Fallback to trackedPlayers if no drafted players assigned
+    if (trackedPlayers.length > 0) {
+      return trackedPlayers.map((p) => {
+        const match = compMap.get(p.playerId);
+        if (match) return match;
+        return {
           id: p.playerId,
-          displayName: p.name,
-          headshot: { href: p.headshotUrl || '' },
-          country: { abbreviation: p.country || '' },
-        },
-      } as ESPNCompetitor;
-    });
-  }, [competitors, trackedPlayers]);
+          score: 'E',
+          athlete: {
+            id: p.playerId,
+            displayName: p.name,
+            headshot: { href: p.headshotUrl || '' },
+            country: { abbreviation: p.country || '' },
+          },
+        } as ESPNCompetitor;
+      });
+    }
+
+    return competitors.slice(0, 3);
+  }, [competitors, activeParticipant, trackedPlayers]);
+
+  // Auto-select 1st golfer of newly displayed participant watchlist
+  useEffect(() => {
+    if (displayCompetitors.length > 0) {
+      const isSelectedInDisplay = displayCompetitors.some(
+        (c) => (c.athlete?.id || c.id) === selectedPlayerId
+      );
+      if (!isSelectedInDisplay) {
+        const firstId = displayCompetitors[0]?.athlete?.id || displayCompetitors[0]?.id;
+        if (firstId) setSelectedPlayerId(firstId);
+      }
+    }
+  }, [displayCompetitors, selectedPlayerId]);
 
   const selectedCompetitor = useMemo(() => {
     const compMap = new Map(competitors.map((c) => [c.athlete?.id || c.id, c]));
@@ -188,16 +238,73 @@ export default function DashboardPage() {
 
       {/* Main Content Dashboard Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 lg:px-8 py-6 space-y-8">
-        {/* Section 1: Tracked Players Hero Summary Grid */}
+        {/* Section 1: Top Component - Official Participant Standings */}
+        <section>
+          <ParticipantStandings
+            standings={participantStandings}
+            contestConfig={contestConfig}
+            loading={loadingLeaderboard || participantsLoading || contestConfigLoading}
+            onSelectParticipant={(pId) => setSelectedParticipantId(pId)}
+            onSelectPlayer={(pId) => setSelectedPlayerId(pId)}
+          />
+        </section>
+
+        {/* Section 2: Side-by-Side - Top 10 Leaderboard & Drafted Golfers */}
+        <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Top10Leaderboard
+            competitors={competitors}
+            participants={participants}
+            eventObj={activeEvent || undefined}
+            selectedPlayerId={selectedPlayerId}
+            onSelectPlayer={(id) => setSelectedPlayerId(id)}
+          />
+
+          <DraftedPlayersLeaderboard
+            competitors={competitors}
+            participants={participants}
+            eventObj={activeEvent || undefined}
+            selectedPlayerId={selectedPlayerId}
+            onSelectPlayer={(id) => setSelectedPlayerId(id)}
+          />
+        </section>
+
+        {/* Section 3: Selected Participant Golfer Watchlist */}
         <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-extrabold uppercase tracking-wider text-on-surface flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-tertiary animate-pulse" />
-              Custom Golfer Watchlist
-            </h2>
-            <span className="text-xs text-on-surface-variant">
-              {trackedPlayers.length} Golfer(s) Tracked
-            </span>
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-surface-container-low p-3.5 rounded-xl border border-outline-variant/60">
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-extrabold uppercase tracking-wider text-on-surface flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-tertiary animate-pulse" />
+                {activeParticipant ? `${activeParticipant.name}'s Watchlist` : 'Participant Watchlist'}
+              </h2>
+              <span className="text-xs font-semibold text-on-surface-variant bg-surface-container-high px-2 py-0.5 rounded border border-outline-variant/60">
+                {displayCompetitors.length} Golfer{displayCompetitors.length === 1 ? '' : 's'}
+              </span>
+            </div>
+
+            {/* Participant Dropdown View Selector */}
+            <div className="flex items-center gap-2">
+              <label htmlFor="participantSelect" className="text-xs font-bold text-on-surface-variant">
+                Participant View:
+              </label>
+              <select
+                id="participantSelect"
+                value={selectedParticipantId}
+                onChange={(e) => setSelectedParticipantId(e.target.value)}
+                className="bg-surface-container-lowest border border-outline-variant rounded-lg px-3 py-1.5 text-xs font-bold text-on-surface outline-none focus:border-tertiary shadow-xs cursor-pointer"
+              >
+                {participantsLoading ? (
+                  <option value="">Loading Participants...</option>
+                ) : participants.length === 0 ? (
+                  <option value="">No Participants Configured</option>
+                ) : (
+                  participants.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} {p.draftedPlayerIds.length > 0 ? `(${p.draftedPlayerIds.length} Golfers)` : '(No Roster)'}
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
           </div>
 
           <TrackedPlayerHeroGrid
@@ -209,7 +316,29 @@ export default function DashboardPage() {
           />
         </section>
 
-        {/* Section 2: US Open Draft Contest - Day Money Winners */}
+        {/* Section 4: Selected Golfer 18-Hole Matrix & Round Scores (R1 to R4) */}
+        <section>
+          <ScorecardMatrix
+            playerSummary={playerSummary}
+            competitor={selectedCompetitor}
+            eventStatus={activeEvent?.status}
+            loading={loadingSummary}
+            playerName={selectedCompetitor?.athlete?.displayName}
+          />
+        </section>
+
+        {/* Section 5: Full PGA Tournament Field Leaderboard */}
+        <section>
+          <FullFieldLeaderboard
+            competitors={competitors}
+            participants={participants}
+            eventObj={activeEvent || undefined}
+            selectedPlayerId={selectedPlayerId}
+            onSelectPlayer={(id) => setSelectedPlayerId(id)}
+          />
+        </section>
+
+        {/* Section 6: Day Money Winners */}
         <section>
           <DayMoneyWinners
             dayMoneyResults={dayMoneyResults}
@@ -217,41 +346,6 @@ export default function DashboardPage() {
             eventStatus={activeEvent?.status}
             loading={loadingLeaderboard || participantsLoading || contestConfigLoading}
           />
-        </section>
-
-        {/* Section 3: US Open Draft Contest - Official Participant Standings */}
-        <section>
-          <ParticipantStandings
-            standings={participantStandings}
-            contestConfig={contestConfig}
-            loading={loadingLeaderboard || participantsLoading || contestConfigLoading}
-          />
-        </section>
-
-        {/* Section 4: Split View (60% Scorecard Matrix + 40% Live Field Leaderboard) */}
-        <section className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Left Column (7/12): 18-Hole Matrix Scorecard */}
-          <div className="lg:col-span-7 space-y-4">
-            <ScorecardMatrix
-              playerSummary={playerSummary}
-              competitor={selectedCompetitor}
-              eventStatus={activeEvent?.status}
-              loading={loadingSummary}
-              playerName={selectedCompetitor?.athlete?.displayName}
-            />
-          </div>
-
-          {/* Right Column (5/12): Live Tournament Leaderboard */}
-          <div className="lg:col-span-5 space-y-4">
-            <LiveLeaderboard
-              competitors={competitors}
-              eventObj={activeEvent || undefined}
-              trackedPlayerIds={trackedPlayerIds}
-              onToggleTrackPlayer={handleToggleTrackPlayer}
-              selectedPlayerId={selectedPlayerId}
-              onSelectPlayer={(id) => setSelectedPlayerId(id)}
-            />
-          </div>
         </section>
       </main>
 

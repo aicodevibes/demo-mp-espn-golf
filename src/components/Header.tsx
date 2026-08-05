@@ -69,7 +69,7 @@ export function Header({ eventName, eventObj }: HeaderProps) {
           </div>
         </div>
 
-        {/* User Auth Section */}
+        {/* User Auth & Navigation Section */}
         <div className="flex items-center gap-3">
           {loading ? (
             <div className="h-8 w-24 bg-surface-container-high animate-pulse rounded-lg" />
@@ -89,6 +89,15 @@ export function Header({ eventName, eventObj }: HeaderProps) {
                 </div>
               </div>
 
+              {isAdmin && (
+                <a
+                  href="/admin"
+                  className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-tertiary/10 hover:bg-tertiary/20 text-tertiary border border-tertiary/30 transition"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" /> Admin Panel
+                </a>
+              )}
+
               <button
                 onClick={() => signOut()}
                 className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-secondary-container hover:bg-secondary-container/80 text-on-secondary-container border border-outline-variant transition cursor-pointer"
@@ -97,12 +106,12 @@ export function Header({ eventName, eventObj }: HeaderProps) {
               </button>
             </div>
           ) : (
-            <button
-              onClick={() => signInWithGoogle()}
-              className="flex items-center gap-1.5 text-xs font-semibold px-3.5 py-1.5 rounded-lg bg-tertiary hover:bg-tertiary/90 text-on-tertiary shadow-xs transition cursor-pointer"
+            <a
+              href="/admin"
+              className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-surface-container-high hover:bg-surface-container-highest text-on-surface-variant border border-outline-variant transition"
             >
-              <LogIn className="w-3.5 h-3.5" /> Google Sign-In
-            </button>
+              <ShieldCheck className="w-3.5 h-3.5 text-tertiary" /> Admin
+            </a>
           )}
         </div>
       </div>
