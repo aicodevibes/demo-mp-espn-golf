@@ -1,9 +1,49 @@
 import { ESPNCompetitor, ESPNPlayerSummary, ESPNRoundLinescore, ESPNHoleScore } from '@/types/espn';
 
-export function formatPlayerSummaryFromCompetitor(comp: ESPNCompetitor): ESPNPlayerSummary {
-  const rounds: ESPNRoundLinescore[] = (comp.linescores || []).map((rd: any, idx: number) => {
+export function formatPlayerSummaryFromESPNData(
+  rawSummary: any,
+  fallbackComp?: ESPNCompetitor | null
+): ESPNPlayerSummary {
+  if (!rawSummary && !fallbackComp) {
+    return {
+      player: { id: '', displayName: 'Golfer' },
+      rounds: [],
+    };
+  }
+
+  const sourceData = rawSummary || fallbackComp;
+  const profile = sourceData.profile || sourceData.athlete || fallbackComp?.athlete;
+  const rawRounds: any[] = sourceData.rounds || sourceData.linescores || fallbackComp?.linescores || [];
+
+  // Map to hold known hole pars across rounds (e.g., hole 1 -> 4, hole 2 -> 5)
+  const knownHoleParsMap = new Map<number, number>();
+
+  // Pass 1: Gather any explicit hole pars from all available rounds/linescores
+  rawRounds.forEach((rd: any) => {
+    (rd.linescores || []).forEach((h: any, hIdx: number) => {
+      const holeNum = h.period || hIdx + 1;
+      const strokes = h.value || 0;
+      const diffStr = h.scoreType?.displayValue || 'E';
+      const diff = parseInt(diffStr, 10) || 0;
+
+      let extractedPar: number | undefined;
+      if (typeof h.par === 'number' && h.par > 0) {
+        extractedPar = h.par;
+      } else if (strokes > 0 && diff !== undefined && !isNaN(diff)) {
+        const derived = strokes - diff;
+        if (derived > 0) extractedPar = derived;
+      }
+
+      if (extractedPar && holeNum >= 1 && holeNum <= 18) {
+        knownHoleParsMap.set(holeNum, extractedPar);
+      }
+    });
+  });
+
+  // Pass 2: Format each round's 18 holes
+  const rounds: ESPNRoundLinescore[] = rawRounds.map((rd: any, idx: number) => {
     const roundPeriod = rd.period || idx + 1;
-    const roundValue = rd.value ? `${rd.value}` : rd.displayValue || '-';
+    const roundValue = rd.value !== undefined && rd.value !== 0 ? `${rd.value}` : rd.displayValue || '-';
 
     const rawHolesMap = new Map<number, ESPNHoleScore>();
     (rd.linescores || []).forEach((h: any, hIdx: number) => {
@@ -11,7 +51,15 @@ export function formatPlayerSummaryFromCompetitor(comp: ESPNCompetitor): ESPNPla
       const strokes = h.value || 0;
       const diffStr = h.scoreType?.displayValue || 'E';
       const diff = parseInt(diffStr, 10) || 0;
-      const par = strokes > 0 ? (strokes - diff > 0 ? strokes - diff : 4) : 4;
+
+      let par = 4;
+      if (typeof h.par === 'number' && h.par > 0) {
+        par = h.par;
+      } else if (strokes > 0 && diff !== undefined && !isNaN(diff) && strokes - diff > 0) {
+        par = strokes - diff;
+      } else if (knownHoleParsMap.has(holeNum)) {
+        par = knownHoleParsMap.get(holeNum)!;
+      }
 
       let scoreTypeLabel = 'par';
       if (strokes === 0) {
@@ -36,10 +84,11 @@ export function formatPlayerSummaryFromCompetitor(comp: ESPNCompetitor): ESPNPla
 
     const holes: ESPNHoleScore[] = Array.from({ length: 18 }, (_, i) => {
       const holeNum = i + 1;
+      const fallbackPar = knownHoleParsMap.get(holeNum) || 4;
       return (
         rawHolesMap.get(holeNum) || {
           hole: holeNum,
-          par: 4,
+          par: fallbackPar,
           strokes: 0,
           scoreType: 'unplayed',
         }
@@ -55,12 +104,19 @@ export function formatPlayerSummaryFromCompetitor(comp: ESPNCompetitor): ESPNPla
 
   return {
     player: {
-      id: comp.athlete?.id || comp.id,
-      displayName: comp.athlete?.displayName || 'Golfer',
-      headshotUrl: comp.athlete?.headshot?.href,
+      id: profile?.id || fallbackComp?.athlete?.id || fallbackComp?.id || '',
+      displayName: profile?.displayName || fallbackComp?.athlete?.displayName || 'Golfer',
+      headshotUrl:
+        typeof profile?.headshot === 'string'
+          ? profile.headshot
+          : profile?.headshot?.href || fallbackComp?.athlete?.headshot?.href,
     },
     rounds,
   };
+}
+
+export function formatPlayerSummaryFromCompetitor(comp: ESPNCompetitor): ESPNPlayerSummary {
+  return formatPlayerSummaryFromESPNData(comp, comp);
 }
 
 export function createSyntheticCompetitor(

@@ -25,7 +25,7 @@ import {
   TrackedPlayer,
 } from '@/lib/firebase/firestore';
 import { ESPNEvent, ESPNCompetitor, ESPNPlayerSummary } from '@/types/espn';
-import { formatPlayerSummaryFromCompetitor, createSyntheticCompetitor } from '@/lib/espn';
+import { formatPlayerSummaryFromCompetitor, formatPlayerSummaryFromESPNData, createSyntheticCompetitor } from '@/lib/espn';
 import { evaluateContest } from '@/lib/contestEngine';
 
 // Vercel Performance Rule: bundle-dynamic-imports
@@ -181,13 +181,51 @@ export default function DashboardPage() {
     return compMap.get(selectedPlayerId) || displayCompetitors[0];
   }, [competitors, selectedPlayerId, displayCompetitors]);
 
-  // 4. Compute Hole-by-Hole Player Summary from active competitor linescores
+  // 4. Fetch Hole-by-Hole Player Summary from ESPN API for selected golfer
   useEffect(() => {
-    if (selectedCompetitor) {
-      const summary = formatPlayerSummaryFromCompetitor(selectedCompetitor);
-      setPlayerSummary(summary);
+    if (!selectedCompetitor || !activeEventId) return;
+
+    const playerId = selectedCompetitor.athlete?.id || selectedCompetitor.id;
+    if (!playerId) return;
+
+    let isMounted = true;
+    setLoadingSummary(true);
+
+    async function fetchPlayerSummary() {
+      try {
+        const season = new Date().getFullYear();
+        const res = await fetch(
+          `/api/espn/playersummary?eventId=${activeEventId}&playerId=${playerId}&season=${season}`
+        );
+        if (res.ok) {
+          const data = await res.json();
+          if (isMounted) {
+            const summary = formatPlayerSummaryFromESPNData(data, selectedCompetitor);
+            setPlayerSummary(summary);
+          }
+        } else {
+          if (isMounted) {
+            setPlayerSummary(formatPlayerSummaryFromCompetitor(selectedCompetitor));
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch player summary from ESPN API:', err);
+        if (isMounted) {
+          setPlayerSummary(formatPlayerSummaryFromCompetitor(selectedCompetitor));
+        }
+      } finally {
+        if (isMounted) {
+          setLoadingSummary(false);
+        }
+      }
     }
-  }, [selectedCompetitor]);
+
+    fetchPlayerSummary();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedCompetitor, activeEventId]);
 
   // Admin Actions
   const handleSelectEvent = useCallback(async (eventId: string) => {

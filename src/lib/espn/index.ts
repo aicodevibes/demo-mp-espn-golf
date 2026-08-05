@@ -1,7 +1,7 @@
 // Deep Module: ESPN Domain Adapter & Data Normalizer
 // Hides all ESPN JSON API structural complexity behind a clean, unified interface.
 
-export { formatPlayerSummaryFromCompetitor, createSyntheticCompetitor } from './summary';
+export { formatPlayerSummaryFromCompetitor, formatPlayerSummaryFromESPNData, createSyntheticCompetitor } from './summary';
 export {
   formatEventDates,
   getWinnerStatus,
