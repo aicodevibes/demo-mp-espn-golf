@@ -17,10 +17,13 @@ const DEFAULT_DAY_MONEY_POOL = 75;
  */
 export function createPlayerDraftedByMap(participants: Participant[] = []): Map<string, string[]> {
   const map = new Map<string, string[]>();
-  participants.forEach((p) => {
+  const safeParticipants = Array.isArray(participants) ? participants : [];
+  safeParticipants.forEach((p) => {
+    if (!p) return;
     p.draftedPlayerIds?.forEach((pid) => {
+      if (!pid) return;
       const existing = map.get(pid) || [];
-      existing.push(p.name);
+      existing.push(p.name || 'Participant');
       map.set(pid, existing);
     });
   });

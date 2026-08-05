@@ -35,11 +35,13 @@ export function DraftedPlayersLeaderboard({
   }, [participants]);
 
   const outsideTop10DraftedCompetitors = useMemo(() => {
-    const top10Ids = new Set(competitors.slice(0, 10).map((c) => c.athlete?.id || c.id));
+    const safeCompetitors = Array.isArray(competitors) ? competitors : [];
+    const top10Ids = new Set(safeCompetitors.slice(0, 10).map((c) => c?.athlete?.id || c?.id));
 
-    return competitors.filter((comp) => {
+    return safeCompetitors.filter((comp) => {
+      if (!comp) return false;
       const pid = comp.athlete?.id || comp.id;
-      return allDraftedPlayerIdsSet.has(pid) && !top10Ids.has(pid);
+      return pid && allDraftedPlayerIdsSet.has(pid) && !top10Ids.has(pid);
     });
   }, [competitors, allDraftedPlayerIdsSet]);
 

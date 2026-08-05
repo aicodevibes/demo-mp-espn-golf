@@ -30,10 +30,11 @@ export function FullFieldLeaderboard({
   }, [participants]);
 
   const filteredCompetitors = useMemo(() => {
-    if (!searchQuery.trim()) return competitors;
+    const safeCompetitors = Array.isArray(competitors) ? competitors : [];
+    if (!searchQuery.trim()) return safeCompetitors;
     const q = searchQuery.toLowerCase().trim();
-    return competitors.filter((c) =>
-      c.athlete?.displayName?.toLowerCase().includes(q)
+    return safeCompetitors.filter((c) =>
+      c?.athlete?.displayName?.toLowerCase().includes(q)
     );
   }, [competitors, searchQuery]);
 

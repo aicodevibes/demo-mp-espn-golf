@@ -56,6 +56,10 @@ export interface ESPNCompetitor {
     id: string;
     displayName: string;
     shortName?: string;
+    firstName?: string;
+    lastName?: string;
+    lastNames?: string;
+    fullName?: string;
     flag?: {
       href: string;
       alt?: string;

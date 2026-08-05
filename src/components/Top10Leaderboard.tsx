@@ -27,7 +27,8 @@ export function Top10Leaderboard({
   }, [participants]);
 
   const top10Competitors = useMemo(() => {
-    return competitors.slice(0, 10);
+    const safeCompetitors = Array.isArray(competitors) ? competitors : [];
+    return safeCompetitors.slice(0, 10);
   }, [competitors]);
 
   if (!competitors || competitors.length === 0) {

@@ -25,12 +25,14 @@ export function CompetitorRow({
   priorityHeadshot = false,
   onSelectPlayer,
 }: CompetitorRowProps) {
-  const playerId = competitor.athlete?.id || competitor.id;
+  if (!competitor) return null;
+
+  const playerId = competitor.athlete?.id || competitor.id || '';
   const displayName = competitor.athlete?.displayName || 'Golfer';
   const headshotUrl = competitor.athlete?.headshot?.href;
   const score = competitor.score || 'E';
-  const isUnderPar = score.startsWith('-');
-  const isOverPar = score.startsWith('+');
+  const isUnderPar = typeof score === 'string' && score.startsWith('-');
+  const isOverPar = typeof score === 'string' && score.startsWith('+');
 
   const isDrafted = draftedBy.length > 0;
   const statusInfo = getPlayerStatusInfo(competitor, eventStatus);

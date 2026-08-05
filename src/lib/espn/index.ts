@@ -10,4 +10,10 @@ export {
   type WinnerStatusInfo,
   type PlayerStatusInfo,
 } from './eventHelpers';
-
+export {
+  normalizeGolferName,
+  searchGolferCompetitors,
+  matchGolferInputToId,
+  findCompetitorByQuery,
+  parseCommaDelimitedGolfers,
+} from './golferMatcher';

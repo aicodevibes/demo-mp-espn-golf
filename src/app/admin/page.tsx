@@ -30,27 +30,23 @@ import {
   X,
   Star,
   Users,
+  ShieldCheck,
+  ShieldAlert,
+  LogIn,
+  LogOut,
 } from 'lucide-react';
 import { Participant, ContestConfig } from '@/types/contest';
 import { ESPNEvent, ESPNCompetitor } from '@/types/espn';
 import { getGolferRoundScoreToPar } from '@/lib/scoring';
 import { doc, deleteDoc, collection, getDocs, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
+import { parseCommaDelimitedGolfers, matchGolferInputToId } from '@/lib/espn/golferMatcher';
 
 const ADMIN_EMAILS = ['aicodevibes@gmail.com'];
 
 export default function AdminPage() {
-  const { user, loading: authLoading, isAdmin } = useAuth();
+  const { user, loading: authLoading, isAdmin, signInWithGoogle, signOut } = useAuth();
   const router = useRouter();
-
-  // Redirect if not admin
-  useEffect(() => {
-    if (!authLoading) {
-      if (!user || !ADMIN_EMAILS.includes(user.email ?? '')) {
-        router.push('/');
-      }
-    }
-  }, [user, authLoading, router]);
 
   const { config: appConfig, loading: appConfigLoading } = useActiveConfig();
 
@@ -155,6 +151,7 @@ export default function AdminPage() {
   // Add / Edit Participant Form States
   const [editingParticipant, setEditingParticipant] = useState<Participant | null>(null);
   const [partName, setPartName] = useState('');
+  const [partGolfersInput, setPartGolfersInput] = useState('');
   const [partGolfer1, setPartGolfer1] = useState('');
   const [partGolfer2, setPartGolfer2] = useState('');
   const [partGolfer3, setPartGolfer3] = useState('');
@@ -370,20 +367,29 @@ export default function AdminPage() {
       return;
     }
 
-    const draftIds = [partGolfer1, partGolfer2, partGolfer3].filter(Boolean);
+    let draftIds: string[] = [];
+    if (partGolfersInput.trim()) {
+      const parsedGolfers = parseCommaDelimitedGolfers(partGolfersInput, competitors);
+      draftIds = parsedGolfers.map((g) => g.matchedId).filter((id): id is string => Boolean(id));
+    } else {
+      draftIds = [partGolfer1, partGolfer2, partGolfer3].filter(Boolean);
+    }
 
     const participantData: Participant = {
       id: editingParticipant?.id || `p-${partName.toLowerCase().trim().replace(/\s+/g, '-')}`,
       name: partName.trim(),
       draftedPlayerIds: draftIds,
       isGreedyParticipant: partIsGreedy,
-      greedyPlayerId: partIsGreedy ? partGreedyPlayer : '',
+      greedyPlayerId: partIsGreedy
+        ? (partGreedyPlayer ? (matchGolferInputToId(competitors, partGreedyPlayer) || partGreedyPlayer) : '')
+        : '',
     };
 
     try {
       await addParticipantToEvent(selectedEventId, participantData);
       setEditingParticipant(null);
       setPartName('');
+      setPartGolfersInput('');
       setPartGolfer1('');
       setPartGolfer2('');
       setPartGolfer3('');
@@ -395,10 +401,56 @@ export default function AdminPage() {
     }
   };
 
+  // Batch Roster Import State & Function
+  const [showBatchModal, setShowBatchModal] = useState(false);
+  const [batchRosterText, setBatchRosterText] = useState('');
+
+  const handleProcessBatchRosters = async () => {
+    if (!selectedEventId || !batchRosterText.trim()) return;
+    setSyncing(true);
+    try {
+      const lines = batchRosterText.split('\n').filter((l) => l.trim());
+      const updatedParticipants: Participant[] = lines.map((line) => {
+        const colonIdx = line.indexOf(':');
+        let name = '';
+        let golfersStr = line;
+        if (colonIdx !== -1) {
+          name = line.substring(0, colonIdx).trim();
+          golfersStr = line.substring(colonIdx + 1).trim();
+        } else {
+          name = `Participant ${Math.floor(Math.random() * 1000)}`;
+        }
+
+        const parsed = parseCommaDelimitedGolfers(golfersStr, competitors);
+        const draftIds = parsed.map((p) => p.matchedId).filter((id): id is string => Boolean(id));
+
+        return {
+          id: `p-${name.toLowerCase().replace(/\s+/g, '-')}`,
+          name,
+          draftedPlayerIds: draftIds,
+          isGreedyParticipant: false,
+          greedyPlayerId: '',
+        };
+      });
+
+      await setParticipantsForEvent(selectedEventId, updatedParticipants);
+      setShowBatchModal(false);
+      setBatchRosterText('');
+      alert(`Batch imported ${updatedParticipants.length} participant rosters successfully!`);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to batch import rosters.');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   // Trigger Edit Mode
   const startEditParticipant = (p: Participant) => {
     setEditingParticipant(p);
     setPartName(p.name);
+    const golferNames = p.draftedPlayerIds.map((id) => getGolferNameById(id));
+    setPartGolfersInput(golferNames.join(', '));
     setPartGolfer1(p.draftedPlayerIds[0] || '');
     setPartGolfer2(p.draftedPlayerIds[1] || '');
     setPartGolfer3(p.draftedPlayerIds[2] || '');
@@ -459,9 +511,89 @@ export default function AdminPage() {
     );
   }
 
-  // Double auth protection
-  if (!user || !ADMIN_EMAILS.includes(user.email ?? '')) {
-    return null;
+  // 1. Unauthenticated Visitor -> Render Admin Sign-In Portal
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-surface text-on-surface flex flex-col items-center justify-center p-4">
+        <div className="w-full max-w-md bg-surface-container-lowest border border-outline-variant rounded-2xl p-8 shadow-xl text-center space-y-6">
+          <div className="mx-auto w-16 h-16 rounded-2xl bg-tertiary/10 text-tertiary flex items-center justify-center border border-tertiary/30">
+            <ShieldCheck className="w-8 h-8 text-tertiary" />
+          </div>
+
+          <div className="space-y-2">
+            <h1 className="text-2xl font-black tracking-tight text-on-surface">Admin Access Portal</h1>
+            <p className="text-sm text-on-surface-variant leading-relaxed">
+              Sign in with your authorized admin Google account to manage tournament configurations, participant rosters, and payout settings.
+            </p>
+          </div>
+
+          <div className="space-y-3 pt-2">
+            <button
+              onClick={() => signInWithGoogle()}
+              className="w-full flex items-center justify-center gap-3 px-5 py-3 rounded-xl bg-tertiary hover:bg-tertiary/90 text-on-tertiary font-bold text-sm shadow-md transition cursor-pointer"
+            >
+              <LogIn className="w-5 h-5 text-white" /> Sign In with Google
+            </button>
+
+            {process.env.NODE_ENV === 'development' && (
+              <button
+                onClick={() => signInWithGoogle()}
+                className="w-full text-xs font-semibold py-2 px-3 rounded-lg bg-surface-container-high hover:bg-surface-container-highest text-on-surface-variant border border-outline-variant transition cursor-pointer"
+              >
+                ⚡ Dev Quick Login (aicodevibes@gmail.com)
+              </button>
+            )}
+          </div>
+
+          <div className="border-t border-outline-variant/60 pt-4">
+            <Link
+              href="/"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-on-surface-variant hover:text-on-surface transition"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" /> Return to Tournament Dashboard
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. Logged In Non-Admin User -> Render Access Denied Card
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen bg-surface text-on-surface flex flex-col items-center justify-center p-4">
+        <div className="w-full max-w-md bg-surface-container-lowest border border-outline-variant rounded-2xl p-8 shadow-xl text-center space-y-6">
+          <div className="mx-auto w-16 h-16 rounded-2xl bg-error/10 text-error flex items-center justify-center border border-error/30">
+            <ShieldAlert className="w-8 h-8 text-error" />
+          </div>
+
+          <div className="space-y-2">
+            <h1 className="text-2xl font-black tracking-tight text-on-surface">Access Denied</h1>
+            <p className="text-sm text-on-surface-variant leading-relaxed">
+              Signed in as <span className="font-semibold text-on-surface">{user.email}</span>. This Google account does not have admin privileges.
+            </p>
+          </div>
+
+          <div className="space-y-3 pt-2">
+            <button
+              onClick={() => signOut()}
+              className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-surface-container-high hover:bg-surface-container-highest text-on-surface font-bold text-sm border border-outline-variant transition cursor-pointer"
+            >
+              <LogOut className="w-4 h-4 text-on-surface" /> Sign Out & Switch Account
+            </button>
+          </div>
+
+          <div className="border-t border-outline-variant/60 pt-4">
+            <Link
+              href="/"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-on-surface-variant hover:text-on-surface transition"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" /> Return to Tournament Dashboard
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -609,6 +741,14 @@ export default function AdminPage() {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <button
+                    onClick={() => setShowBatchModal(true)}
+                    disabled={syncing}
+                    className="inline-flex items-center gap-1 bg-surface-container-high hover:bg-surface-container-highest text-on-surface border border-outline-variant text-[11px] font-bold px-3 py-2 rounded transition disabled:opacity-50"
+                  >
+                    📋 Batch Paste Rosters
+                  </button>
+
+                  <button
                     onClick={handleSeedDefaultNames}
                     disabled={syncing}
                     className="inline-flex items-center gap-1 bg-secondary text-on-secondary hover:bg-secondary/95 text-[11px] font-bold px-3 py-2 rounded transition disabled:opacity-50"
@@ -691,12 +831,13 @@ export default function AdminPage() {
               </div>
 
               <form onSubmit={handleSaveParticipant} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="space-y-1">
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+                  {/* Participant Name */}
+                  <div className="md:col-span-4 space-y-1">
                     <label className="text-[11px] font-bold text-on-surface-variant">Participant Name</label>
                     <input
                       type="text"
-                      placeholder="Enter name"
+                      placeholder="Enter participant name"
                       value={partName}
                       onChange={(e) => setPartName(e.target.value)}
                       className="w-full bg-surface-container border border-outline-variant rounded px-2.5 py-1.5 text-xs text-on-surface outline-none focus:border-outline"
@@ -704,56 +845,109 @@ export default function AdminPage() {
                     />
                   </div>
 
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-on-surface-variant">Golfer 1</label>
-                    <select
-                      value={partGolfer1}
-                      onChange={(e) => setPartGolfer1(e.target.value)}
-                      className="w-full bg-surface-container border border-outline-variant rounded px-2.5 py-1.5 text-xs text-on-surface outline-none focus:border-outline"
-                    >
-                      <option value="">-- Choose Golfer 1 --</option>
-                      {fieldGolfers.map((g) => (
-                        <option key={g.id} value={g.id}>
-                          {g.name}
-                        </option>
-                      ))}
-                    </select>
+                  {/* Comma-delimited drafted golfers input */}
+                  <div className="md:col-span-8 space-y-1">
+                    <div className="flex justify-between items-center">
+                      <label className="text-[11px] font-bold text-on-surface-variant">
+                        Drafted Golfers (Comma-Delimited Names or IDs)
+                      </label>
+                      <span className="text-[10px] text-tertiary font-bold">
+                        Supports 3 or 4 golfers (Days 3 & 4 cut replacements)
+                      </span>
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="e.g. Scottie Scheffler, Rory McIlroy, Ludvig Aberg, Xander Schauffele"
+                      value={partGolfersInput}
+                      onChange={(e) => setPartGolfersInput(e.target.value)}
+                      className="w-full bg-surface-container border border-outline-variant rounded px-2.5 py-1.5 text-xs text-on-surface outline-none focus:border-outline font-mono"
+                    />
                   </div>
 
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-on-surface-variant">Golfer 2</label>
-                    <select
-                      value={partGolfer2}
-                      onChange={(e) => setPartGolfer2(e.target.value)}
-                      className="w-full bg-surface-container border border-outline-variant rounded px-2.5 py-1.5 text-xs text-on-surface outline-none focus:border-outline"
-                    >
-                      <option value="">-- Choose Golfer 2 --</option>
-                      {fieldGolfers.map((g) => (
-                        <option key={g.id} value={g.id}>
-                          {g.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  {/* Live Matched Golfers Chips */}
+                  {partGolfersInput.trim() && (
+                    <div className="md:col-span-12 bg-surface-container-high/40 border border-outline-variant/60 rounded-lg p-2.5 space-y-1.5">
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-on-surface-variant block">
+                        Live Golfer Resolution Preview:
+                      </span>
+                      <div className="flex flex-wrap gap-2">
+                        {parseCommaDelimitedGolfers(partGolfersInput, competitors).map((g, idx) => (
+                          <div
+                            key={idx}
+                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold border ${
+                              g.matchedId
+                                ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
+                                : 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30'
+                            }`}
+                          >
+                            <span className="text-[10px] font-bold opacity-70">#{idx + 1}</span>
+                            <span>{g.competitor?.athlete?.displayName || g.rawInput}</span>
+                            {g.matchedId ? (
+                              <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400">✓ Matched</span>
+                            ) : (
+                              <span className="text-[10px] font-mono text-amber-600 dark:text-amber-400">⚠️ Unrecognized</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-bold text-on-surface-variant">Golfer 3</label>
-                    <select
-                      value={partGolfer3}
-                      onChange={(e) => setPartGolfer3(e.target.value)}
-                      className="w-full bg-surface-container border border-outline-variant rounded px-2.5 py-1.5 text-xs text-on-surface outline-none focus:border-outline"
-                    >
-                      <option value="">-- Choose Golfer 3 --</option>
-                      {fieldGolfers.map((g) => (
-                        <option key={g.id} value={g.id}>
-                          {g.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  {/* Fallback Dropdown Selectors (if text box is empty) */}
+                  {!partGolfersInput.trim() && (
+                    <>
+                      <div className="md:col-span-4 space-y-1">
+                        <label className="text-[11px] font-bold text-on-surface-variant">Golfer 1</label>
+                        <select
+                          value={partGolfer1}
+                          onChange={(e) => setPartGolfer1(e.target.value)}
+                          className="w-full bg-surface-container border border-outline-variant rounded px-2.5 py-1.5 text-xs text-on-surface outline-none focus:border-outline"
+                        >
+                          <option value="">-- Choose Golfer 1 --</option>
+                          {fieldGolfers.map((g) => (
+                            <option key={g.id} value={g.id}>
+                              {g.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
 
-                  {/* Greedy Toggle */}
-                  <div className="flex items-center gap-2 pt-5">
+                      <div className="md:col-span-4 space-y-1">
+                        <label className="text-[11px] font-bold text-on-surface-variant">Golfer 2</label>
+                        <select
+                          value={partGolfer2}
+                          onChange={(e) => setPartGolfer2(e.target.value)}
+                          className="w-full bg-surface-container border border-outline-variant rounded px-2.5 py-1.5 text-xs text-on-surface outline-none focus:border-outline"
+                        >
+                          <option value="">-- Choose Golfer 2 --</option>
+                          {fieldGolfers.map((g) => (
+                            <option key={g.id} value={g.id}>
+                              {g.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="md:col-span-4 space-y-1">
+                        <label className="text-[11px] font-bold text-on-surface-variant">Golfer 3</label>
+                        <select
+                          value={partGolfer3}
+                          onChange={(e) => setPartGolfer3(e.target.value)}
+                          className="w-full bg-surface-container border border-outline-variant rounded px-2.5 py-1.5 text-xs text-on-surface outline-none focus:border-outline"
+                        >
+                          <option value="">-- Choose Golfer 3 --</option>
+                          {fieldGolfers.map((g) => (
+                            <option key={g.id} value={g.id}>
+                              {g.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Greedy Toggle & Player Picker */}
+                  <div className="md:col-span-6 flex items-center gap-2 pt-2">
                     <input
                       type="checkbox"
                       id="greedyCheckbox"
@@ -766,9 +960,8 @@ export default function AdminPage() {
                     </label>
                   </div>
 
-                  {/* Greedy Player Picker */}
                   {partIsGreedy && (
-                    <div className="space-y-1">
+                    <div className="md:col-span-6 space-y-1">
                       <label className="text-[11px] font-bold text-on-surface-variant">Greedy Golfer</label>
                       <select
                         value={partGreedyPlayer}
@@ -786,12 +979,14 @@ export default function AdminPage() {
                   )}
                 </div>
 
-                <button
-                  type="submit"
-                  className="inline-flex items-center gap-1 bg-primary text-on-primary hover:bg-primary/95 text-xs font-bold px-4 py-2 rounded-lg transition"
-                >
-                  <Plus className="w-3.5 h-3.5" /> {editingParticipant ? 'Save Participant' : 'Add Participant'}
-                </button>
+                <div className="pt-2">
+                  <button
+                    type="submit"
+                    className="inline-flex items-center gap-1 bg-primary text-on-primary hover:bg-primary/95 text-xs font-bold px-4 py-2 rounded-lg transition"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> {editingParticipant ? 'Save Participant' : 'Add Participant'}
+                  </button>
+                </div>
               </form>
             </div>
 
@@ -1052,6 +1247,55 @@ export default function AdminPage() {
           </div>
         </aside>
       </main>
+
+      {/* Batch Paste Rosters Modal */}
+      {showBatchModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-2xl">
+            <div className="flex justify-between items-center border-b border-outline-variant/60 pb-3">
+              <h3 className="text-base font-extrabold text-on-surface flex items-center gap-2">
+                📋 Batch Paste Participant Rosters
+              </h3>
+              <button
+                onClick={() => setShowBatchModal(false)}
+                className="text-on-surface-variant hover:text-on-surface p-1 rounded-md"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-on-surface-variant leading-relaxed">
+              Paste your participant names and comma-delimited golfer rosters below (one participant per line). Format: <code className="font-mono text-tertiary">Name: Golfer 1, Golfer 2, Golfer 3</code>
+            </p>
+
+            <textarea
+              rows={8}
+              placeholder={`Pat: Scottie Scheffler, Rory McIlroy, Xander Schauffele\nGreg: Jon Rahm, Viktor Hovland, Brooks Koepka\nDereck: Collin Morikawa, Wyndham Clark, Patrick Cantlay`}
+              value={batchRosterText}
+              onChange={(e) => setBatchRosterText(e.target.value)}
+              className="w-full bg-surface-container border border-outline-variant rounded-xl p-3 text-xs text-on-surface font-mono outline-none focus:border-outline"
+            />
+
+            <div className="flex justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowBatchModal(false)}
+                className="px-4 py-2 text-xs font-bold text-on-surface-variant hover:bg-surface-container rounded-lg border border-outline-variant"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleProcessBatchRosters}
+                disabled={syncing || !batchRosterText.trim()}
+                className="px-5 py-2 text-xs font-bold bg-tertiary hover:bg-tertiary/90 text-on-tertiary rounded-lg shadow-xs transition disabled:opacity-50"
+              >
+                {syncing ? 'Processing...' : 'Import Rosters'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
