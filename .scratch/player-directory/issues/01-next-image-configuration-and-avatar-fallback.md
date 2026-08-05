@@ -4,8 +4,9 @@
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `next.config.ts` includes `images.remotePatterns` for `a.espncdn.com`.
-- [ ] `<GolferHeadshot />` component handles `priority` loading and initial avatar fallback if the headshot URL fails to load.
-- [ ] Vitest test verifies initial avatar extraction (e.g., "Scottie Scheffler" -> "SS").
+- [x] `next.config.ts` includes `images.remotePatterns` for `a.espncdn.com`.
+- [x] `<GolferHeadshot />` component handles `priority` loading and initial avatar fallback if the headshot URL fails to load.
+- [x] Vitest test verifies initial avatar extraction (e.g., "Scottie Scheffler" -> "SS").
+

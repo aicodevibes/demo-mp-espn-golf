@@ -4,7 +4,8 @@
 
 **Blocked by:** 02 — Firebase Authentication & Admin Auth Context
 
-**Status:** ready-for-agent
+**Status:** resolved
+
 
 - [x] Firestore Security Rules updated to restrict write access to `aicodevibes@gmail.com`
 - [x] Firestore client helpers for reading and updating active tournament configuration

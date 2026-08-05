@@ -4,8 +4,9 @@
 
 **Blocked by:** 01 — Next.js Image Optimization Configuration & Avatar Fallback Component.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `syncPlayersToFirestore(competitors)` function performs a batch write/setDoc to `players/{playerId}`.
-- [ ] Firestore collection `players` allows public read access for site visitors.
-- [ ] Vitest unit test verifies payload mapping for the `players` collection.
+- [x] `syncPlayersToFirestore(competitors)` function performs a batch write/setDoc to `players/{playerId}`.
+- [x] Firestore collection `players` allows public read access for site visitors.
+- [x] Vitest unit test verifies payload mapping for the `players` collection.
+

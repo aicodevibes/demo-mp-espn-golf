@@ -4,7 +4,8 @@
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** resolved
+
 
 - [x] Proxy route `/api/espn/scoreboard` returning active/upcoming PGA Tour event list
 - [x] Proxy route `/api/espn/leaderboard` returning tournament leaderboard & player headshots

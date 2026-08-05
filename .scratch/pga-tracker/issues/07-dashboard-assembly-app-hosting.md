@@ -4,7 +4,8 @@
 
 **Blocked by:** 05 — 18-Hole Matrix Scorecard Component & Round Selector, 06 — Live Event Leaderboard & Admin Management Drawer
 
-**Status:** ready-for-agent
+**Status:** resolved
+
 
 - [x] Complete dashboard page assembly in `src/app/page.tsx`
 - [x] Theme tokens & Tailwind v4 layout styling polish

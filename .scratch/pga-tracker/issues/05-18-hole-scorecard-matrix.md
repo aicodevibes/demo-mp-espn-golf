@@ -4,7 +4,8 @@
 
 **Blocked by:** 01 — Next.js Core & ESPN API Proxy Route Handlers, 04 — Tracked Players Summary Hero Cards Component
 
-**Status:** ready-for-agent
+**Status:** resolved
+
 
 - [x] Player tab selector & Round selector (`Round 1`, `Round 2`, `Round 3`, `Round 4`)
 - [x] 18-Hole Matrix table component displaying Hole Number, Par, Yards, and Strokes

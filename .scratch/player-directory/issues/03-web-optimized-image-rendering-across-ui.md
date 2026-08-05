@@ -4,8 +4,9 @@
 
 **Blocked by:** 02 — Firestore Player Directory Auto-Sync Engine.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] All player headshots across the application render using `<GolferHeadshot />`.
-- [ ] Hero cards use priority image loading to optimize LCP.
-- [ ] `npm run build` compiles with 0 TypeScript or lint errors.
+- [x] All player headshots across the application render using `<GolferHeadshot />`.
+- [x] Hero cards use priority image loading to optimize LCP.
+- [x] `npm run build` compiles with 0 TypeScript or lint errors.
+

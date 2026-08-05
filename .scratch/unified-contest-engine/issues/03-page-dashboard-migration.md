@@ -4,8 +4,9 @@
 
 **Blocked by:** 02 — Refactor scoring.ts and settlement.ts to delegate to ContestEngine
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Update `src/app/page.tsx` to call `evaluateContest()` inside a single memoized calculation
-- [ ] Pass `contestEvaluation.standings`, `contestEvaluation.dayMoneyResults`, `contestEvaluation.wagerLedger`, and `contestEvaluation.playerDraftedByMap` to dashboard components
-- [ ] Update `src/app/greedy/page.tsx` to use `evaluateContest()` if applicable
+- [x] Update `src/app/page.tsx` to call `evaluateContest()` inside a single memoized calculation
+- [x] Pass `contestEvaluation.standings`, `contestEvaluation.dayMoneyResults`, `contestEvaluation.wagerLedger`, and `contestEvaluation.playerDraftedByMap` to dashboard components
+- [x] Update `src/app/greedy/page.tsx` to use `evaluateContest()` if applicable
+

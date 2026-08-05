@@ -4,8 +4,9 @@
 
 **Blocked by:** None — can start immediately
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Create `ContestEvaluationResult` interface and `evaluateContest` export in `src/lib/contestEngine.ts`
-- [ ] Implement atomic computation of standings, day money, player maps, and net wager balances
-- [ ] Write Vitest unit test suite covering ties, cut penalty scores, day money splitting, and net pool balances
+- [x] Create `ContestEvaluationResult` interface and `evaluateContest` export in `src/lib/contestEngine.ts`
+- [x] Implement atomic computation of standings, day money, player maps, and net wager balances
+- [x] Write Vitest unit test suite covering ties, cut penalty scores, day money splitting, and net pool balances
+

@@ -4,7 +4,8 @@
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** resolved
+
 
 - [x] Firebase Client App initialization module (`src/lib/firebase/config.ts`)
 - [x] React `AuthContext` provider & custom `useAuth()` hook

@@ -4,7 +4,7 @@
 
 ### Issue tracker
 
-Issues live as markdown files under `.scratch/<feature>/` in this repo. See `docs/agents/issue-tracker.md`.
+GitHub Issues using the `gh` CLI (`aicodevibes/demo-mp-espn-golf`). See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 

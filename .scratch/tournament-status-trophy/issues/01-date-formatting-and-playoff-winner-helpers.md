@@ -4,8 +4,9 @@
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `formatEventDates` formats date ranges accurately.
-- [ ] `getWinnerStatus` identifies solo champions and playoff winners (`🏆 Champion (Playoff)` vs `2nd (Playoff)`).
-- [ ] Vitest unit tests verify date formatting and playoff tie handling.
+- [x] `formatEventDates` formats date ranges accurately.
+- [x] `getWinnerStatus` identifies solo champions and playoff winners (`🏆 Champion (Playoff)` vs `2nd (Playoff)`).
+- [x] Vitest unit tests verify date formatting and playoff tie handling.
+

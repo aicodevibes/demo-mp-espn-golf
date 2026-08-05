@@ -4,9 +4,10 @@
 
 **Blocked by:** 02 — Migrate WagerSettlementLedger and greedy/page.tsx to evaluateContest
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Extract synthetic competitor creation helper
-- [ ] Run `npx tsc --noEmit`
-- [ ] Run `npx vitest run`
-- [ ] Run `npm run build`
+- [x] Extract synthetic competitor creation helper
+- [x] Run `npx tsc --noEmit`
+- [x] Run `npx vitest run`
+- [x] Run `npm run build`
+

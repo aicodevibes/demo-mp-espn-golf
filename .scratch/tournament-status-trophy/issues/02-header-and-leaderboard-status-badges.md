@@ -4,8 +4,9 @@
 
 **Blocked by:** 01 — Date Formatting & Playoff Winner Detection Helpers.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `Header.tsx` displays tournament date range and status badge.
-- [ ] `LiveLeaderboard.tsx` sidebar header displays date range and status badge.
-- [ ] Status badge styling reflects `pre`, `in`, and `post` event states.
+- [x] `Header.tsx` displays tournament date range and status badge.
+- [x] `LiveLeaderboard.tsx` sidebar header displays date range and status badge.
+- [x] Status badge styling reflects `pre`, `in`, and `post` event states.
+

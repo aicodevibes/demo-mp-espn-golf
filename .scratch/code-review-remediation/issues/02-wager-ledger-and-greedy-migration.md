@@ -4,8 +4,9 @@
 
 **Blocked by:** 01 — Strongly type ContestEngine eventStatus and expand unit tests
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Update `WagerSettlementLedger.tsx` props interface and implementation
-- [ ] Pass `wagerLedger` in `src/app/page.tsx`
-- [ ] Migrate `src/app/greedy/page.tsx` to `evaluateContest()`
+- [x] Update `WagerSettlementLedger.tsx` props interface and implementation
+- [x] Pass `wagerLedger` in `src/app/page.tsx`
+- [x] Migrate `src/app/greedy/page.tsx` to `evaluateContest()`
+

@@ -4,9 +4,10 @@
 
 **Blocked by:** 03 — Migrate page.tsx and greedy/page.tsx dashboard callers to evaluateContest
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Run `npx tsc --noEmit` and fix any TypeScript errors
-- [ ] Run `npx vitest run` and confirm 100% test pass rate
-- [ ] Run `npm run build` and ensure clean build
-- [ ] Execute `/code-review` checks against standards and spec
+- [x] Run `npx tsc --noEmit` and fix any TypeScript errors
+- [x] Run `npx vitest run` and confirm 100% test pass rate
+- [x] Run `npm run build` and ensure clean build
+- [x] Execute `/code-review` checks against standards and spec
+

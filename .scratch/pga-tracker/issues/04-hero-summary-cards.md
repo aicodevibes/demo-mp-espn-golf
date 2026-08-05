@@ -4,7 +4,8 @@
 
 **Blocked by:** 01 — Next.js Core & ESPN API Proxy Route Handlers, 03 — Firestore Configuration Store & Security Rules
 
-**Status:** ready-for-agent
+**Status:** resolved
+
 
 - [x] `TrackedPlayerCard` component rendering ESPN player photo, country flag, name, rank, and score
 - [x] Color-coded score formatting (emerald green for under par, rose for over par, neutral for even)

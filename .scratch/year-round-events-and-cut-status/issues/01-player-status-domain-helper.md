@@ -4,8 +4,9 @@
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `getPlayerStatusInfo` identifies `isCut`, `isWD`, `isDQ`, `isMDF`.
-- [ ] Returns appropriate badge labels (`CUT`, `WD`, `DQ`, `MDF`).
-- [ ] Vitest unit tests verify status detection across ESPN payload variations.
+- [x] `getPlayerStatusInfo` identifies `isCut`, `isWD`, `isDQ`, `isMDF`.
+- [x] Returns appropriate badge labels (`CUT`, `WD`, `DQ`, `MDF`).
+- [x] Vitest unit tests verify status detection across ESPN payload variations.
+

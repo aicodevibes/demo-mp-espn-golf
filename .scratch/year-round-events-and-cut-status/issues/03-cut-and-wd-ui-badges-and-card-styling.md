@@ -4,9 +4,10 @@
 
 **Blocked by:** 02 — Year-Round Event Selector & Empty Field Handling.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `LiveLeaderboard.tsx` position column displays `CUT` / `WD` status pills.
-- [ ] `TrackedPlayerHeroGrid.tsx` applies muted card styling (`opacity-80 bg-slate-900/40 border-rose-950/60`) and status badges (`✂️ Missed Cut` / `🚪 Withdrawn`).
-- [ ] `ScorecardMatrix.tsx` displays status text for selected cut/withdrawn player.
-- [ ] `npm run build` compiles with 0 TypeScript or lint errors.
+- [x] `LiveLeaderboard.tsx` position column displays `CUT` / `WD` status pills.
+- [x] `TrackedPlayerHeroGrid.tsx` applies muted card styling (`opacity-80 bg-slate-900/40 border-rose-950/60`) and status badges (`✂️ Missed Cut` / `🚪 Withdrawn`).
+- [x] `ScorecardMatrix.tsx` displays status text for selected cut/withdrawn player.
+- [x] `npm run build` compiles with 0 TypeScript or lint errors.
+

@@ -4,7 +4,8 @@
 
 **Blocked by:** 03 — Firestore Configuration Store & Security Rules, 04 — Tracked Players Summary Hero Cards Component
 
-**Status:** ready-for-agent
+**Status:** resolved
+
 
 - [x] `LiveLeaderboard` sidebar table displaying Position, Player Name, Today's Score, Thru Status, and Total Score
 - [x] Active tournament header banner with event name, course location, and status badge

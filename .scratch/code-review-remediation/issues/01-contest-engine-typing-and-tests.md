@@ -4,8 +4,9 @@
 
 **Blocked by:** None — can start immediately
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Import `ESPNEventStatus` or `ESPNEvent['status']` in `src/lib/contestEngine.ts`
-- [ ] Add test for R3/R4 cut penalty (999 strokes) in `src/lib/__tests__/contestEngine.test.ts`
-- [ ] Add test for main payout tie-splitting in `src/lib/__tests__/contestEngine.test.ts`
+- [x] Import `ESPNEventStatus` or `ESPNEvent['status']` in `src/lib/contestEngine.ts`
+- [x] Add test for R3/R4 cut penalty (999 strokes) in `src/lib/__tests__/contestEngine.test.ts`
+- [x] Add test for main payout tie-splitting in `src/lib/__tests__/contestEngine.test.ts`
+

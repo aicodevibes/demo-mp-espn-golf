@@ -4,8 +4,9 @@
 
 **Blocked by:** 01 — Build ContestEngine module seam and evaluateContest() with unit tests
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Update `calculateParticipantStandings` and `calculateDayMoneyWinners` in `src/lib/scoring.ts` to delegate to `evaluateContest`
-- [ ] Update `calculateWagerSettlement` in `src/lib/settlement.ts` to delegate to `evaluateContest`
-- [ ] Ensure all pre-existing tests in `src/lib/__tests__/` pass cleanly
+- [x] Update `calculateParticipantStandings` and `calculateDayMoneyWinners` in `src/lib/scoring.ts` to delegate to `evaluateContest`
+- [x] Update `calculateWagerSettlement` in `src/lib/settlement.ts` to delegate to `evaluateContest`
+- [x] Ensure all pre-existing tests in `src/lib/__tests__/` pass cleanly
+

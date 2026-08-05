@@ -4,8 +4,9 @@
 
 **Blocked by:** 01 — Player Status Domain Helper.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] `AdminManagementDrawer.tsx` renders categorized event dropdown optgroups.
-- [ ] Future events with `competitors = []` display "⚪ Tournament Scheduled (Field Not Yet Released)" empty state.
-- [ ] No JavaScript runtime errors when selecting future events without players.
+- [x] `AdminManagementDrawer.tsx` renders categorized event dropdown optgroups.
+- [x] Future events with `competitors = []` display "⚪ Tournament Scheduled (Field Not Yet Released)" empty state.
+- [x] No JavaScript runtime errors when selecting future events without players.
+

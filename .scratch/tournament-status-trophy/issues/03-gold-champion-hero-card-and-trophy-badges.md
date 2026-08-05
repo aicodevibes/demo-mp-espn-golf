@@ -4,9 +4,10 @@
 
 **Blocked by:** 02 — Header & Leaderboard Tournament Dates & Status Badges.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Champion displays gold 🏆 trophy badge next to name on leaderboard and hero card.
-- [ ] Playoff winner displays `🏆 Champion (Playoff)` and playoff runner-up displays `2nd (Playoff)`.
-- [ ] Winner's hero card receives Gold Crown Border & Gradient styling.
-- [ ] `npm run build` compiles with 0 TypeScript or lint errors.
+- [x] Champion displays gold 🏆 trophy badge next to name on leaderboard and hero card.
+- [x] Playoff winner displays `🏆 Champion (Playoff)` and playoff runner-up displays `2nd (Playoff)`.
+- [x] Winner's hero card receives Gold Crown Border & Gradient styling.
+- [x] `npm run build` compiles with 0 TypeScript or lint errors.
+
