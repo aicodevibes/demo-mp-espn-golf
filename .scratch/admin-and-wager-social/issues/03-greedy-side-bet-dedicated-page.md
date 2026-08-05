@@ -9,8 +9,8 @@ How to construct a dedicated `/greedy` route and component for the Greedy side b
 
 ## Answer
 
-1. Created dedicated `/greedy` App Router page in `src/app/greedy/page.tsx`.
-2. Loaded active event config, participant roster, and live ESPN tournament competitors.
-3. Computed side-bet standings using `calculateGreedyStandings` from `src/lib/scoring.ts`.
-4. Rendered hero stat cards (Total Purse, Current Leader, Contenders), detailed 4-round score matrix per greedy golfer with player headshots, and winner-take-all pot allocation ($50/participant).
-5. Added "Greedy Bet" header navigation button in `src/components/Header.tsx`.
+1. Created `calculateGreedyStandings` in `src/lib/scoring.ts` & `GreedyStanding` interface in `src/types/contest.ts`, evaluating each participant's designated 1 Greedy Golfer independently of main contest cut status. Added TDD unit test in `src/lib/__tests__/scoring.test.ts`.
+2. Created dedicated route page [`src/app/greedy/page.tsx`](file:///c:/Dev/demo-mp/src/app/greedy/page.tsx):
+   - Participant access gate with selection verification.
+   - Live Greedy Leaderboard featuring golfer headshots, R1–R4 round scores, cumulative score-to-par, and 🥇/🥈/🥉 rank badges.
+3. Updated `src/components/Header.tsx` to feature a direct "Greedy Bet" navigation button.

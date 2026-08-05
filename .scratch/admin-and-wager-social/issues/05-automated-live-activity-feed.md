@@ -1,6 +1,6 @@
 Title: Automated Live Social Activity Feed
 Type: task
-Status: open
+Status: claimed
 Blocked by: 
 
 ## Question

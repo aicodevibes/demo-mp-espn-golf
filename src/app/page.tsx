@@ -10,6 +10,8 @@ import { DraftedPlayersLeaderboard } from '@/components/DraftedPlayersLeaderboar
 import { FullFieldLeaderboard } from '@/components/FullFieldLeaderboard';
 import { ParticipantStandings } from '@/components/ParticipantStandings';
 import { DayMoneyWinners } from '@/components/DayMoneyWinners';
+import { WagerSettlementLedger } from '@/components/WagerSettlementLedger';
+import { calculateWagerSettlement } from '@/lib/settlement';
 import { useAuth } from '@/context/AuthContext';
 import {
   useActiveConfig,
@@ -131,6 +133,10 @@ export default function DashboardPage() {
   const dayMoneyResults = useMemo(() => {
     return calculateDayMoneyWinners(participants, competitors, contestConfig, activeEvent?.status);
   }, [participants, competitors, contestConfig, activeEvent]);
+
+  const wagerSettlementSummary = useMemo(() => {
+    return calculateWagerSettlement(participants, participantStandings, dayMoneyResults, [], contestConfig);
+  }, [participants, participantStandings, dayMoneyResults, contestConfig]);
 
   // Find active selected participant
   const activeParticipant = useMemo(() => {
@@ -346,6 +352,11 @@ export default function DashboardPage() {
             eventStatus={activeEvent?.status}
             loading={loadingLeaderboard || participantsLoading || contestConfigLoading}
           />
+        </section>
+
+        {/* Section 7: Official Wager Settlement Ledger */}
+        <section>
+          <WagerSettlementLedger summary={wagerSettlementSummary} />
         </section>
       </main>
 

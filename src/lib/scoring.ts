@@ -8,6 +8,8 @@ import {
   DayMoneyWinner,
   ContestConfig,
   GreedyStanding,
+  ParticipantSettlement,
+  WagerSettlementSummary,
 } from '@/types/contest';
 
 const DEFAULT_MAIN_PAYOUTS = [600, 320, 180, 100];

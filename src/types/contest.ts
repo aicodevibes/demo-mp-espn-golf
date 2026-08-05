@@ -4,6 +4,8 @@ export interface Participant {
   draftedPlayerIds: string[];
   isGreedyParticipant?: boolean;
   greedyPlayerId?: string;
+  hasPaidEntry?: boolean;
+  hasPaidGreedy?: boolean;
 }
 
 export interface DraftedGolferStatus {
@@ -49,6 +51,8 @@ export interface ContestConfig {
   espnEventId: string;
   eventName: string;
   season: number;
+  entryFee?: number;
+  greedyEntryFee?: number;
   mainPayouts: number[];
   dayMoneyPool: number;
   coursePar: number | null;
@@ -73,4 +77,28 @@ export interface GreedyStanding {
   } | null;
   numericScoreToPar: number;
 }
+
+export interface ParticipantSettlement {
+  participantId: string;
+  participantName: string;
+  entryFee: number;
+  hasPaid: boolean;
+  mainPayout: number;
+  dayMoneyPayout: number;
+  greedyPayout: number;
+  totalWinnings: number;
+  netBalance: number;
+}
+
+export interface WagerSettlementSummary {
+  totalEntryFeesCollected: number;
+  totalMainPayoutsDistributed: number;
+  totalDayMoneyDistributed: number;
+  totalGreedyDistributed: number;
+  totalPayoutsDistributed: number;
+  netPoolBalance: number;
+  isFinalized: boolean;
+  settlements: ParticipantSettlement[];
+}
+
 

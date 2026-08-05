@@ -119,11 +119,14 @@ export default function AdminPage() {
     fetchEventCompetitors();
   }, [selectedEventId]);
 
-  // Form States for Event Config
+  // Form States for Event Config & Wager Pot Settings
   const [formDataName, setFormDataName] = useState('');
   const [formDataStartDate, setFormDataStartDate] = useState('');
   const [formDataEndDate, setFormDataEndDate] = useState('');
   const [formDataCoursePar, setFormDataCoursePar] = useState<number | ''>('');
+  const [formDataEntryFee, setFormDataEntryFee] = useState<number | ''>(50);
+  const [formDataMainPayoutsStr, setFormDataMainPayoutsStr] = useState('600, 320, 180, 100');
+  const [formDataDayMoneyPool, setFormDataDayMoneyPool] = useState<number | ''>(75);
   const [formDataIsFinalized, setFormDataIsFinalized] = useState(false);
 
   // Sync form states with selected config
@@ -132,6 +135,11 @@ export default function AdminPage() {
       setFormDataName(selectedContestConfig.eventName || '');
       setFormDataCoursePar(selectedContestConfig.coursePar ?? '');
       setFormDataIsFinalized(selectedContestConfig.isFinalized || false);
+      setFormDataEntryFee(selectedContestConfig.entryFee ?? 50);
+      setFormDataMainPayoutsStr(
+        selectedContestConfig.mainPayouts ? selectedContestConfig.mainPayouts.join(', ') : '600, 320, 180, 100'
+      );
+      setFormDataDayMoneyPool(selectedContestConfig.dayMoneyPool ?? 75);
       // Try to find the event in scoreboard to prepopulate dates if empty
       const matchedEvent = events.find((e) => e.id === selectedEventId);
       if (matchedEvent) {
@@ -144,6 +152,9 @@ export default function AdminPage() {
       setFormDataStartDate(matchedEvent?.date?.split('T')[0] || '');
       setFormDataEndDate(matchedEvent?.date?.split('T')[0] || '');
       setFormDataCoursePar('');
+      setFormDataEntryFee(50);
+      setFormDataMainPayoutsStr('600, 320, 180, 100');
+      setFormDataDayMoneyPool(75);
       setFormDataIsFinalized(false);
     }
   }, [selectedContestConfig, selectedEventId, events]);
@@ -180,22 +191,45 @@ export default function AdminPage() {
     if (!selectedEventId) return;
     setSavingConfig(true);
     try {
+      const parsedPayouts = formDataMainPayoutsStr
+        .split(',')
+        .map((s) => parseInt(s.trim(), 10))
+        .filter((n) => !isNaN(n));
+
       await setContestConfig(
         selectedEventId,
         {
           eventName: formDataName,
+          entryFee: formDataEntryFee === '' ? 50 : Number(formDataEntryFee),
+          mainPayouts: parsedPayouts.length > 0 ? parsedPayouts : [600, 320, 180, 100],
+          dayMoneyPool: formDataDayMoneyPool === '' ? 75 : Number(formDataDayMoneyPool),
           coursePar: formDataCoursePar === '' ? null : Number(formDataCoursePar),
           isFinalized: formDataIsFinalized,
           season: new Date().getFullYear(),
         },
         user?.email || 'admin@demo-mp.com'
       );
-      alert('Event configuration saved successfully!');
+      alert('Event configuration and pot settings saved successfully!');
     } catch (err) {
       console.error(err);
       alert('Failed to save event configuration.');
     } finally {
       setSavingConfig(false);
+    }
+  };
+
+  // Toggle Participant Payment Checkmark
+  const handleTogglePayment = async (p: Participant) => {
+    if (!selectedEventId) return;
+    try {
+      const updated = {
+        ...p,
+        hasPaidEntry: !p.hasPaidEntry,
+      };
+      await addParticipantToEvent(selectedEventId, updated);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to update payment status.');
     }
   };
 
@@ -680,6 +714,41 @@ export default function AdminPage() {
                     />
                   </div>
                   
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-on-surface-variant">Entry Fee per Participant ($)</label>
+                    <input
+                      type="number"
+                      placeholder="e.g. 50, 100"
+                      value={formDataEntryFee}
+                      onChange={(e) =>
+                        setFormDataEntryFee(e.target.value === '' ? '' : Number(e.target.value))
+                      }
+                      className="w-full bg-surface-container border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface outline-none focus:border-outline"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-on-surface-variant">Day Money Pool per Round ($)</label>
+                    <input
+                      type="number"
+                      placeholder="e.g. 75, 100"
+                      value={formDataDayMoneyPool}
+                      onChange={(e) =>
+                        setFormDataDayMoneyPool(e.target.value === '' ? '' : Number(e.target.value))
+                      }
+                      className="w-full bg-surface-container border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface outline-none focus:border-outline"
+                    />
+                  </div>
+                  <div className="space-y-1.5 md:col-span-2">
+                    <label className="text-xs font-bold text-on-surface-variant">Main Payout Breakdown (Comma-Delimited for 1st, 2nd, 3rd...)</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 600, 320, 180, 100"
+                      value={formDataMainPayoutsStr}
+                      onChange={(e) => setFormDataMainPayoutsStr(e.target.value)}
+                      className="w-full bg-surface-container border border-outline-variant rounded-lg px-3 py-2 text-sm font-mono text-on-surface outline-none focus:border-outline"
+                    />
+                  </div>
+
                   {/* Finalize Checkbox */}
                   <div className="flex items-center gap-2 md:col-span-2 pt-2">
                     <input
@@ -996,20 +1065,21 @@ export default function AdminPage() {
                 <thead>
                   <tr className="bg-surface-container text-[10px] font-extrabold uppercase tracking-wider border-b border-outline-variant/60 text-on-surface-variant">
                     <th className="py-2.5 px-4 w-1/4">Name</th>
-                    <th className="py-2.5 px-4 w-1/2">Drafted Golfer Roster</th>
-                    <th className="py-2.5 px-4 text-right w-1/4">Actions</th>
+                    <th className="py-2.5 px-4 w-5/12">Drafted Golfer Roster</th>
+                    <th className="py-2.5 px-4 text-center w-2/12">Entry Payment</th>
+                    <th className="py-2.5 px-4 text-right w-2/12">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-outline-variant/40">
                   {participantsLoading ? (
                     <tr>
-                      <td colSpan={3} className="py-8 text-center text-on-surface-variant">
+                      <td colSpan={4} className="py-8 text-center text-on-surface-variant">
                         Loading participants...
                       </td>
                     </tr>
                   ) : selectedParticipants.length === 0 ? (
                     <tr>
-                      <td colSpan={3} className="py-8 text-center text-on-surface-variant">
+                      <td colSpan={4} className="py-8 text-center text-on-surface-variant">
                         No participants registered. Click 'Seed Default Names' above to seed.
                       </td>
                     </tr>
@@ -1032,6 +1102,19 @@ export default function AdminPage() {
                           ) : (
                             <span className="italic text-[11px] text-outline">Empty roster</span>
                           )}
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <button
+                            type="button"
+                            onClick={() => handleTogglePayment(p)}
+                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold border transition cursor-pointer ${
+                              p.hasPaidEntry
+                                ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/20'
+                                : 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30 hover:bg-amber-500/20'
+                            }`}
+                          >
+                            {p.hasPaidEntry ? 'Paid ✅' : 'Unpaid ⏳'}
+                          </button>
                         </td>
                         <td className="py-3 px-4 text-right space-x-1.5">
                           <button

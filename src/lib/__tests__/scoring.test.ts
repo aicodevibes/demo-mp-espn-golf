@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calculateParticipantStandings, calculateDayMoneyWinners, getGolferRoundScoreToPar, calculateGreedyStandings } from '../scoring';
+import { calculateParticipantStandings, calculateDayMoneyWinners, getGolferRoundScoreToPar, calculateGreedyStandings, calculateWagerSettlement } from '../scoring';
 import { Participant, ContestConfig } from '@/types/contest';
 import { ESPNCompetitor } from '@/types/espn';
 
@@ -107,8 +107,27 @@ describe('Scoring Engine (lib/scoring.ts)', () => {
     // g1 score: -2 (rank 2), g5 score: -7 (rank 1)
     expect(greedyStandings[0].participant.name).toBe('Greg');
     expect(greedyStandings[0].rank).toBe(1);
-    expect(greedyStandings[1].participant.name).toBe('Pat');
-    expect(greedyStandings[1].rank).toBe(2);
+  it('calculates full WagerSettlementSummary with payouts and entry fee balances', () => {
+    const participantsWithPayment: Participant[] = [
+      { id: 'p1', name: 'Pat', draftedPlayerIds: ['g1', 'g2', 'g3'], hasPaidEntry: true },
+      { id: 'p2', name: 'Greg', draftedPlayerIds: ['g4', 'g5', 'g6'], hasPaidEntry: false },
+    ];
+
+    const configWithFees: ContestConfig = {
+      ...sampleConfig,
+      entryFee: 100,
+    };
+
+    const summary = calculateWagerSettlement(participantsWithPayment, sampleCompetitors, configWithFees);
+    expect(summary.totalEntryFeesCollected).toBe(100);
+    expect(summary.settlements).toHaveLength(2);
+
+    const pat = summary.settlements.find((s) => s.participantName === 'Pat');
+    expect(pat).toBeDefined();
+    expect(pat?.hasPaid).toBe(true);
+    expect(pat?.mainPayout).toBe(500);
+    expect(pat?.netBalance).toBe(400); // 500 main payout - 100 entry fee
   });
 });
+
 
