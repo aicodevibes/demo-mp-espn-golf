@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useActiveConfig, useContestConfig, useParticipants } from '@/lib/firebase/firestore';
-import { calculateGreedyStandings } from '@/lib/scoring';
+import { evaluateContest } from '@/lib/contestEngine';
 import { ESPNCompetitor } from '@/types/espn';
 import { GolferHeadshot } from '@/components/GolferHeadshot';
 import {
@@ -52,9 +52,11 @@ export default function GreedyPage() {
     fetchLeaderboard();
   }, [activeEventId]);
 
-  const greedyStandings = useMemo(() => {
-    return calculateGreedyStandings(participants, competitors, contestConfig?.coursePar);
+  const contestEvaluation = useMemo(() => {
+    return evaluateContest(participants, competitors, contestConfig);
   }, [participants, competitors, contestConfig]);
+
+  const greedyStandings = contestEvaluation.greedyStandings;
 
   const totalPool = greedyStandings.length * GREEDY_ENTRY_FEE;
 

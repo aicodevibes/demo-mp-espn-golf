@@ -62,3 +62,21 @@ export function formatPlayerSummaryFromCompetitor(comp: ESPNCompetitor): ESPNPla
     rounds,
   };
 }
+
+export function createSyntheticCompetitor(
+  playerId: string,
+  displayName?: string,
+  headshotUrl?: string,
+  country?: string
+): ESPNCompetitor {
+  return {
+    id: playerId,
+    score: 'E',
+    athlete: {
+      id: playerId,
+      displayName: displayName || `Golfer (${playerId})`,
+      headshot: { href: headshotUrl || '' },
+      country: { abbreviation: country || '' },
+    },
+  } as ESPNCompetitor;
+}

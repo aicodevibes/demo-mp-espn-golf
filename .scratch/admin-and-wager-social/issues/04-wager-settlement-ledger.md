@@ -9,12 +9,6 @@ How to configure entry fees, main payouts, day money pools, and payment status c
 
 ## Answer
 
-1. Extended `ContestConfig` and `Participant` types in `src/types/contest.ts` with `entryFee`, `hasPaidEntry`, `hasPaidGreedy`, and defined `ParticipantSettlement` and `WagerSettlementSummary` interfaces.
-2. Created Wager Settlement Engine in `src/lib/settlement.ts` with complete TDD unit tests in `src/lib/__tests__/settlement.test.ts`. Calculates participant net profit/loss (`totalWinnings - entryFee`), pot audit balancing ($ collected vs $ distributed), and payment statuses.
-3. Updated Admin Management Dashboard in `src/app/admin/page.tsx`:
-   - Added Entry Fee ($), Day Money Pool ($/rd), and Main Payout Breakdown form inputs.
-   - Added interactive `Paid ✅` / `Unpaid ⏳` payment checkmark toggles for each participant roster row.
-4. Created `src/components/WagerSettlementLedger.tsx` and integrated onto the main tournament dashboard (`src/app/page.tsx`):
-   - Renders a sleek amber 🔒 locked glassmorphic card when `!isFinalized`.
-   - Unlocks full settlement table with summary metrics (Total Collected, Main Payouts, Day Money, Net Pool Balance audit, Participant Net Profit/Loss) when `isFinalized === true`.
-
+1. Implemented `calculateWagerSettlement` in `src/lib/scoring.ts` & `ParticipantSettlement`, `WagerSettlementSummary` interfaces in `src/types/contest.ts`.
+2. Updated Admin event config form in `src/app/admin/page.tsx` with Entry Fee ($), Day Money Pool ($), Main Payout Breakdown, and participant `Paid ✅` / `Unpaid ⏳` toggle checkmarks.
+3. Created `src/components/WagerSettlementLedger.tsx` displaying entry fee totals, total main payouts distributed, day money distributed, and individual participant net earnings/loss ledgers. Enforced domain lock rule (locks final net calculations until tournament is marked final).

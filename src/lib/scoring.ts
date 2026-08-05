@@ -397,4 +397,80 @@ export function calculateGreedyStandings(
   return standings;
 }
 
+/**
+ * Calculates Wager Settlement Ledger & Pot Summaries.
+ */
+export function calculateWagerSettlement(
+  participants: Participant[] = [],
+  allCompetitors: ESPNCompetitor[] = [],
+  contestConfig?: ContestConfig | null,
+  eventStatus?: any
+): WagerSettlementSummary {
+  const entryFee = contestConfig?.entryFee ?? 50;
+  const isFinalized = Boolean(contestConfig?.isFinalized || eventStatus?.type?.state === 'post');
+
+  // Compute standings & Day Money
+  const standings = calculateParticipantStandings(participants, allCompetitors, contestConfig, eventStatus);
+  const dayMoneyResults = calculateDayMoneyWinners(participants, allCompetitors, contestConfig, eventStatus);
+
+  // Map day money winnings per participant
+  const dayMoneyMap = new Map<string, number>();
+  dayMoneyResults.forEach((rd) => {
+    rd.winners.forEach((w) => {
+      const current = dayMoneyMap.get(w.participantId) || 0;
+      dayMoneyMap.set(w.participantId, current + w.payout);
+    });
+  });
+
+  let totalEntryFeesCollected = 0;
+  let totalMainPayoutsDistributed = 0;
+  let totalDayMoneyDistributed = 0;
+  let totalGreedyDistributed = 0;
+
+  const settlements: ParticipantSettlement[] = (participants || []).map((p) => {
+    const standing = standings.find((s) => s.participant.id === p.id);
+    const mainPayout = standing?.projectedPayout || 0;
+    const dayMoneyPayout = dayMoneyMap.get(p.id) || 0;
+    const greedyPayout = 0; // Reserved for greedy side bet purse
+    const hasPaid = Boolean(p.hasPaidEntry);
+
+    if (hasPaid) {
+      totalEntryFeesCollected += entryFee;
+    }
+    totalMainPayoutsDistributed += mainPayout;
+    totalDayMoneyDistributed += dayMoneyPayout;
+    totalGreedyDistributed += greedyPayout;
+
+    const totalWinnings = mainPayout + dayMoneyPayout + greedyPayout;
+    const netBalance = totalWinnings - (hasPaid ? entryFee : 0);
+
+    return {
+      participantId: p.id,
+      participantName: p.name,
+      entryFee,
+      hasPaid,
+      mainPayout,
+      dayMoneyPayout,
+      greedyPayout,
+      totalWinnings,
+      netBalance,
+    };
+  });
+
+  const totalPayoutsDistributed = totalMainPayoutsDistributed + totalDayMoneyDistributed + totalGreedyDistributed;
+  const netPoolBalance = totalEntryFeesCollected - totalPayoutsDistributed;
+
+  return {
+    totalEntryFeesCollected,
+    totalMainPayoutsDistributed,
+    totalDayMoneyDistributed,
+    totalGreedyDistributed,
+    totalPayoutsDistributed,
+    netPoolBalance,
+    isFinalized,
+    settlements,
+  };
+}
+
+
 

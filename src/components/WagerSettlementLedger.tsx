@@ -1,162 +1,169 @@
 'use client';
 
 import React from 'react';
-import { WagerSettlementSummary, ParticipantSettlement } from '@/types/contest';
-import { Lock, Trophy, DollarSign, CheckCircle2, Clock, ShieldCheck, AlertCircle } from 'lucide-react';
+import { Participant, ContestConfig, WagerSettlementSummary } from '@/types/contest';
+import { ESPNCompetitor } from '@/types/espn';
+import { calculateWagerSettlement } from '@/lib/scoring';
+import { DollarSign, Lock, CheckCircle2, AlertCircle, Award, ShieldCheck, Wallet } from 'lucide-react';
 
 interface WagerSettlementLedgerProps {
-  summary: WagerSettlementSummary;
+  participants?: Participant[];
+  competitors?: ESPNCompetitor[];
+  contestConfig?: ContestConfig | null;
+  eventStatus?: any;
+  wagerLedger?: WagerSettlementSummary;
 }
 
-export const WagerSettlementLedger: React.FC<WagerSettlementLedgerProps> = ({ summary }) => {
-  const {
-    totalEntryFeesCollected,
-    totalMainPayoutsDistributed,
-    totalDayMoneyDistributed,
-    totalPayoutsDistributed,
-    netPoolBalance,
-    isFinalized,
-    settlements,
-  } = summary;
-
-  if (!isFinalized) {
-    return (
-      <div className="relative overflow-hidden rounded-2xl border border-amber-500/20 bg-gradient-to-br from-amber-950/30 via-slate-900/80 to-slate-950/90 p-6 backdrop-blur-md shadow-xl transition-all duration-300 hover:border-amber-500/30">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 shadow-inner">
-              <Lock className="h-6 w-6" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-lg font-bold text-white tracking-wide">Wager Settlement Ledger</h3>
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-300 border border-amber-500/30">
-                  <Lock className="h-3 w-3" /> Locked
-                </span>
-              </div>
-              <p className="text-xs text-slate-400 mt-1">
-                Final payout audit & individual net balances unlock once tournament is marked <span className="text-amber-300 font-medium">Final</span> by admin.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 bg-slate-900/90 border border-slate-800 rounded-xl p-3 px-4 shrink-0">
-            <div>
-              <span className="text-xs text-slate-400 uppercase tracking-wider block">Estimated Total Pot</span>
-              <span className="text-lg font-extrabold text-emerald-400">${totalEntryFeesCollected.toLocaleString()}</span>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+export function WagerSettlementLedger({
+  participants = [],
+  competitors = [],
+  contestConfig,
+  eventStatus,
+  wagerLedger,
+}: WagerSettlementLedgerProps) {
+  const summary = wagerLedger || calculateWagerSettlement(participants, competitors, contestConfig, eventStatus);
+  const isFinal = summary.isFinalized;
 
   return (
-    <div className="rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-slate-900/95 via-slate-900/90 to-slate-950/95 p-6 backdrop-blur-xl shadow-2xl space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-800 pb-5">
+    <section className="bg-surface-container-low border border-outline-variant rounded-2xl p-6 space-y-6 shadow-xs">
+      {/* Header Banner */}
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-outline-variant/60 pb-4">
         <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 shadow-inner">
-            <Trophy className="h-6 w-6" />
+          <div className="h-10 w-10 rounded-xl bg-tertiary/10 text-tertiary flex items-center justify-center border border-tertiary/30 shrink-0">
+            <DollarSign className="w-6 h-6 text-tertiary" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-xl font-extrabold text-white tracking-tight">Official Wager Settlement Ledger</h3>
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-                <ShieldCheck className="h-3.5 w-3.5" /> Finalized
-              </span>
-            </div>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Verified final standings, entry fee settlements, and net profit payouts.
+            <h2 className="text-lg font-black tracking-tight text-on-surface flex items-center gap-2">
+              Wager Settlement & Payout Ledger
+            </h2>
+            <p className="text-xs text-on-surface-variant">
+              Final tournament payout allocations, day money earnings, and net balance settlements.
             </p>
           </div>
         </div>
+
+        {/* Lock / Final Badge */}
+        <div>
+          {isFinal ? (
+            <span className="inline-flex items-center gap-1 text-xs font-extrabold px-3 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+              <CheckCircle2 className="w-3.5 h-3.5" /> Official Final Settlement
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 text-xs font-bold px-3 py-1 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+              <Lock className="w-3.5 h-3.5" /> Locked Until Final (Live Projection)
+            </span>
+          )}
+        </div>
       </div>
 
-      {/* Metric Summary Cards Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
-        <div className="rounded-xl bg-slate-900/80 border border-slate-800 p-3.5">
-          <span className="text-xs text-slate-400 font-medium block">Entry Fees Collected</span>
-          <span className="text-lg font-bold text-white mt-1 block">${totalEntryFeesCollected.toFixed(2)}</span>
-        </div>
-
-        <div className="rounded-xl bg-slate-900/80 border border-slate-800 p-3.5">
-          <span className="text-xs text-slate-400 font-medium block">Main Payouts</span>
-          <span className="text-lg font-bold text-emerald-400 mt-1 block">${totalMainPayoutsDistributed.toFixed(2)}</span>
-        </div>
-
-        <div className="rounded-xl bg-slate-900/80 border border-slate-800 p-3.5">
-          <span className="text-xs text-slate-400 font-medium block">Day Money Paid</span>
-          <span className="text-lg font-bold text-emerald-400 mt-1 block">${totalDayMoneyDistributed.toFixed(2)}</span>
-        </div>
-
-        <div className="rounded-xl bg-slate-900/80 border border-slate-800 p-3.5">
-          <span className="text-xs text-slate-400 font-medium block">Net Balance Audit</span>
-          <span className={`text-lg font-bold mt-1 block ${netPoolBalance === 0 ? 'text-emerald-400' : 'text-amber-400'}`}>
-            ${netPoolBalance.toFixed(2)} {netPoolBalance === 0 && '✓'}
+      {/* Financial Overview Metrics Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="p-4 rounded-xl bg-surface-container-lowest border border-outline-variant/60 space-y-1">
+          <span className="text-[10px] font-extrabold uppercase tracking-wider text-on-surface-variant block">
+            Entry Fee / Person
           </span>
+          <p className="text-lg font-black text-on-surface">${contestConfig?.entryFee ?? 50}</p>
+        </div>
+
+        <div className="p-4 rounded-xl bg-surface-container-lowest border border-outline-variant/60 space-y-1">
+          <span className="text-[10px] font-extrabold uppercase tracking-wider text-on-surface-variant block">
+            Total Fees Collected
+          </span>
+          <p className="text-lg font-black text-emerald-600 dark:text-emerald-400">
+            ${summary.totalEntryFeesCollected}
+          </p>
+        </div>
+
+        <div className="p-4 rounded-xl bg-surface-container-lowest border border-outline-variant/60 space-y-1">
+          <span className="text-[10px] font-extrabold uppercase tracking-wider text-on-surface-variant block">
+            Total Main Payouts
+          </span>
+          <p className="text-lg font-black text-tertiary">
+            ${summary.totalMainPayoutsDistributed}
+          </p>
+        </div>
+
+        <div className="p-4 rounded-xl bg-surface-container-lowest border border-outline-variant/60 space-y-1">
+          <span className="text-[10px] font-extrabold uppercase tracking-wider text-on-surface-variant block">
+            Total Day Money
+          </span>
+          <p className="text-lg font-black text-amber-600 dark:text-amber-400">
+            ${summary.totalDayMoneyDistributed}
+          </p>
         </div>
       </div>
 
-      {/* Settlement Table */}
-      <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/60">
-        <table className="w-full text-left text-sm text-slate-300">
-          <thead className="bg-slate-900/90 text-xs uppercase text-slate-400 font-semibold tracking-wider border-b border-slate-800">
-            <tr>
-              <th scope="col" className="py-3 px-4">Participant</th>
-              <th scope="col" className="py-3 px-4 text-center">Payment</th>
-              <th scope="col" className="py-3 px-4 text-right">Entry Fee</th>
-              <th scope="col" className="py-3 px-4 text-right">Main Payout</th>
-              <th scope="col" className="py-3 px-4 text-right">Day Money</th>
-              <th scope="col" className="py-3 px-4 text-right">Total Winnings</th>
-              <th scope="col" className="py-3 px-4 text-right">Net Profit / Loss</th>
+      {/* Locked Notice Banner */}
+      {!isFinal && (
+        <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-3 text-xs text-amber-800 dark:text-amber-300">
+          <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+          <div>
+            <span className="font-extrabold block mb-0.5">Final Winnings Calculation Locked</span>
+            Per contest rules, final net payouts and winnings distribution are calculated upon completion of Round 4 final scoring. Below is the live projected payout ledger based on current leaderboard positions.
+          </div>
+        </div>
+      )}
+
+      {/* Participant Settlement Table */}
+      <div className="overflow-x-auto border border-outline-variant/60 rounded-xl">
+        <table className="w-full border-collapse text-left text-xs">
+          <thead>
+            <tr className="bg-surface-container text-[10px] font-extrabold uppercase tracking-wider border-b border-outline-variant/60 text-on-surface-variant">
+              <th className="py-3 px-4">Participant</th>
+              <th className="py-3 px-4 text-center">Entry Payment</th>
+              <th className="py-3 px-4 text-right">Main Prize</th>
+              <th className="py-3 px-4 text-right">Day Money</th>
+              <th className="py-3 px-4 text-right">Total Earnings</th>
+              <th className="py-3 px-4 text-right font-black">Net Profit / Loss</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-800/60">
-            {settlements.map((item) => {
-              const isProfit = item.netBalance > 0;
-              const isLoss = item.netBalance < 0;
+          <tbody className="divide-y divide-outline-variant/40">
+            {summary.settlements.map((s) => {
+              const isProfit = s.netBalance > 0;
+              const isBreakEven = s.netBalance === 0;
 
               return (
-                <tr key={item.participantId} className="hover:bg-slate-900/50 transition-colors">
-                  <td className="py-3.5 px-4 font-semibold text-white">
-                    {item.participantName}
+                <tr key={s.participantId} className="hover:bg-surface-container-high transition-colors">
+                  <td className="py-3.5 px-4 font-bold text-on-surface">
+                    {s.participantName}
                   </td>
+
                   <td className="py-3.5 px-4 text-center">
-                    {item.hasPaid ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                        <CheckCircle2 className="h-3 w-3" /> Paid
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                        <Clock className="h-3 w-3" /> Unpaid
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-3.5 px-4 text-right font-mono text-slate-400">
-                    ${item.entryFee.toFixed(2)}
-                  </td>
-                  <td className="py-3.5 px-4 text-right font-mono text-emerald-400/90">
-                    {item.mainPayout > 0 ? `$${item.mainPayout.toFixed(2)}` : '—'}
-                  </td>
-                  <td className="py-3.5 px-4 text-right font-mono text-emerald-400/90">
-                    {item.dayMoneyPayout > 0 ? `$${item.dayMoneyPayout.toFixed(2)}` : '—'}
-                  </td>
-                  <td className="py-3.5 px-4 text-right font-mono font-bold text-white">
-                    ${item.totalWinnings.toFixed(2)}
-                  </td>
-                  <td className="py-3.5 px-4 text-right font-mono font-extrabold">
                     <span
-                      className={`inline-block px-2 py-0.5 rounded ${
-                        isProfit
-                          ? 'text-emerald-300 bg-emerald-500/15 border border-emerald-500/30'
-                          : isLoss
-                          ? 'text-rose-400 bg-rose-500/15 border border-rose-500/30'
-                          : 'text-slate-400'
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border ${
+                        s.hasPaid
+                          ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
+                          : 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30'
                       }`}
                     >
-                      {isProfit ? `+$${item.netBalance.toFixed(2)}` : isLoss ? `-$${Math.abs(item.netBalance).toFixed(2)}` : '$0.00'}
+                      {s.hasPaid ? 'Paid ✅' : 'Unpaid ⏳'}
                     </span>
+                  </td>
+
+                  <td className="py-3.5 px-4 text-right font-mono text-on-surface-variant">
+                    {s.mainPayout > 0 ? `$${s.mainPayout}` : '-'}
+                  </td>
+
+                  <td className="py-3.5 px-4 text-right font-mono text-on-surface-variant">
+                    {s.dayMoneyPayout > 0 ? `$${s.dayMoneyPayout}` : '-'}
+                  </td>
+
+                  <td className="py-3.5 px-4 text-right font-mono font-bold text-on-surface">
+                    ${s.totalWinnings}
+                  </td>
+
+                  <td className="py-3.5 px-4 text-right font-mono font-black text-sm">
+                    {isProfit ? (
+                      <span className="text-emerald-600 dark:text-emerald-400">
+                        +${s.netBalance}
+                      </span>
+                    ) : isBreakEven ? (
+                      <span className="text-on-surface-variant">$0</span>
+                    ) : (
+                      <span className="text-red-600 dark:text-red-400">
+                        -${Math.abs(s.netBalance)}
+                      </span>
+                    )}
                   </td>
                 </tr>
               );
@@ -164,6 +171,6 @@ export const WagerSettlementLedger: React.FC<WagerSettlementLedgerProps> = ({ su
           </tbody>
         </table>
       </div>
-    </div>
+    </section>
   );
-};
+}

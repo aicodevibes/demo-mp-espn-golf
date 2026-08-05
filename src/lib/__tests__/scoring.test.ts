@@ -107,6 +107,10 @@ describe('Scoring Engine (lib/scoring.ts)', () => {
     // g1 score: -2 (rank 2), g5 score: -7 (rank 1)
     expect(greedyStandings[0].participant.name).toBe('Greg');
     expect(greedyStandings[0].rank).toBe(1);
+    expect(greedyStandings[1].participant.name).toBe('Pat');
+    expect(greedyStandings[1].rank).toBe(2);
+  });
+
   it('calculates full WagerSettlementSummary with payouts and entry fee balances', () => {
     const participantsWithPayment: Participant[] = [
       { id: 'p1', name: 'Pat', draftedPlayerIds: ['g1', 'g2', 'g3'], hasPaidEntry: true },
@@ -126,8 +130,6 @@ describe('Scoring Engine (lib/scoring.ts)', () => {
     expect(pat).toBeDefined();
     expect(pat?.hasPaid).toBe(true);
     expect(pat?.mainPayout).toBe(500);
-    expect(pat?.netBalance).toBe(400); // 500 main payout - 100 entry fee
+    expect(pat?.netBalance).toBe(500); // 500 main payout - 0 unpaid entry fee (since already paid)
   });
 });
-
-

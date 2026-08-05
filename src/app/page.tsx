@@ -11,7 +11,7 @@ import { FullFieldLeaderboard } from '@/components/FullFieldLeaderboard';
 import { ParticipantStandings } from '@/components/ParticipantStandings';
 import { DayMoneyWinners } from '@/components/DayMoneyWinners';
 import { WagerSettlementLedger } from '@/components/WagerSettlementLedger';
-import { calculateWagerSettlement } from '@/lib/settlement';
+import { LiveActivityFeed } from '@/components/LiveActivityFeed';
 import { useAuth } from '@/context/AuthContext';
 import {
   useActiveConfig,
@@ -25,8 +25,8 @@ import {
   TrackedPlayer,
 } from '@/lib/firebase/firestore';
 import { ESPNEvent, ESPNCompetitor, ESPNPlayerSummary } from '@/types/espn';
-import { formatPlayerSummaryFromCompetitor } from '@/lib/espn';
-import { calculateParticipantStandings, calculateDayMoneyWinners } from '@/lib/scoring';
+import { formatPlayerSummaryFromCompetitor, createSyntheticCompetitor } from '@/lib/espn';
+import { evaluateContest } from '@/lib/contestEngine';
 
 // Vercel Performance Rule: bundle-dynamic-imports
 // Dynamically import heavy Admin Control Drawer only when needed
@@ -125,18 +125,16 @@ export default function DashboardPage() {
     [trackedPlayerIdsSet]
   );
 
-  // Calculate 12-Participant Standings & Day Money Results
-  const participantStandings = useMemo(() => {
-    return calculateParticipantStandings(participants, competitors, contestConfig, activeEvent?.status);
+  // Evaluate entire contest via deep ContestEngine seam
+  const contestEvaluation = useMemo(() => {
+    return evaluateContest(participants, competitors, contestConfig, activeEvent?.status);
   }, [participants, competitors, contestConfig, activeEvent]);
 
-  const dayMoneyResults = useMemo(() => {
-    return calculateDayMoneyWinners(participants, competitors, contestConfig, activeEvent?.status);
-  }, [participants, competitors, contestConfig, activeEvent]);
+  const participantStandings = contestEvaluation.standings;
+  const dayMoneyResults = contestEvaluation.dayMoneyResults;
+  const wagerLedger = contestEvaluation.wagerLedger;
+  const playerDraftedByMap = contestEvaluation.playerDraftedByMap;
 
-  const wagerSettlementSummary = useMemo(() => {
-    return calculateWagerSettlement(participants, participantStandings, dayMoneyResults, [], contestConfig);
-  }, [participants, participantStandings, dayMoneyResults, contestConfig]);
 
   // Find active selected participant
   const activeParticipant = useMemo(() => {
@@ -151,36 +149,14 @@ export default function DashboardPage() {
     // 1. Display selected participant's 3 drafted golfers if available
     if (activeParticipant && activeParticipant.draftedPlayerIds && activeParticipant.draftedPlayerIds.length > 0) {
       return activeParticipant.draftedPlayerIds.map((playerId) => {
-        const match = compMap.get(playerId);
-        if (match) return match;
-        return {
-          id: playerId,
-          score: 'E',
-          athlete: {
-            id: playerId,
-            displayName: `Golfer (${playerId})`,
-            headshot: { href: '' },
-            country: { abbreviation: '' },
-          },
-        } as ESPNCompetitor;
+        return compMap.get(playerId) || createSyntheticCompetitor(playerId);
       });
     }
 
     // 2. Fallback to trackedPlayers if no drafted players assigned
     if (trackedPlayers.length > 0) {
       return trackedPlayers.map((p) => {
-        const match = compMap.get(p.playerId);
-        if (match) return match;
-        return {
-          id: p.playerId,
-          score: 'E',
-          athlete: {
-            id: p.playerId,
-            displayName: p.name,
-            headshot: { href: p.headshotUrl || '' },
-            country: { abbreviation: p.country || '' },
-          },
-        } as ESPNCompetitor;
+        return compMap.get(p.playerId) || createSyntheticCompetitor(p.playerId, p.name, p.headshotUrl, p.country);
       });
     }
 
@@ -354,9 +330,25 @@ export default function DashboardPage() {
           />
         </section>
 
-        {/* Section 7: Official Wager Settlement Ledger */}
+        {/* Section 7: Live Tournament Social Activity Feed */}
         <section>
-          <WagerSettlementLedger summary={wagerSettlementSummary} />
+          <LiveActivityFeed
+            participants={participants}
+            competitors={competitors}
+            contestConfig={contestConfig}
+            eventStatus={activeEvent?.status}
+          />
+        </section>
+
+        {/* Section 8: Official Wager Settlement Ledger */}
+        <section>
+          <WagerSettlementLedger
+            participants={participants}
+            competitors={competitors}
+            contestConfig={contestConfig}
+            eventStatus={activeEvent?.status}
+            wagerLedger={wagerLedger}
+          />
         </section>
       </main>
 
