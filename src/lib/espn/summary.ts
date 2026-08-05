@@ -5,7 +5,8 @@ export function formatPlayerSummaryFromCompetitor(comp: ESPNCompetitor): ESPNPla
     const roundPeriod = rd.period || idx + 1;
     const roundValue = rd.value ? `${rd.value}` : rd.displayValue || '-';
 
-    const holes: ESPNHoleScore[] = (rd.linescores || []).map((h: any, hIdx: number) => {
+    const rawHolesMap = new Map<number, ESPNHoleScore>();
+    (rd.linescores || []).forEach((h: any, hIdx: number) => {
       const holeNum = h.period || hIdx + 1;
       const strokes = h.value || 0;
       const diffStr = h.scoreType?.displayValue || 'E';
@@ -25,12 +26,24 @@ export function formatPlayerSummaryFromCompetitor(comp: ESPNCompetitor): ESPNPla
         scoreTypeLabel = 'double';
       }
 
-      return {
+      rawHolesMap.set(holeNum, {
         hole: holeNum,
-        par: par,
-        strokes: strokes,
+        par,
+        strokes,
         scoreType: scoreTypeLabel,
-      };
+      });
+    });
+
+    const holes: ESPNHoleScore[] = Array.from({ length: 18 }, (_, i) => {
+      const holeNum = i + 1;
+      return (
+        rawHolesMap.get(holeNum) || {
+          hole: holeNum,
+          par: 4,
+          strokes: 0,
+          scoreType: 'unplayed',
+        }
+      );
     });
 
     return {

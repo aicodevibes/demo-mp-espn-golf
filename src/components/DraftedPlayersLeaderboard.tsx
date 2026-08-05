@@ -2,10 +2,10 @@
 
 import React, { useMemo } from 'react';
 import { ESPNCompetitor, ESPNEvent } from '@/types/espn';
-import { Users, User, Scissors } from 'lucide-react';
-import { GolferHeadshot } from './GolferHeadshot';
+import { Users } from 'lucide-react';
 import { Participant } from '@/types/contest';
-import { getPlayerStatusInfo, getTop10WithTies } from '@/lib/espn';
+import { createPlayerDraftedByMap } from '@/lib/scoring';
+import { CompetitorRow } from './CompetitorRow';
 
 interface DraftedPlayersLeaderboardProps {
   competitors: ESPNCompetitor[];
@@ -22,20 +22,10 @@ export function DraftedPlayersLeaderboard({
   selectedPlayerId,
   onSelectPlayer,
 }: DraftedPlayersLeaderboardProps) {
-  // Map of playerId -> participant names who drafted this golfer
   const playerDraftedByMap = useMemo(() => {
-    const map = new Map<string, string[]>();
-    participants.forEach((p) => {
-      p.draftedPlayerIds?.forEach((pid) => {
-        const existing = map.get(pid) || [];
-        existing.push(p.name);
-        map.set(pid, existing);
-      });
-    });
-    return map;
+    return createPlayerDraftedByMap(participants);
   }, [participants]);
 
-  // Set of all drafted player IDs
   const allDraftedPlayerIdsSet = useMemo(() => {
     const set = new Set<string>();
     participants.forEach((p) => {
@@ -44,7 +34,6 @@ export function DraftedPlayersLeaderboard({
     return set;
   }, [participants]);
 
-  // Drafted golfers OUTSIDE top 10 (field rank index >= 10)
   const outsideTop10DraftedCompetitors = useMemo(() => {
     const top10Ids = new Set(competitors.slice(0, 10).map((c) => c.athlete?.id || c.id));
 
@@ -88,89 +77,23 @@ export function DraftedPlayersLeaderboard({
         </span>
       </div>
 
-      {/* Leaderboard Grid / Rows (Scrollable Viewport capped to 10 rows) */}
+      {/* Leaderboard Grid / Rows */}
       <div className="space-y-2 max-h-[520px] overflow-y-auto pr-1">
         {outsideTop10DraftedCompetitors.map((comp, idx) => {
           const playerId = comp.athlete?.id || comp.id || `drafted-${idx}`;
           const isSelected = selectedPlayerId === playerId;
-          const score = comp.score || 'E';
-          const isUnderPar = score.startsWith('-');
-          const isOverPar = score.startsWith('+');
-
           const draftedBy = playerDraftedByMap.get(playerId) || [];
-          const statusInfo = getPlayerStatusInfo(comp, eventObj?.status);
 
           return (
-            <div
+            <CompetitorRow
               key={`drafted-${playerId}-${idx}`}
-              onClick={() => onSelectPlayer?.(playerId)}
-              className={`group flex items-center justify-between p-2.5 rounded-lg border text-xs cursor-pointer transition-all ${
-                statusInfo.isCut || statusInfo.isWD
-                  ? 'bg-surface-container-high border-outline-variant/60 text-on-surface-variant opacity-75'
-                  : isSelected
-                  ? 'bg-surface-container-lowest border-tertiary shadow-xs ring-2 ring-tertiary/20'
-                  : 'bg-surface-container-lowest hover:bg-surface-container-high border-outline-variant/60 hover:border-outline'
-              }`}
-            >
-              {/* Left: Position + Headshot + Name + Drafted Badge */}
-              <div className="flex items-center gap-3 min-w-0 flex-1">
-                <span className="w-7 h-7 rounded-full bg-surface-container-high text-on-surface-variant border border-outline-variant/60 font-bold text-xs flex items-center justify-center shrink-0">
-                  {comp.status?.position?.displayName || idx + 11}
-                </span>
-
-                <GolferHeadshot
-                  name={comp.athlete?.displayName || 'Golfer'}
-                  src={comp.athlete?.headshot?.href}
-                  playerId={playerId}
-                  size={36}
-                />
-
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-bold text-on-surface group-hover:text-tertiary transition truncate max-w-40 sm:max-w-xs">
-                      {comp.athlete?.displayName || 'Golfer'}
-                    </span>
-
-                    {draftedBy.length > 0 && (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-tertiary/15 text-tertiary border border-tertiary/40">
-                        <User className="w-3 h-3" /> Drafted by {draftedBy.join(', ')}
-                      </span>
-                    )}
-
-                    {statusInfo.isCut && (
-                      <span className="text-[9px] font-black uppercase text-red-500 bg-red-500/10 px-1.5 py-0.5 rounded border border-red-500/20">
-                        ✂️ Missed Cut
-                      </span>
-                    )}
-
-                    {statusInfo.isWD && (
-                      <span className="text-[9px] font-black uppercase text-orange-500 bg-orange-500/10 px-1.5 py-0.5 rounded border border-orange-500/20">
-                        Withdrawn
-                      </span>
-                    )}
-                  </div>
-
-                  <span className="text-[10px] text-on-surface-variant">
-                    Thru: <strong className="text-on-surface">{comp.status?.thru || 'F'}</strong>
-                  </span>
-                </div>
-              </div>
-
-              {/* Right: Score */}
-              <div className="text-right shrink-0 ml-3">
-                <span
-                  className={`text-base font-black ${
-                    isUnderPar
-                      ? 'text-tertiary'
-                      : isOverPar
-                      ? 'text-error'
-                      : 'text-on-surface-variant'
-                  }`}
-                >
-                  {score}
-                </span>
-              </div>
-            </div>
+              competitor={comp}
+              draftedBy={draftedBy}
+              rankDisplay={comp.status?.position?.displayName || idx + 11}
+              isSelected={isSelected}
+              eventStatus={eventObj?.status}
+              onSelectPlayer={onSelectPlayer}
+            />
           );
         })}
       </div>

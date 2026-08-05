@@ -13,6 +13,21 @@ const DEFAULT_MAIN_PAYOUTS = [600, 320, 180, 100];
 const DEFAULT_DAY_MONEY_POOL = 75;
 
 /**
+ * Creates a Map of playerId -> participant names who drafted that golfer
+ */
+export function createPlayerDraftedByMap(participants: Participant[] = []): Map<string, string[]> {
+  const map = new Map<string, string[]>();
+  participants.forEach((p) => {
+    p.draftedPlayerIds?.forEach((pid) => {
+      const existing = map.get(pid) || [];
+      existing.push(p.name);
+      map.set(pid, existing);
+    });
+  });
+  return map;
+}
+
+/**
  * Helper to extract round strokes from ESPN competitor linescores
  */
 export function getGolferRoundStrokes(comp: ESPNCompetitor, round: number): number | null {

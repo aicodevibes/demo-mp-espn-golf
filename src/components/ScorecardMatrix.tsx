@@ -53,15 +53,8 @@ export function ScorecardMatrix({
   ) || playerSummary.rounds[0];
 
   const holes = currentRoundData?.holes || [];
-  const holesMap = new Map(holes.map((h) => [h.hole, h]));
-
-  const frontNine = [1, 2, 3, 4, 5, 6, 7, 8, 9].map((holeNum) => {
-    return holesMap.get(holeNum) || { hole: holeNum, par: 4, strokes: 0, scoreType: 'unplayed' };
-  });
-
-  const backNine = [10, 11, 12, 13, 14, 15, 16, 17, 18].map((holeNum) => {
-    return holesMap.get(holeNum) || { hole: holeNum, par: 4, strokes: 0, scoreType: 'unplayed' };
-  });
+  const frontNine = holes.filter((h) => h.hole >= 1 && h.hole <= 9);
+  const backNine = holes.filter((h) => h.hole >= 10 && h.hole <= 18);
 
   const frontParTotal = frontNine.reduce((acc, h) => acc + (h.par || 0), 0);
   const frontScoreTotal = frontNine.filter((h) => (h.strokes || 0) > 0).reduce((acc, h) => acc + h.strokes, 0);
