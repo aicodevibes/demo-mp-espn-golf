@@ -4,7 +4,7 @@ import React, { useMemo } from 'react';
 import { ESPNCompetitor, ESPNEvent } from '@/types/espn';
 import { Trophy } from 'lucide-react';
 import { Participant } from '@/types/contest';
-import { createPlayerDraftedByMap } from '@/lib/scoring';
+import { evaluateFieldLeaderboard } from '@/lib/fieldLeaderboard';
 import { CompetitorRow } from './CompetitorRow';
 
 interface Top10LeaderboardProps {
@@ -22,14 +22,13 @@ export function Top10Leaderboard({
   selectedPlayerId,
   onSelectPlayer,
 }: Top10LeaderboardProps) {
-  const playerDraftedByMap = useMemo(() => {
-    return createPlayerDraftedByMap(participants);
-  }, [participants]);
-
-  const top10Competitors = useMemo(() => {
-    const safeCompetitors = Array.isArray(competitors) ? competitors : [];
-    return safeCompetitors.slice(0, 10);
-  }, [competitors]);
+  const { top10Competitors, playerDraftedByMap, rankDisplayMap } = useMemo(() => {
+    return evaluateFieldLeaderboard({
+      competitors,
+      participants,
+      eventStatus: eventObj?.status,
+    });
+  }, [competitors, participants, eventObj]);
 
   if (!competitors || competitors.length === 0) {
     return (
@@ -62,12 +61,14 @@ export function Top10Leaderboard({
           const isSelected = selectedPlayerId === playerId;
           const draftedBy = playerDraftedByMap.get(playerId) || [];
 
+          const computedRank = rankDisplayMap.get(playerId) || comp.status?.position?.displayName || idx + 1;
+
           return (
             <CompetitorRow
               key={`top10-${playerId}-${idx}`}
               competitor={comp}
               draftedBy={draftedBy}
-              rankDisplay={comp.status?.position?.displayName || idx + 1}
+              rankDisplay={computedRank}
               isSelected={isSelected}
               eventStatus={eventObj?.status}
               priorityHeadshot={idx < 5}

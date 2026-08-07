@@ -12,7 +12,11 @@ import { ParticipantStandings } from '@/components/ParticipantStandings';
 import { DayMoneyWinners } from '@/components/DayMoneyWinners';
 import { WagerSettlementLedger } from '@/components/WagerSettlementLedger';
 import { LiveActivityFeed } from '@/components/LiveActivityFeed';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+
+// ... (keep rest of top code intact until component body)
+
 import {
   useActiveConfig,
   useTrackedPlayers,
@@ -49,6 +53,23 @@ export default function DashboardPage() {
   const [selectedParticipantId, setSelectedParticipantId] = useState<string>('top_view');
   const [playerSummary, setPlayerSummary] = useState<ESPNPlayerSummary | null>(null);
   const [loadingSummary, setLoadingSummary] = useState<boolean>(false);
+
+  const [isWatchlistCollapsed, setIsWatchlistCollapsed] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('mp_watchlist_collapsed') === 'true';
+    }
+    return false;
+  });
+
+  const toggleWatchlistCollapse = () => {
+    setIsWatchlistCollapsed((prev) => {
+      const next = !prev;
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('mp_watchlist_collapsed', String(next));
+      }
+      return next;
+    });
+  };
 
   // 1. Fetch ESPN Scoreboard (Events List)
   useEffect(() => {
@@ -274,45 +295,75 @@ export default function DashboardPage() {
                 {isTopView ? 'Top View Watchlist (1st - 4th Golfers)' : activeParticipant ? `${activeParticipant.name}'s Watchlist` : 'Participant Watchlist'}
               </h2>
               <span className="text-xs font-bold text-on-surface-variant bg-surface-container-high px-2 py-0.5 rounded-full border border-outline-variant/60">
-                {displayCompetitors.length} Golfer{displayCompetitors.length === 1 ? '' : 's'}
+                {displayCompetitors.length} Golfer{displayCompetitors.length === 1 ? '' : 's'} {isWatchlistCollapsed ? '• Hidden' : ''}
               </span>
             </div>
 
-            {/* Participant Dropdown View Selector */}
-            <div className="flex items-center gap-2">
-              <label htmlFor="participantSelect" className="text-xs font-bold text-on-surface-variant">
-                Participant View:
-              </label>
-              <select
-                id="participantSelect"
-                value={selectedParticipantId}
-                onChange={(e) => setSelectedParticipantId(e.target.value)}
-                className="bg-surface-container-lowest border border-outline-variant rounded-lg px-3 py-1.5 text-xs font-bold text-on-surface outline-none focus:border-tertiary shadow-xs cursor-pointer"
+            {/* Participant Dropdown View Selector & Ribbon Collapse Button */}
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <label htmlFor="participantSelect" className="text-xs font-bold text-on-surface-variant">
+                  Participant View:
+                </label>
+                <select
+                  id="participantSelect"
+                  value={selectedParticipantId}
+                  onChange={(e) => setSelectedParticipantId(e.target.value)}
+                  className="bg-surface-container-lowest border border-outline-variant rounded-lg px-3 py-1.5 text-xs font-bold text-on-surface outline-none focus:border-tertiary shadow-xs cursor-pointer"
+                >
+                  <option value="top_view">Top View (1st - 4th Golfers)</option>
+                  {participantsLoading ? (
+                    <option value="" disabled>Loading Participants...</option>
+                  ) : (
+                    participants.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} {p.draftedPlayerIds.length > 0 ? `(${p.draftedPlayerIds.length} Golfers)` : '(No Roster)'}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
+
+              <button
+                onClick={toggleWatchlistCollapse}
+                title={isWatchlistCollapsed ? "Expand Watchlist Section" : "Collapse Watchlist Section"}
+                className="p-1.5 text-on-surface-variant hover:text-on-surface bg-surface-container-lowest hover:bg-surface-container-high rounded-lg border border-outline-variant transition cursor-pointer flex items-center gap-1 text-xs font-bold"
               >
-                <option value="top_view">Top View (1st - 4th Golfers)</option>
-                {participantsLoading ? (
-                  <option value="" disabled>Loading Participants...</option>
+                {isWatchlistCollapsed ? (
+                  <>
+                    <span>Expand</span>
+                    <ChevronDown className="w-4 h-4" />
+                  </>
                 ) : (
-                  participants.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} {p.draftedPlayerIds.length > 0 ? `(${p.draftedPlayerIds.length} Golfers)` : '(No Roster)'}
-                    </option>
-                  ))
+                  <ChevronUp className="w-4 h-4" />
                 )}
-              </select>
+              </button>
             </div>
           </div>
 
-          <TrackedPlayerHeroGrid
-            trackedCompetitors={displayCompetitors}
-            allCompetitors={competitors}
+          {!isWatchlistCollapsed && (
+            <TrackedPlayerHeroGrid
+              trackedCompetitors={displayCompetitors}
+              allCompetitors={competitors}
+              eventStatus={activeEvent?.status}
+              selectedPlayerId={selectedPlayerId || selectedCompetitor?.athlete?.id || selectedCompetitor?.id}
+              onSelectPlayer={(id) => setSelectedPlayerId(id)}
+            />
+          )}
+        </section>
+
+        {/* Section 2: Selected Golfer 18-Hole Matrix & Round Scores (R1 to R4) */}
+        <section>
+          <ScorecardMatrix
+            playerSummary={playerSummary}
+            competitor={selectedCompetitor}
             eventStatus={activeEvent?.status}
-            selectedPlayerId={selectedPlayerId || selectedCompetitor?.athlete?.id || selectedCompetitor?.id}
-            onSelectPlayer={(id) => setSelectedPlayerId(id)}
+            loading={loadingSummary}
+            playerName={selectedCompetitor?.athlete?.displayName}
           />
         </section>
 
-        {/* Section 2: Official Participant Standings */}
+        {/* Section 3: Official Participant Standings */}
         <section>
           <ParticipantStandings
             standings={participantStandings}
@@ -323,7 +374,7 @@ export default function DashboardPage() {
           />
         </section>
 
-        {/* Section 3: Side-by-Side - Top 10 Leaderboard & Drafted Golfers */}
+        {/* Section 4: Side-by-Side - Top 10 Leaderboard & Drafted Golfers */}
         <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Top10Leaderboard
             competitors={competitors}
@@ -339,17 +390,6 @@ export default function DashboardPage() {
             eventObj={activeEvent || undefined}
             selectedPlayerId={selectedPlayerId}
             onSelectPlayer={(id) => setSelectedPlayerId(id)}
-          />
-        </section>
-
-        {/* Section 4: Selected Golfer 18-Hole Matrix & Round Scores (R1 to R4) */}
-        <section>
-          <ScorecardMatrix
-            playerSummary={playerSummary}
-            competitor={selectedCompetitor}
-            eventStatus={activeEvent?.status}
-            loading={loadingSummary}
-            playerName={selectedCompetitor?.athlete?.displayName}
           />
         </section>
 

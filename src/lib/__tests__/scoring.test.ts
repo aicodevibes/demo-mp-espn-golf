@@ -57,13 +57,13 @@ describe('Scoring Engine (lib/scoring.ts)', () => {
     },
   ];
 
-  it('calculates participant daily score using lowest 2 drafted golfer scores', () => {
+  it('calculates participant daily score using lowest 2 drafted golfer scores to par', () => {
     const standings = calculateParticipantStandings(sampleParticipants, sampleCompetitors, sampleConfig);
     expect(standings).toHaveLength(2);
-    // Pat: g2 (68) + g1 (70) = 138 for Round 1
+    // Pat: g2 (-2 to par) + g1 (0 to par) = -2 to par for Round 1
     const pat = standings.find((s) => s.participant.name === 'Pat');
     expect(pat).toBeDefined();
-    expect(pat?.dailyScores[1]).toBe(138); // 68 + 70
+    expect(pat?.dailyScores[1]).toBe(-2); // -2 + 0
     // Check custom mainPayouts (500 for 1st)
     expect(pat?.projectedPayout).toBe(500);
   });

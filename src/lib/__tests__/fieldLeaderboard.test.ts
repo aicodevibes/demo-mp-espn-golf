@@ -83,4 +83,38 @@ describe('evaluateFieldLeaderboard domain module', () => {
     expect(res.cutFieldCompetitors.length).toBe(1);
     expect(res.cutFieldCompetitors[0].id).toBe('g14');
   });
+
+  it('correctly sorts unsorted competitor inputs by score to par', () => {
+    const unsortedCompetitors: ESPNCompetitor[] = [
+      { id: 'g3', athlete: { id: 'g3', displayName: 'Third' }, score: '+2', status: { position: { displayName: '3' } } },
+      { id: 'g1', athlete: { id: 'g1', displayName: 'Leader' }, score: '-5', status: { position: { displayName: '1' } } },
+      { id: 'g2', athlete: { id: 'g2', displayName: 'Second' }, score: '-2', status: { position: { displayName: '2' } } },
+    ];
+
+    const res = evaluateFieldLeaderboard({
+      competitors: unsortedCompetitors,
+      participants: sampleParticipants,
+    });
+
+    expect(res.top10Competitors[0].id).toBe('g1');
+    expect(res.top10Competitors[1].id).toBe('g2');
+    expect(res.top10Competitors[2].id).toBe('g3');
+  });
+
+  it('prioritizes live score to par over stale ESPN order or position strings', () => {
+    const staleOrderCompetitors: ESPNCompetitor[] = [
+      { id: 'finau', athlete: { id: 'finau', displayName: 'Tony Finau' }, order: 94, score: '+1', status: { position: { displayName: 'T94' } } },
+      { id: 'svensson', athlete: { id: 'svensson', displayName: 'Adam Svensson' }, order: 108, score: '-1', status: { position: { displayName: 'T108' } } },
+      { id: 'mcgreevy', athlete: { id: 'mcgreevy', displayName: 'Max McGreevy' }, order: 94, score: 'E', status: { position: { displayName: 'T94' } } },
+      { id: 'stevens', athlete: { id: 'stevens', displayName: 'Sam Stevens' }, order: 94, score: '+2', status: { position: { displayName: 'T94' } } },
+    ];
+
+    const res = evaluateFieldLeaderboard({
+      competitors: staleOrderCompetitors,
+      participants: [],
+    });
+
+    const activeIds = res.activeFieldCompetitors.map((c) => c.id);
+    expect(activeIds).toEqual(['svensson', 'mcgreevy', 'finau', 'stevens']);
+  });
 });

@@ -51,28 +51,28 @@ export function getGolferRoundScoreToPar(
   round: number,
   coursePar?: number | null
 ): number | null {
+  // First check displayValue on linescore for explicit relative scores like "-2", "+3", "E"
+  const ls = comp.linescores?.find((l) => l.period === round);
+  if (ls?.displayValue) {
+    const dv = ls.displayValue.trim();
+    if (dv === 'E' || dv === 'EVEN') return 0;
+    if (dv.startsWith('+') || dv.startsWith('-')) {
+      const parsed = parseInt(dv.replace('+', ''), 10);
+      if (!isNaN(parsed) && Math.abs(parsed) <= 30) return parsed;
+    }
+  }
+
   const strokes = getGolferRoundStrokes(comp, round);
   if (strokes === null) return null;
 
-  // If strokes is already a relative score (e.g. -5, +3, 0 when strokes < 40)
-  if (Math.abs(strokes) <= 20) {
+  // If strokes is already a relative score (e.g. -5, +3, 0 when strokes <= 25)
+  if (Math.abs(strokes) <= 25) {
     return strokes;
   }
 
   // If explicit course par is provided
   if (coursePar && coursePar > 50) {
     return strokes - coursePar;
-  }
-
-  // Check if linescore displayValue is a relative score string like "-2", "+3", "E"
-  const ls = comp.linescores?.find((l) => l.period === round);
-  if (ls?.displayValue) {
-    const dv = ls.displayValue.trim();
-    if (dv === 'E') return 0;
-    if (dv.startsWith('+') || dv.startsWith('-')) {
-      const parsed = parseInt(dv.replace('+', ''), 10);
-      if (!isNaN(parsed) && Math.abs(parsed) <= 25) return parsed;
-    }
   }
 
   // Derive course par dynamically from cumulative score-to-par (comp.score) and completed linescores
@@ -162,24 +162,21 @@ export function calculateParticipantStandings(
     let totalScore = 0;
 
     for (let rd = 1; rd <= 4; rd++) {
-      const roundScores = golferDetails
+      const roundScoresToPar = golferDetails
         .map((g) => {
-          const rawStrokes = g.roundStrokes[rd];
-          if (rawStrokes === null || rawStrokes === undefined) return null;
-          // Cut golfers on R3 & R4 get penalty 999
           if ((rd === 3 || rd === 4) && (g.isCut || g.isWD)) {
-            return 999;
+            return null;
           }
-          return rawStrokes;
+          return g.roundScoresToPar[rd];
         })
-        .filter((s): s is number => s !== null);
+        .filter((s): s is number => s !== null && s !== undefined);
 
-      if (roundScores.length === 0) {
+      if (roundScoresToPar.length === 0) {
         dailyScores[rd] = null;
       } else {
-        roundScores.sort((a, b) => a - b);
-        // Best 2 scores
-        const bestTwo = roundScores.slice(0, 2);
+        roundScoresToPar.sort((a, b) => a - b);
+        // Best 2 scores to par
+        const bestTwo = roundScoresToPar.slice(0, 2);
         const daySum = bestTwo.reduce((sum, val) => sum + val, 0);
         dailyScores[rd] = daySum;
         totalScore += daySum;

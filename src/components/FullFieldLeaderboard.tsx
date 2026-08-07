@@ -24,7 +24,7 @@ export function FullFieldLeaderboard({
 }: FullFieldLeaderboardProps) {
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  const { activeFieldCompetitors, cutFieldCompetitors, playerDraftedByMap } = useMemo(() => {
+  const { activeFieldCompetitors, cutFieldCompetitors, playerDraftedByMap, rankDisplayMap } = useMemo(() => {
     return evaluateFieldLeaderboard({
       competitors,
       participants,
@@ -62,13 +62,14 @@ export function FullFieldLeaderboard({
           const playerId = comp.athlete?.id || comp.id || `active-${idx}`;
           const isSelected = selectedPlayerId === playerId;
           const draftedBy = playerDraftedByMap.get(playerId) || [];
+          const computedRank = rankDisplayMap.get(playerId) || comp.status?.position?.displayName || idx + 1;
 
           return (
             <CompetitorRow
               key={`field-active-${playerId}-${idx}`}
               competitor={comp}
               draftedBy={draftedBy}
-              rankDisplay={comp.status?.position?.displayName || idx + 1}
+              rankDisplay={computedRank}
               isSelected={isSelected}
               eventStatus={eventObj?.status}
               onSelectPlayer={onSelectPlayer}

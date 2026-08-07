@@ -12,12 +12,11 @@ interface ParticipantStandingsProps {
   onSelectPlayer?: (playerId: string) => void;
 }
 
-/** Format a numeric daily team score for display (raw strokes sum → relative display) */
+/** Format a numeric daily team score relative to par for display */
 function formatTeamDayScore(score: number | null | undefined): string {
   if (score === null || score === undefined) return '-';
-  // score is raw strokes (e.g. 138). For now display as-is until we wire par.
-  // Once real ESPN par data is available this becomes relative to par.
-  return score.toString();
+  if (score === 0) return 'E';
+  return score > 0 ? `+${score}` : `${score}`;
 }
 
 /** Format total score to par string */

@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { ESPNCompetitor, ESPNPlayerSummary, ESPNRoundLinescore } from '@/types/espn';
-import { Circle, Square, Award } from 'lucide-react';
+import { Circle, Square, Award, ChevronDown, ChevronUp } from 'lucide-react';
 import { getPlayerStatusInfo } from '@/lib/espn';
 
 interface ScorecardMatrixProps {
@@ -22,35 +22,75 @@ export function ScorecardMatrix({
   playerName = 'Selected Golfer',
 }: ScorecardMatrixProps) {
   const [activeRound, setActiveRound] = useState<number>(1);
+  const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('mp_scorecard_collapsed') === 'true';
+    }
+    return false;
+  });
 
-  // Use the leaderboard competitor (has linescores) — not playerSummary.competitor which ESPN
-  // never populates in the player summary API response.
+  const toggleCollapse = () => {
+    setIsCollapsed((prev) => {
+      const next = !prev;
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('mp_scorecard_collapsed', String(next));
+      }
+      return next;
+    });
+  };
+
+  // Filter rounds to only show started rounds (or R1 preview if pre-tournament)
+  const startedRounds = useMemo(() => {
+    if (!playerSummary || !playerSummary.rounds || playerSummary.rounds.length === 0) return [];
+    const started = playerSummary.rounds.filter((rd) => {
+      const hasStrokes = rd.holes && rd.holes.some((h) => (h.strokes || 0) > 0);
+      const hasDisplayVal = Boolean(rd.displayValue && rd.displayValue.trim() !== '' && rd.displayValue !== '-');
+      return hasStrokes || hasDisplayVal;
+    });
+    if (started.length === 0 && playerSummary.rounds.length > 0) {
+      return [playerSummary.rounds[0]];
+    }
+    return started;
+  }, [playerSummary]);
+
+  // Auto-focus latest started round when player or rounds update
+  useEffect(() => {
+    if (startedRounds.length > 0) {
+      const isCurrentActiveValid = startedRounds.some((r) => r.period === activeRound);
+      if (!isCurrentActiveValid) {
+        const latestPeriod = startedRounds[startedRounds.length - 1].period;
+        setActiveRound(latestPeriod);
+      }
+    }
+  }, [startedRounds, activeRound]);
+
+  // Use the leaderboard competitor (has linescores) for CUT detection
   const statusInfo = competitor ? getPlayerStatusInfo(competitor, eventStatus) : null;
 
   if (loading) {
     return (
-      <div className="p-6 rounded-xl bg-surface-container-low border border-outline-variant animate-pulse space-y-4">
+      <div className="p-4 rounded-xl bg-surface-container-low border border-outline-variant animate-pulse space-y-3">
         <div className="h-6 w-48 bg-surface-container-high rounded" />
-        <div className="h-40 bg-surface-container-high/60 rounded-lg" />
+        <div className="h-32 bg-surface-container-high/60 rounded-lg" />
       </div>
     );
   }
 
   if (!playerSummary || !playerSummary.rounds || playerSummary.rounds.length === 0) {
     return (
-      <div className="p-8 rounded-xl bg-surface-container-low border border-outline-variant text-center">
-        <Award className="w-8 h-8 text-secondary mx-auto mb-2" />
-        <h4 className="text-sm font-semibold text-on-surface">Scorecard Data Unavailable</h4>
-        <p className="text-xs text-on-surface-variant mt-1">
+      <div className="p-5 rounded-xl bg-surface-container-low border border-outline-variant text-center">
+        <Award className="w-6 h-6 text-secondary mx-auto mb-1.5" />
+        <h4 className="text-xs font-bold text-on-surface">Scorecard Data Unavailable</h4>
+        <p className="text-[11px] text-on-surface-variant mt-0.5">
           Hole-by-hole linescores will populate live when the tournament round begins.
         </p>
       </div>
     );
   }
 
-  const currentRoundData: ESPNRoundLinescore | undefined = playerSummary.rounds.find(
+  const currentRoundData: ESPNRoundLinescore | undefined = startedRounds.find(
     (r) => r.period === activeRound
-  ) || playerSummary.rounds[0];
+  ) || startedRounds[0];
 
   const holes = currentRoundData?.holes || [];
   const frontNine = holes.filter((h) => h.hole >= 1 && h.hole <= 9);
@@ -108,41 +148,78 @@ export function ScorecardMatrix({
     return <span className="font-semibold text-on-surface text-xs">{strokes}</span>;
   };
 
-  return (
-    <div className="rounded-xl bg-surface-container-low border border-outline-variant p-5 space-y-4 shadow-xs">
-      {/* Header & Round Tabs */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-outline-variant pb-3">
-        <div>
-          <h3 className="text-sm font-black uppercase tracking-wider text-on-surface">
+  // Render Compact Collapsed Ribbon Strip
+  if (isCollapsed) {
+    return (
+      <div
+        onClick={toggleCollapse}
+        className="cursor-pointer bg-surface-container-low border border-outline-variant rounded-xl px-4 py-2.5 flex items-center justify-between shadow-xs hover:border-outline transition"
+      >
+        <div className="flex items-center gap-3">
+          <span className="text-xs font-black uppercase tracking-wider text-on-surface">
             {playerName}'s Hole-by-Hole Scorecard
-          </h3>
-          {statusInfo?.isCut && (
-            <span className="inline-flex items-center gap-1 mt-1.5 text-[11px] font-extrabold px-2 py-0.5 rounded bg-error/15 text-error border border-error/30">
-              Missed 36-Hole Cut
-            </span>
-          )}
-          {statusInfo?.isWD && (
-            <span className="inline-flex items-center gap-1 mt-1.5 text-[11px] font-extrabold px-2 py-0.5 rounded bg-secondary-container text-secondary border border-outline-variant">
-              Withdrawn (WD)
-            </span>
-          )}
+          </span>
+          <span className="text-[10px] font-extrabold text-on-surface-variant bg-surface-container-high px-2 py-0.5 rounded-full border border-outline-variant/60">
+            R{currentRoundData?.period || 1} {currentRoundData?.displayValue ? `(${currentRoundData.displayValue})` : ''} • Hidden
+          </span>
+        </div>
+        <button className="flex items-center gap-1 text-xs font-bold text-tertiary hover:text-tertiary/80 transition">
+          <span>Expand</span>
+          <ChevronDown className="w-4 h-4" />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-xl bg-surface-container-low border border-outline-variant p-4 sm:p-5 space-y-4 shadow-xs">
+      {/* Ribbon Header & Round Tabs */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-outline-variant pb-3">
+        <div className="flex items-center gap-3">
+          <div>
+            <h3 className="text-sm font-black uppercase tracking-wider text-on-surface">
+              {playerName}'s Hole-by-Hole Scorecard
+            </h3>
+            <div className="flex items-center gap-2 mt-1">
+              {statusInfo?.isCut && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-extrabold px-2 py-0.5 rounded bg-error/15 text-error border border-error/30">
+                  Missed 36-Hole Cut
+                </span>
+              )}
+              {statusInfo?.isWD && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-extrabold px-2 py-0.5 rounded bg-secondary-container text-secondary border border-outline-variant">
+                  Withdrawn (WD)
+                </span>
+              )}
+            </div>
+          </div>
         </div>
 
-        {/* Round Tabs */}
-        <div className="flex items-center gap-1.5 bg-surface-container-lowest p-1 rounded-lg border border-outline-variant">
-          {(playerSummary.rounds || []).map((rd) => (
-            <button
-              key={rd.period}
-              onClick={() => setActiveRound(rd.period)}
-              className={`px-3 py-1 text-xs font-semibold rounded-md transition cursor-pointer ${
-                activeRound === rd.period
-                  ? 'bg-tertiary text-on-tertiary shadow-xs'
-                  : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'
-              }`}
-            >
-              R{rd.period} {rd.displayValue ? `(${rd.displayValue})` : ''}
-            </button>
-          ))}
+        {/* Round Tabs & Collapse Ribbon Action */}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 bg-surface-container-lowest p-1 rounded-lg border border-outline-variant">
+            {startedRounds.map((rd) => (
+              <button
+                key={rd.period}
+                onClick={() => setActiveRound(rd.period)}
+                className={`px-3 py-1 text-xs font-semibold rounded-md transition cursor-pointer ${
+                  activeRound === rd.period
+                    ? 'bg-tertiary text-on-tertiary shadow-xs'
+                    : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'
+                }`}
+              >
+                R{rd.period} {rd.displayValue ? `(${rd.displayValue})` : ''}
+              </button>
+            ))}
+          </div>
+
+          <button
+            onClick={toggleCollapse}
+            title="Collapse Scorecard Section"
+            className="p-1.5 text-on-surface-variant hover:text-on-surface bg-surface-container-lowest hover:bg-surface-container-high rounded-lg border border-outline-variant transition cursor-pointer"
+          >
+            <ChevronUp className="w-4 h-4" />
+          </button>
         </div>
       </div>
 
