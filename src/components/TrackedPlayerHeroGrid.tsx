@@ -4,7 +4,7 @@ import React from 'react';
 import { ESPNCompetitor } from '@/types/espn';
 import { Trophy, Activity, Award } from 'lucide-react';
 import { GolferHeadshot } from './GolferHeadshot';
-import { getWinnerStatus, getPlayerStatusInfo } from '@/lib/espn';
+import { getWinnerStatus, getPlayerStatusInfo, getScoreMeta } from '@/lib/espn';
 
 interface TrackedPlayerHeroGridProps {
   trackedCompetitors: ESPNCompetitor[];
@@ -38,9 +38,7 @@ export function TrackedPlayerHeroGrid({
       {trackedCompetitors.map((comp, idx) => {
         const playerId = comp.athlete?.id || comp.id || `player-${idx}`;
         const isSelected = selectedPlayerId === playerId;
-        const score = comp.score || 'E';
-        const isUnderPar = score.startsWith('-');
-        const isOverPar = score.startsWith('+');
+        const { formattedScore: score, isUnderPar, isOverPar } = getScoreMeta(comp.score);
 
         const winnerInfo = getWinnerStatus(comp, eventStatus, allCompetitors.length > 0 ? allCompetitors : trackedCompetitors);
         const statusInfo = getPlayerStatusInfo(comp, eventStatus);

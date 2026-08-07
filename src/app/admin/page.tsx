@@ -41,6 +41,7 @@ import { getGolferRoundScoreToPar } from '@/lib/scoring';
 import { doc, deleteDoc, collection, getDocs, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import { parseCommaDelimitedGolfers, matchGolferInputToId } from '@/lib/espn/golferMatcher';
+import { formatScoreDisplay } from '@/lib/espn';
 
 const ADMIN_EMAILS = ['aicodevibes@gmail.com'];
 
@@ -1271,7 +1272,7 @@ export default function AdminPage() {
                             {formatParVal(r4)}
                           </td>
                           <td className="py-2.5 px-4 text-center font-bold text-tertiary">
-                            {c.score || 'E'}
+                            {formatScoreDisplay(c.score)}
                           </td>
                         </tr>
                       );

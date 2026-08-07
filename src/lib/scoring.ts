@@ -1,5 +1,5 @@
 import { ESPNCompetitor } from '@/types/espn';
-import { getPlayerStatusInfo } from '@/lib/espn';
+import { getPlayerStatusInfo, formatScoreDisplay } from '@/lib/espn';
 import {
   Participant,
   ParticipantStanding,
@@ -77,7 +77,7 @@ export function getGolferRoundScoreToPar(
 
   // Derive course par dynamically from cumulative score-to-par (comp.score) and completed linescores
   if (comp.score && comp.linescores && comp.linescores.length > 0) {
-    const rawToPar = comp.score.trim();
+    const rawToPar = formatScoreDisplay(comp.score).trim();
     const toPar = rawToPar === 'E' ? 0 : parseInt(rawToPar.replace('+', ''), 10);
     if (!isNaN(toPar)) {
       const completed = comp.linescores.filter((l) => typeof l.value === 'number' && l.value > 40);
@@ -148,7 +148,7 @@ export function calculateParticipantStandings(
         name,
         isCut: statusInfo.isCut,
         isWD: statusInfo.isWD,
-        totalScoreToPar: comp?.score || 'E',
+        totalScoreToPar: formatScoreDisplay(comp?.score),
         roundStrokes,
         roundScoresToPar,
         roundScoreDisplayStr,
@@ -354,7 +354,7 @@ export function calculateGreedyStandings(
       roundScoresToPar[rd] = comp ? getGolferRoundScoreToPar(comp, rd, coursePar) : null;
     }
 
-    const rawScoreStr = comp?.score || 'E';
+    const rawScoreStr = formatScoreDisplay(comp?.score);
     let numericScoreToPar = 0;
     if (rawScoreStr === 'E') {
       numericScoreToPar = 0;

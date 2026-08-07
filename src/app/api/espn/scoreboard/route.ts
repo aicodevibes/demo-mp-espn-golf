@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { parseESPNScoreboardResponse } from '@/lib/espn';
 
 export async function GET() {
   try {
@@ -21,7 +22,7 @@ export async function GET() {
     }
 
     const data = await res.json();
-    const events = data.events || [];
+    const events = parseESPNScoreboardResponse(data);
 
     return NextResponse.json({ events }, {
       headers: {

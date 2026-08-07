@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatEventDates, getWinnerStatus, getTop10WithTies } from '../eventHelpers';
+import { formatEventDates, getWinnerStatus, getTop10WithTies, formatScoreDisplay, getScoreMeta } from '../eventHelpers';
 
 describe('formatEventDates', () => {
   it('formats start and end dates into human readable range', () => {
@@ -9,6 +9,37 @@ describe('formatEventDates', () => {
 
   it('handles empty dates gracefully', () => {
     expect(formatEventDates('', '')).toBe('');
+  });
+});
+
+describe('formatScoreDisplay & getScoreMeta', () => {
+  it('normalizes string, number, and object score inputs correctly', () => {
+    expect(formatScoreDisplay('-7')).toBe('-7');
+    expect(formatScoreDisplay('+3')).toBe('+3');
+    expect(formatScoreDisplay(0)).toBe('E');
+    expect(formatScoreDisplay(-4)).toBe('-4');
+    expect(formatScoreDisplay(2)).toBe('+2');
+    expect(formatScoreDisplay({ displayValue: '-5', value: 135 })).toBe('-5');
+    expect(formatScoreDisplay({ displayValue: '0', value: 140 })).toBe('E');
+    expect(formatScoreDisplay({ displayValue: 'EVEN', value: 140 })).toBe('E');
+    expect(formatScoreDisplay(null)).toBe('E');
+  });
+
+  it('returns expected ScoreMeta par flags', () => {
+    const under = getScoreMeta('-5');
+    expect(under.formattedScore).toBe('-5');
+    expect(under.isUnderPar).toBe(true);
+    expect(under.isOverPar).toBe(false);
+
+    const over = getScoreMeta('+2');
+    expect(over.formattedScore).toBe('+2');
+    expect(over.isUnderPar).toBe(false);
+    expect(over.isOverPar).toBe(true);
+
+    const even = getScoreMeta(0);
+    expect(even.formattedScore).toBe('E');
+    expect(even.isUnderPar).toBe(false);
+    expect(even.isOverPar).toBe(false);
   });
 });
 

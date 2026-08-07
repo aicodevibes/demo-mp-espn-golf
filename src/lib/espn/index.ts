@@ -4,11 +4,15 @@
 export { formatPlayerSummaryFromCompetitor, formatPlayerSummaryFromESPNData, createSyntheticCompetitor } from './summary';
 export {
   formatEventDates,
+  formatScoreDisplay,
+  getScoreMeta,
+  parseESPNScoreboardResponse,
   getWinnerStatus,
   getPlayerStatusInfo,
   getTop10WithTies,
   type WinnerStatusInfo,
   type PlayerStatusInfo,
+  type ScoreMeta,
 } from './eventHelpers';
 export {
   normalizeGolferName,

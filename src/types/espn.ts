@@ -1,3 +1,30 @@
+export type ESPNCompetitorScore =
+  | string
+  | number
+  | { displayValue?: string | number; value?: number | string }
+  | null
+  | undefined;
+
+export interface ESPNCalendarItem {
+  id: string;
+  label?: string;
+  name?: string;
+  startDate?: string;
+  endDate?: string;
+  date?: string;
+  event?: {
+    $ref?: string;
+  };
+  status?: {
+    type?: {
+      name?: string;
+      description?: string;
+      detail?: string;
+      state?: string;
+    };
+  };
+}
+
 export interface ESPNEvent {
   id: string;
   name: string;
@@ -15,10 +42,10 @@ export interface ESPNEvent {
   }>;
   status?: {
     type?: {
-      name: string;
-      description: string;
-      detail: string;
-      state: string;
+      name?: string;
+      description?: string;
+      detail?: string;
+      state?: string;
     };
   };
 }
@@ -46,7 +73,7 @@ export interface ESPNCompetitor {
     };
   };
 
-  score?: string;
+  score?: ESPNCompetitorScore;
   linescores?: Array<{
     period?: number;
     value: number;

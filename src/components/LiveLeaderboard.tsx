@@ -5,7 +5,7 @@ import { ESPNCompetitor, ESPNEvent } from '@/types/espn';
 import { Trophy, CheckCircle2, PlusCircle, Search, Calendar, Activity } from 'lucide-react';
 import { GolferHeadshot } from './GolferHeadshot';
 import { useAuth } from '@/context/AuthContext';
-import { formatEventDates, getWinnerStatus, getPlayerStatusInfo } from '@/lib/espn';
+import { formatEventDates, getWinnerStatus, getPlayerStatusInfo, getScoreMeta } from '@/lib/espn';
 
 interface LiveLeaderboardProps {
   competitors: ESPNCompetitor[];
@@ -80,9 +80,7 @@ export function LiveLeaderboard({
     const playerId = comp.athlete?.id || comp.id || `comp-${idx}`;
     const isTracked = trackedSet.has(playerId);
     const isSelected = selectedPlayerId === playerId;
-    const score = comp.score || 'E';
-    const isUnderPar = score.startsWith('-');
-    const isOverPar = score.startsWith('+');
+    const { formattedScore: score, isUnderPar, isOverPar } = getScoreMeta(comp.score);
 
     const winnerInfo = getWinnerStatus(comp, eventObj?.status, competitors);
     const statusInfo = getPlayerStatusInfo(comp, eventObj?.status);

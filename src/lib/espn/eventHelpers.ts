@@ -1,4 +1,4 @@
-import { ESPNCompetitor } from '@/types/espn';
+import { ESPNCompetitor, ESPNCompetitorScore, ESPNEvent, ESPNCalendarItem } from '@/types/espn';
 
 export function formatEventDates(startDate?: string, endDate?: string): string {
   if (!startDate) return '';
@@ -20,6 +20,83 @@ export function formatEventDates(startDate?: string, endDate?: string): string {
   } catch (err) {
     return '';
   }
+}
+
+export function formatScoreDisplay(score: ESPNCompetitorScore): string {
+  if (score === null || score === undefined || score === '') return 'E';
+  if (typeof score === 'string') {
+    const trimmed = score.trim();
+    if (trimmed === '' || trimmed === '0' || trimmed === 'EVEN') return 'E';
+    return trimmed;
+  }
+  if (typeof score === 'number') {
+    if (score === 0) return 'E';
+    return score > 0 ? `+${score}` : String(score);
+  }
+  if (typeof score === 'object') {
+    if (score.displayValue !== undefined && score.displayValue !== null) {
+      const disp = String(score.displayValue).trim();
+      if (disp === '' || disp === '0' || disp === 'EVEN') return 'E';
+      return disp;
+    }
+    if (score.value !== undefined && score.value !== null) {
+      const val = Number(score.value);
+      if (isNaN(val) || val === 0) return 'E';
+      return val > 0 ? `+${val}` : String(val);
+    }
+  }
+  return 'E';
+}
+
+export interface ScoreMeta {
+  formattedScore: string;
+  isUnderPar: boolean;
+  isOverPar: boolean;
+}
+
+export function getScoreMeta(score: ESPNCompetitorScore): ScoreMeta {
+  const formattedScore = formatScoreDisplay(score);
+  const isUnderPar = formattedScore.startsWith('-');
+  const isOverPar = formattedScore.startsWith('+');
+  return { formattedScore, isUnderPar, isOverPar };
+}
+
+export interface ESPNScoreboardPayload {
+  events?: ESPNEvent[];
+  leagues?: Array<{
+    calendar?: ESPNCalendarItem[];
+  }>;
+}
+
+export function parseESPNScoreboardResponse(data: ESPNScoreboardPayload | unknown): ESPNEvent[] {
+  if (!data || typeof data !== 'object') return [];
+  const payload = data as ESPNScoreboardPayload;
+  const liveEvents: ESPNEvent[] = payload.events || [];
+  const liveEventsMap = new Map(liveEvents.map((e) => [e.id, e]));
+
+  const calendarItems: ESPNCalendarItem[] = payload.leagues?.[0]?.calendar || [];
+  const calendarEvents: ESPNEvent[] = calendarItems.map((item) => {
+    if (liveEventsMap.has(item.id)) {
+      return liveEventsMap.get(item.id)!;
+    }
+    return {
+      id: item.id,
+      name: item.label || item.name || 'PGA Event',
+      shortName: item.label || item.name,
+      date: item.startDate || item.date,
+      endDate: item.endDate,
+      status: item.status || {
+        type: {
+          name: 'STATUS_SCHEDULED',
+          description: 'Scheduled',
+          detail: '',
+          state: 'pre',
+        },
+      },
+    };
+  });
+
+  return calendarEvents.length > 0 ? calendarEvents : liveEvents;
 }
 
 export interface WinnerStatusInfo {

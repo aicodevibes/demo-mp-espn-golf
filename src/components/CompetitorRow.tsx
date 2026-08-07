@@ -4,7 +4,7 @@ import React from 'react';
 import { ESPNCompetitor } from '@/types/espn';
 import { User } from 'lucide-react';
 import { GolferHeadshot } from './GolferHeadshot';
-import { getPlayerStatusInfo } from '@/lib/espn';
+import { getPlayerStatusInfo, getScoreMeta } from '@/lib/espn';
 
 export interface CompetitorRowProps {
   competitor: ESPNCompetitor;
@@ -30,9 +30,7 @@ export function CompetitorRow({
   const playerId = competitor.athlete?.id || competitor.id || '';
   const displayName = competitor.athlete?.displayName || 'Golfer';
   const headshotUrl = competitor.athlete?.headshot?.href;
-  const score = competitor.score || 'E';
-  const isUnderPar = typeof score === 'string' && score.startsWith('-');
-  const isOverPar = typeof score === 'string' && score.startsWith('+');
+  const { formattedScore: score, isUnderPar, isOverPar } = getScoreMeta(competitor.score);
 
   const isDrafted = draftedBy.length > 0;
   const statusInfo = getPlayerStatusInfo(competitor, eventStatus);
