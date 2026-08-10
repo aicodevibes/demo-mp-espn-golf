@@ -40,13 +40,6 @@ import {
 import { evaluateContest } from '@/lib/contestEngine';
 import { evaluateFieldLeaderboard } from '@/lib/fieldLeaderboard';
 
-// Vercel Performance Rule: bundle-dynamic-imports
-// Dynamically import heavy Admin Control Drawer only when needed
-const AdminManagementDrawer = dynamic(
-  () => import('@/components/AdminManagementDrawer').then((mod) => mod.AdminManagementDrawer),
-  { ssr: false }
-);
-
 export default function DashboardPage() {
   const { user, isAdmin } = useAuth();
   const { config, loading: configLoading } = useActiveConfig();
@@ -474,19 +467,6 @@ export default function DashboardPage() {
           />
         </section>
       </main>
-
-      {/* Admin Floating Drawer (Only rendered for aicodevibes@gmail.com) */}
-      {isAdmin && (
-        <AdminManagementDrawer
-          events={events}
-          activeEventId={activeEventId}
-          onSelectEvent={handleSelectEvent}
-          trackedPlayers={trackedPlayers}
-          fieldCompetitors={competitors}
-          onAddTrackedPlayer={handleToggleTrackPlayer}
-          onRemoveTrackedPlayer={async (id) => removeTrackedPlayer(id)}
-        />
-      )}
     </div>
   );
 }

@@ -27,9 +27,9 @@ export function TrackedPlayerHeroGrid({
     return (
       <div className="p-card rounded-xl bg-surface-container-low border border-outline-variant text-center">
         <Trophy className="w-8 h-8 text-secondary mx-auto mb-2" />
-        <h4 className="text-sm font-semibold text-on-surface">No Tracked Golfers Selected</h4>
+        <h4 className="text-sm font-semibold text-on-surface">No Golfers Displayed</h4>
         <p className="text-xs text-on-surface-variant mt-1">
-          Use the Admin Controls to pin golfers to your main hero watchlist.
+          Leaderboard competitors will appear here once tournament data is live.
         </p>
       </div>
     );
