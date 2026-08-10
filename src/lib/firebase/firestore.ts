@@ -298,6 +298,21 @@ export function useContestConfig(eventId: string | null | undefined) {
   return { config, loading };
 }
 
+export function resolveParticipantsFromSnapshot(
+  docs: Participant[],
+  eventId?: string | null
+): Participant[] {
+  if (docs.length > 0) {
+    return docs;
+  }
+  // When eventId is explicitly provided (not null/undefined), return [] for unconfigured events.
+  // Only fallback to DEFAULT_CONTEST_PARTICIPANTS when eventId is null or undefined.
+  if (eventId != null) {
+    return [];
+  }
+  return DEFAULT_CONTEST_PARTICIPANTS;
+}
+
 export function useParticipants(eventId?: string | null) {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -310,20 +325,18 @@ export function useParticipants(eventId?: string | null) {
     const unsubscribe = onSnapshot(
       participantsRef,
       (snapshot) => {
+        const list: Participant[] = [];
         if (!snapshot.empty) {
-          const list: Participant[] = [];
           snapshot.forEach((docSnap) => {
             list.push({ id: docSnap.id, ...docSnap.data() } as Participant);
           });
-          setParticipants(list);
-        } else {
-          setParticipants(DEFAULT_CONTEST_PARTICIPANTS);
         }
+        setParticipants(resolveParticipantsFromSnapshot(list, eventId));
         setLoading(false);
       },
       (error) => {
-        console.warn('Firestore participants read error (using default seed):', error);
-        setParticipants(DEFAULT_CONTEST_PARTICIPANTS);
+        console.warn('Firestore participants read error:', error);
+        setParticipants(resolveParticipantsFromSnapshot([], eventId));
         setLoading(false);
       }
     );
@@ -333,5 +346,7 @@ export function useParticipants(eventId?: string | null) {
 
   return { participants, loading };
 }
+
+
 
 

@@ -51,6 +51,22 @@ export function ParticipantStandings({
     );
   }
 
+  if (!loading && standings.length === 0) {
+    return (
+      <div className="rounded-xl bg-surface-container-lowest border border-outline-variant p-8 text-center space-y-3">
+        <div className="inline-flex p-3 rounded-full bg-surface-container-high text-on-surface-variant">
+          <Trophy className="w-6 h-6" />
+        </div>
+        <h3 className="text-base font-bold text-on-surface">No Participants Configured</h3>
+        <p className="text-xs text-on-surface-variant max-w-sm mx-auto">
+          No participants added yet for this tournament. Administrators can add participants or copy a past roster in the Admin panel.
+        </p>
+
+      </div>
+    );
+  }
+
+
   const activeStandings = standings.filter((s) => !s.isCut);
   const cutStandings = standings.filter((s) => s.isCut);
 

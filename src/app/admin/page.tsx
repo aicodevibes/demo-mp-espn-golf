@@ -1080,11 +1080,12 @@ export default function AdminPage() {
                     </tr>
                   ) : selectedParticipants.length === 0 ? (
                     <tr>
-                      <td colSpan={4} className="py-8 text-center text-on-surface-variant">
-                        No participants registered. Click 'Seed Default Names' above to seed.
+                      <td colSpan={4} className="py-8 text-center text-on-surface-variant font-medium">
+                        No participants added yet for this tournament. Add participants manually or click 'Seed Default Names'.
                       </td>
                     </tr>
                   ) : (
+
                     selectedParticipants.map((p) => (
                       <tr key={p.id} className="hover:bg-surface-container-high transition-colors">
                         <td className="py-3 px-4 font-bold text-on-surface">{p.name}</td>
