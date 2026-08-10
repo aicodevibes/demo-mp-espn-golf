@@ -15,13 +15,18 @@ export interface ESPNCalendarItem {
   event?: {
     $ref?: string;
   };
-  status?: {
-    type?: {
-      name?: string;
-      description?: string;
-      detail?: string;
-      state?: string;
-    };
+  status?: ESPNEventStatus;
+}
+
+export interface ESPNEventStatus {
+  type?: {
+    id?: string;
+    name?: string;
+    description?: string;
+    detail?: string;
+    shortDetail?: string;
+    state?: string;
+    completed?: boolean;
   };
 }
 
@@ -40,14 +45,7 @@ export interface ESPNEvent {
     city?: string;
     state?: string;
   }>;
-  status?: {
-    type?: {
-      name?: string;
-      description?: string;
-      detail?: string;
-      state?: string;
-    };
-  };
+  status?: ESPNEventStatus;
 }
 
 export interface ESPNCompetitor {
@@ -78,6 +76,13 @@ export interface ESPNCompetitor {
     period?: number;
     value: number;
     displayValue?: string;
+    linescores?: Array<{
+      period?: number;
+      value: number;
+      scoreType?: {
+        displayValue?: string | number;
+      };
+    }>;
   }>;
   athlete: {
     id: string;

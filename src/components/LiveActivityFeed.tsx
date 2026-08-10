@@ -69,7 +69,7 @@ export function LiveActivityFeed({
   const filterOptions: FilterOption[] = [
     { id: 'all', label: 'All', icon: <Filter className="w-3.5 h-3.5" /> },
     { id: 'day_money', label: 'Day Money', icon: <DollarSign className="w-3.5 h-3.5" /> },
-    { id: 'birdie_streak', label: 'Hot Rounds', icon: <Flame className="w-3.5 h-3.5" /> },
+    { id: 'birdie_streak', label: 'Eagles & Hot Rounds', icon: <Flame className="w-3.5 h-3.5" /> },
     { id: 'cut', label: 'Cuts & WDs', icon: <Scissors className="w-3.5 h-3.5" /> },
     { id: 'top_10', label: 'Top 10', icon: <Trophy className="w-3.5 h-3.5" /> },
   ];
@@ -213,8 +213,8 @@ export function LiveActivityFeed({
           </p>
         </div>
       ) : (
-        <div className="space-y-2.5">
-          {filteredEvents.map((evt) => {
+        <div className="space-y-2.5 max-h-[460px] overflow-y-auto pr-1">
+          {filteredEvents.slice(0, 10).map((evt) => {
             const styles = getEventTypeStyles(evt.type);
             return (
               <div
@@ -245,6 +245,11 @@ export function LiveActivityFeed({
               </div>
             );
           })}
+          {filteredEvents.length > 10 && (
+            <p className="text-center text-[10px] font-bold text-on-surface-variant/60 pt-2 border-t border-outline-variant/40">
+              Only showing latest 10 events (total {filteredEvents.length})
+            </p>
+          )}
         </div>
       )}
     </div>

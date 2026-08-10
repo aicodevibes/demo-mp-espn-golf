@@ -223,7 +223,7 @@ export function getPlayerStatusInfo(comp: ESPNCompetitor, eventStatus?: any): Pl
 
   // Combine: a player is CUT if ESPN says so via strings, OR they only have 2 rounds in a completed event
   // (and they're not WD/DQ, which have their own distinct treatment)
-  const finalIsCut = isCutByString || (missedCutByRounds && !isWD && !isDQ);
+  const finalIsCut = !isWD && !isDQ && (isCutByString || (missedCutByRounds && !isWD && !isDQ));
   const isInactive = finalIsCut || isWD || isDQ || isMDF;
 
   let badgeLabel = '';
@@ -243,23 +243,25 @@ export function getTop10WithTies(competitors: ESPNCompetitor[] = []): ESPNCompet
   if (!competitors || competitors.length <= 10) return competitors || [];
 
   const initial10 = competitors.slice(0, 10);
-  const tenthComp = initial10[9];
-  if (!tenthComp) return initial10;
+  const tenthPlaceCompetitor = initial10[9];
+  if (!tenthPlaceCompetitor) return initial10;
 
-  const tenthPos = tenthComp.status?.position?.displayName;
-  const tenthScore = tenthComp.score;
+  const tenthPos = tenthPlaceCompetitor.status?.position?.displayName;
+  const tenthScore = tenthPlaceCompetitor.score;
 
   const additionalTies: ESPNCompetitor[] = [];
   for (let i = 10; i < competitors.length; i++) {
-    const c = competitors[i];
-    const cPos = c.status?.position?.displayName;
-    const cScore = c.score;
+    const competitor = competitors[i];
+    const competitorPosition = competitor.status?.position?.displayName;
+    const competitorScore = competitor.score;
 
-    const isPosMatch = Boolean(tenthPos && cPos && (cPos === tenthPos || cPos === `T${tenthPos.replace('T', '')}`));
-    const isScoreMatch = tenthScore !== undefined && cScore !== undefined && cScore === tenthScore;
+    const isPosMatch = Boolean(
+      tenthPos && competitorPosition && (competitorPosition === tenthPos || competitorPosition === `T${tenthPos.replace('T', '')}`)
+    );
+    const isScoreMatch = tenthScore !== undefined && competitorScore !== undefined && competitorScore === tenthScore;
 
     if (isPosMatch || isScoreMatch) {
-      additionalTies.push(c);
+      additionalTies.push(competitor);
     } else {
       break;
     }
@@ -267,3 +269,163 @@ export function getTop10WithTies(competitors: ESPNCompetitor[] = []): ESPNCompet
 
   return [...initial10, ...additionalTies];
 }
+
+export interface GolferRoundScoreResult {
+  roundStrokes: number | null;
+  scoreToPar: number | null;
+  formattedScore: string;
+  isUnderPar: boolean;
+  isOverPar: boolean;
+  isEven: boolean;
+  isInactive: boolean;
+  statusDetail: string;
+}
+
+/**
+ * Single deep module function at the @/lib/espn seam to evaluate a competitor's round score,
+ * score-to-par, formatting, and WD/CUT status.
+ */
+export function evaluateGolferRoundScore(
+  comp: ESPNCompetitor,
+  round: number,
+  coursePar?: number | null,
+  eventCourseHoles?: number[]
+): GolferRoundScoreResult {
+  if (!comp) {
+    return {
+      roundStrokes: null,
+      scoreToPar: null,
+      formattedScore: '-',
+      isUnderPar: false,
+      isOverPar: false,
+      isEven: false,
+      isInactive: false,
+      statusDetail: '',
+    };
+  }
+
+  const statusInfo = getPlayerStatusInfo(comp);
+  const statusPos = (comp.status?.position?.displayName || '').toUpperCase();
+  const statusType = (comp.status?.type?.name || '').toUpperCase();
+  const isWD = statusPos === 'WD' || statusType === 'STATUS_WITHDRAWN' || statusInfo.isWD;
+  const isCut = statusPos === 'CUT' || statusPos === 'MC' || statusInfo.isCut;
+
+  // Extract strokes for the requested round period
+  let strokes: number | null = null;
+  if (comp.linescores && Array.isArray(comp.linescores)) {
+    const ls = comp.linescores.find((l) => l.period === round);
+    if (ls && typeof ls.value === 'number' && ls.value > 0) {
+      strokes = ls.value;
+    }
+  }
+
+  // Handle WD or CUT players with no valid round strokes
+  if (isWD && (strokes === null || strokes === 0)) {
+    return {
+      roundStrokes: null,
+      scoreToPar: null,
+      formattedScore: 'WD',
+      isUnderPar: false,
+      isOverPar: false,
+      isEven: false,
+      isInactive: true,
+      statusDetail: 'Withdrawn',
+    };
+  }
+
+  if (isCut && (strokes === null || strokes === 0)) {
+    return {
+      roundStrokes: null,
+      scoreToPar: null,
+      formattedScore: 'CUT',
+      isUnderPar: false,
+      isOverPar: false,
+      isEven: false,
+      isInactive: true,
+      statusDetail: 'Missed Cut',
+    };
+  }
+
+  // First check explicit relative score on linescore (e.g. "-2", "+3", "E")
+  const ls = comp.linescores?.find((l) => l.period === round);
+  let derivedScoreToPar: number | null = null;
+
+  if (ls?.displayValue) {
+    const dv = ls.displayValue.trim();
+    if (dv === 'E' || dv === 'EVEN') derivedScoreToPar = 0;
+    else if (dv.startsWith('+') || dv.startsWith('-')) {
+      const parsed = parseInt(dv.replace('+', ''), 10);
+      if (!isNaN(parsed) && Math.abs(parsed) <= 30) {
+        derivedScoreToPar = parsed;
+      }
+    }
+  }
+
+  if (strokes === null || strokes === 0) {
+    return {
+      roundStrokes: null,
+      scoreToPar: null,
+      formattedScore: '-',
+      isUnderPar: false,
+      isOverPar: false,
+      isEven: false,
+      isInactive: statusInfo.isInactive,
+      statusDetail: statusInfo.badgeLabel || '',
+    };
+  }
+
+  // If strokes is already relative (e.g. -5, +3, 0)
+  if (Math.abs(strokes) <= 25) {
+    derivedScoreToPar = strokes;
+  }
+
+  // Standard calculation if relative score wasn't directly found
+  if (derivedScoreToPar === null) {
+    // 1. Calculate course par from event 18-hole array if available
+    let resolvedPar: number | null = null;
+    if (eventCourseHoles && eventCourseHoles.length > 0) {
+      const sum = eventCourseHoles.reduce((acc, p) => acc + (typeof p === 'number' && p > 0 ? p : 4), 0);
+      if (sum > 50) resolvedPar = sum;
+    }
+
+    // 2. Use explicit coursePar parameter if valid
+    if (resolvedPar === null && coursePar && coursePar > 50) {
+      resolvedPar = coursePar;
+    }
+
+    // 3. Fallback: infer par from cumulative comp.score and completed linescores
+    if (resolvedPar === null && comp.score && comp.linescores && comp.linescores.length > 0) {
+      const scoreMeta = getScoreMeta(comp.score);
+      const toPar = scoreMeta.formattedScore === 'E' ? 0 : parseInt(scoreMeta.formattedScore.replace('+', ''), 10);
+      if (!isNaN(toPar)) {
+        const completed = comp.linescores.filter((l) => typeof l.value === 'number' && l.value > 40);
+        if (completed.length > 0) {
+          const totalStrokes = completed.reduce((sum, l) => sum + (l.value || 0), 0);
+          const inferredPar = Math.round((totalStrokes - toPar) / completed.length);
+          if (inferredPar > 50) resolvedPar = inferredPar;
+        }
+      }
+    }
+
+    // Final fallback to PGA standard 72
+    const finalPar = resolvedPar || 72;
+    derivedScoreToPar = strokes - finalPar;
+  }
+
+  const formattedScore = formatScoreDisplay(derivedScoreToPar);
+  const isUnderPar = derivedScoreToPar < 0;
+  const isOverPar = derivedScoreToPar > 0;
+  const isEven = derivedScoreToPar === 0;
+
+  return {
+    roundStrokes: strokes,
+    scoreToPar: derivedScoreToPar,
+    formattedScore,
+    isUnderPar,
+    isOverPar,
+    isEven,
+    isInactive: statusInfo.isInactive,
+    statusDetail: statusInfo.badgeLabel || '',
+  };
+}
+

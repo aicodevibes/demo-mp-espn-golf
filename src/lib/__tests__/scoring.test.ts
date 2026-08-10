@@ -96,6 +96,62 @@ describe('Scoring Engine (lib/scoring.ts)', () => {
     expect(getGolferRoundScoreToPar(comp, 1, null)).toBe(-4);
     expect(getGolferRoundScoreToPar(comp, 2, null)).toBe(0);
   });
+
+  it('correctly uses finished round scores but excludes unplayed round scores for Pierceson Coody (WD) player', () => {
+    const wdCompetitors: ESPNCompetitor[] = [
+      {
+        id: 'coody',
+        athlete: { id: 'coody', displayName: 'Pierceson Coody' },
+        linescores: [
+          { period: 1, value: 76, displayValue: '+6' }, 
+          { period: 2, value: 0, displayValue: 'E' }, // Dummy linescore for unplayed round 2
+          { period: 3, value: 0, displayValue: 'WD' },
+          { period: 4, value: 0, displayValue: 'WD' }
+        ],
+        score: 'WD',
+        status: { position: { displayName: 'WD' }, type: { name: 'STATUS_WITHDRAWN', description: 'Withdrawn', detail: 'WD', state: 'post' } } as any,
+      },
+      {
+        id: 'g2',
+        athlete: { id: 'g2', displayName: 'Sam Burns' },
+        linescores: [{ period: 1, value: 68 }, { period: 2, value: 69 }],
+        score: '-7',
+      },
+      {
+        id: 'g3',
+        athlete: { id: 'g3', displayName: 'Ryan Gerard' },
+        linescores: [{ period: 1, value: 71 }, { period: 2, value: 70 }],
+        score: '-3',
+      },
+    ];
+
+    const wdParticipants: Participant[] = [
+      { id: 'p1', name: 'Pat', draftedPlayerIds: ['coody', 'g2', 'g3'] }
+    ];
+
+    const standings = calculateParticipantStandings(wdParticipants, wdCompetitors, sampleConfig);
+    const pat = standings[0];
+    expect(pat).toBeDefined();
+
+    // Round 1 daily score should be best two: Burns (-2) + Gerard (+1) = -1
+    // Pierceson Coody (+6) is not in top 2 (since it's worst score)
+    expect(pat.dailyScores[1]).toBe(-1);
+
+    // Round 2 daily score should be best two: Burns (-1) + Gerard (0) = -1
+    // Pierceson Coody's Round 2 score must be null (not default to EVEN/0) so it does NOT help the participant score.
+    // The only available scores for R2 are Burns (-1) and Gerard (0). Since we need best 2, and we only have 2 active scores,
+    // the team daily score for R2 is -1.
+    expect(pat.dailyScores[2]).toBe(-1); 
+
+    // Drafted golfer details check
+    const coody = pat.draftedGolferDetails.find((g) => g.id === 'coody');
+    expect(coody).toBeDefined();
+    expect(coody?.isWD).toBe(true);
+    expect(coody?.isCut).toBe(false);
+    expect(coody?.roundScoresToPar[1]).toBe(6); // Finished round 1 at +6
+    expect(coody?.roundScoresToPar[2]).toBeNull(); // Withdrawn, did not finish round 2
+    expect(coody?.roundScoreDisplayStr).toBe('+6/WD/WD/WD');
+  });
   it('computes calculateGreedyStandings independently of main tournament cut status', () => {
     const greedyParticipants: Participant[] = [
       { id: 'p1', name: 'Pat', draftedPlayerIds: ['g1', 'g2', 'g3'], isGreedyParticipant: true, greedyPlayerId: 'g1' },

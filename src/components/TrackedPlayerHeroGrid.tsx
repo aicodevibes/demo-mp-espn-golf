@@ -10,6 +10,7 @@ interface TrackedPlayerHeroGridProps {
   trackedCompetitors: ESPNCompetitor[];
   allCompetitors?: ESPNCompetitor[];
   eventStatus?: any;
+  rankDisplayMap?: Map<string, string>;
   selectedPlayerId?: string;
   onSelectPlayer?: (playerId: string) => void;
 }
@@ -18,6 +19,7 @@ export function TrackedPlayerHeroGrid({
   trackedCompetitors,
   allCompetitors = [],
   eventStatus,
+  rankDisplayMap,
   selectedPlayerId,
   onSelectPlayer,
 }: TrackedPlayerHeroGridProps) {
@@ -42,6 +44,7 @@ export function TrackedPlayerHeroGrid({
 
         const winnerInfo = getWinnerStatus(comp, eventStatus, allCompetitors.length > 0 ? allCompetitors : trackedCompetitors);
         const statusInfo = getPlayerStatusInfo(comp, eventStatus);
+        const computedRank = rankDisplayMap?.get(playerId) || comp.status?.position?.displayName || comp.order || '-';
 
         return (
           <div
@@ -62,7 +65,7 @@ export function TrackedPlayerHeroGrid({
             {/* Top Winner or Rank Badge */}
             <div className="flex items-center justify-between gap-2 mb-3">
               <span className="text-[11px] font-bold text-on-surface-variant bg-surface-container-high px-2 py-0.5 rounded border border-outline-variant/60">
-                Pos: {comp.status?.position?.displayName || comp.order || '-'}
+                Pos: {computedRank}
               </span>
 
               {winnerInfo.isWinner ? (

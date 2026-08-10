@@ -20,6 +20,7 @@ describe('getPlayerStatusInfo', () => {
     const info = getPlayerStatusInfo(wdPlayer as any);
 
     expect(info.isWD).toBe(true);
+    expect(info.isCut).toBe(false);
     expect(info.isInactive).toBe(true);
     expect(info.badgeLabel).toBe('WD');
   });

@@ -4,9 +4,8 @@ import {
   calculateDayMoneyWinners,
   calculateParticipantStandings,
   createPlayerDraftedByMap,
-  getGolferRoundScoreToPar,
 } from '@/lib/scoring';
-import { getPlayerStatusInfo } from '@/lib/espn';
+import { getPlayerStatusInfo, evaluateGolferRoundScore } from '@/lib/espn';
 
 export type ActivityEventType = 'day_money' | 'birdie_streak' | 'cut' | 'top_10';
 
@@ -66,22 +65,43 @@ export function generateTournamentActivityEvents(
     console.error('Error generating day money activity events:', err);
   }
 
-  // 2. Birdie Streak / Hot Round Events
+  // 2. Birdie Streak / Hot Round Events (Eagles & Completed Under Par Rounds by Drafted Players)
   try {
     safeCompetitors.forEach((comp) => {
       const golferId = comp.athlete?.id || comp.id;
-      const golferName = comp.athlete?.displayName || comp.athlete?.shortName || `Golfer (${golferId})`;
       const drafters = draftedMap.get(golferId) || [];
-      const drafterStr = drafters.length > 0 ? ` • Drafted by ${drafters.join(', ')}` : '';
+      // Only include drafted players
+      if (drafters.length === 0) return;
+
+      const golferName = comp.athlete?.displayName || comp.athlete?.shortName || `Golfer (${golferId})`;
+      const drafterStr = ` • Drafted by ${drafters.join(', ')}`;
 
       if (comp.linescores && Array.isArray(comp.linescores)) {
         comp.linescores.forEach((ls) => {
           const round = ls.period;
           if (!round || typeof ls.value !== 'number') return;
 
-          const relScore = getGolferRoundScoreToPar(comp, round, contestConfig?.coursePar);
-          // Highlight exceptional rounds: score-to-par <= -3 or low stroke score <= 68
-          if ((relScore !== null && relScore <= -3) || (ls.value > 0 && ls.value <= 68)) {
+          const roundRes = evaluateGolferRoundScore(comp, round, contestConfig?.coursePar);
+          const relScore = roundRes.scoreToPar;
+          
+          // Check for any eagles or better on individual holes in this round linescores
+          let hasEagleOrBetter = false;
+          if (ls.linescores && Array.isArray(ls.linescores)) {
+            ls.linescores.forEach((holeLs: any) => {
+              const diffStr = holeLs.scoreType?.displayValue;
+              if (diffStr) {
+                const diff = parseInt(diffStr, 10);
+                if (!isNaN(diff) && diff <= -2) {
+                  hasEagleOrBetter = true;
+                }
+              }
+            });
+          }
+
+          // A round must be completed and under par (relScore < 0) OR have an eagle or better
+          const isUnderParRound = relScore !== null && relScore < 0;
+
+          if (isUnderParRound || hasEagleOrBetter) {
             const relDisplay =
               relScore === null
                 ? `${ls.value} strokes`
@@ -91,11 +111,18 @@ export function generateTournamentActivityEvents(
                 ? `+${relScore}`
                 : `${relScore}`;
 
+            let titleStr = `Hot Round: ${golferName} (${relDisplay})`;
+            if (hasEagleOrBetter && !isUnderParRound) {
+              titleStr = `Eagle Highlight: ${golferName}`;
+            } else if (hasEagleOrBetter && isUnderParRound) {
+              titleStr = `Hot Round & Eagle: ${golferName} (${relDisplay})`;
+            }
+
             events.push({
               id: `birdie_streak_${golferId}_r${round}`,
               type: 'birdie_streak',
               icon: 'Flame',
-              title: `Hot Round: ${golferName} (${relDisplay})`,
+              title: titleStr,
               subtitle: `Shot ${ls.value} in Round ${round}${drafterStr}`,
               timestamp: `Round ${round}`,
             });

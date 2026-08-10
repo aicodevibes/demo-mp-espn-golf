@@ -10,9 +10,11 @@ export {
   getWinnerStatus,
   getPlayerStatusInfo,
   getTop10WithTies,
+  evaluateGolferRoundScore,
   type WinnerStatusInfo,
   type PlayerStatusInfo,
   type ScoreMeta,
+  type GolferRoundScoreResult,
 } from './eventHelpers';
 export {
   normalizeGolferName,

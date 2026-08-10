@@ -40,10 +40,10 @@ export function DayMoneyWinners({ dayMoneyResults, contestConfig, eventStatus, l
       {/* 4-Day Winners Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {dayMoneyResults.map((result) => {
+          const hasWinners = result.winners && result.winners.length > 0;
           const isRoundComplete =
             eventStatus?.type?.state === 'post' ||
             (eventStatus?.period && eventStatus.period > result.round);
-          const hasWinners = isRoundComplete && result.winners && result.winners.length > 0;
           const isTie = result.winners && result.winners.length > 1;
 
           return (
@@ -56,7 +56,7 @@ export function DayMoneyWinners({ dayMoneyResults, contestConfig, eventStatus, l
                 <span className="text-xs font-bold text-on-surface">Day {result.round} Money</span>
                 {result.lowScore !== null ? (
                   <span className="inline-flex items-center gap-1 text-[11px] font-black text-tertiary bg-tertiary/15 px-2 py-0.5 rounded border border-tertiary/30">
-                    Low: {result.lowScore}
+                    {isRoundComplete ? 'Low' : 'Projected Low'}: {result.lowScore}
                   </span>
                 ) : (
                   <span className="text-[10px] text-on-surface-variant bg-surface-container px-2 py-0.5 rounded">

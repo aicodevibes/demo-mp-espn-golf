@@ -3,7 +3,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { ESPNCompetitor, ESPNPlayerSummary, ESPNRoundLinescore } from '@/types/espn';
 import { Circle, Square, Award, ChevronDown, ChevronUp } from 'lucide-react';
-import { getPlayerStatusInfo } from '@/lib/espn';
+import { getPlayerStatusInfo, formatScoreDisplay } from '@/lib/espn';
+import { getGolferRoundScoreToPar } from '@/lib/scoring';
 
 interface ScorecardMatrixProps {
   playerSummary: ESPNPlayerSummary | null;
@@ -159,9 +160,24 @@ export function ScorecardMatrix({
           <span className="text-xs font-black uppercase tracking-wider text-on-surface">
             {playerName}'s Hole-by-Hole Scorecard
           </span>
-          <span className="text-[10px] font-extrabold text-on-surface-variant bg-surface-container-high px-2 py-0.5 rounded-full border border-outline-variant/60">
-            R{currentRoundData?.period || 1} {currentRoundData?.displayValue ? `(${currentRoundData.displayValue})` : ''} • Hidden
-          </span>
+          {(() => {
+            const rd = currentRoundData;
+            if (!rd) return null;
+            const roundParTotal = rd.holes ? rd.holes.reduce((sum, h) => sum + (h.par || 0), 0) : null;
+            const rawScoreToPar = competitor 
+              ? getGolferRoundScoreToPar(competitor, rd.period, roundParTotal && roundParTotal > 50 ? roundParTotal : null)
+              : null;
+            const formattedScore = rawScoreToPar !== null 
+              ? (rawScoreToPar === 0 ? 'E' : rawScoreToPar > 0 ? `+${rawScoreToPar}` : `${rawScoreToPar}`)
+              : null;
+            const labelSuffix = formattedScore ? ` (${formattedScore})` : '';
+
+            return (
+              <span className="text-[10px] font-extrabold text-on-surface-variant bg-surface-container-high px-2 py-0.5 rounded-full border border-outline-variant/60">
+                R{rd.period}{labelSuffix} • Hidden
+              </span>
+            );
+          })()}
         </div>
         <button className="flex items-center gap-1 text-xs font-bold text-tertiary hover:text-tertiary/80 transition">
           <span>Expand</span>
@@ -198,19 +214,35 @@ export function ScorecardMatrix({
         {/* Round Tabs & Collapse Ribbon Action */}
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1.5 bg-surface-container-lowest p-1 rounded-lg border border-outline-variant">
-            {startedRounds.map((rd) => (
-              <button
-                key={rd.period}
-                onClick={() => setActiveRound(rd.period)}
-                className={`px-3 py-1 text-xs font-semibold rounded-md transition cursor-pointer ${
-                  activeRound === rd.period
-                    ? 'bg-tertiary text-on-tertiary shadow-xs'
-                    : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'
-                }`}
-              >
-                R{rd.period} {rd.displayValue ? `(${rd.displayValue})` : ''}
-              </button>
-            ))}
+            {startedRounds.map((rd) => {
+              // Extract course par if available in current holes par total
+              const roundParTotal = rd.holes ? rd.holes.reduce((sum, h) => sum + (h.par || 0), 0) : null;
+              
+              // Use getGolferRoundScoreToPar to resolve score relative to par
+              const rawScoreToPar = competitor 
+                ? getGolferRoundScoreToPar(competitor, rd.period, roundParTotal && roundParTotal > 50 ? roundParTotal : null)
+                : null;
+              
+              const formattedScore = rawScoreToPar !== null 
+                ? (rawScoreToPar === 0 ? 'E' : rawScoreToPar > 0 ? `+${rawScoreToPar}` : `${rawScoreToPar}`)
+                : null;
+
+              const labelSuffix = formattedScore ? ` (${formattedScore})` : '';
+
+              return (
+                <button
+                  key={rd.period}
+                  onClick={() => setActiveRound(rd.period)}
+                  className={`px-3 py-1 text-xs font-semibold rounded-md transition cursor-pointer ${
+                    activeRound === rd.period
+                      ? 'bg-tertiary text-on-tertiary shadow-xs'
+                      : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container'
+                  }`}
+                >
+                  R{rd.period}{labelSuffix}
+                </button>
+              );
+            })}
           </div>
 
           <button

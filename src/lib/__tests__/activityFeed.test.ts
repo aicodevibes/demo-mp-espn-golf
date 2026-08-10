@@ -22,7 +22,22 @@ describe('Activity Feed Generator (src/lib/activityFeed.ts)', () => {
     {
       id: 'g1',
       athlete: { id: 'g1', displayName: 'Justin Rose' },
-      linescores: [{ period: 1, value: 66 }, { period: 2, value: 68 }],
+      linescores: [
+        { 
+          period: 1, 
+          value: 69, 
+          linescores: [
+            { period: 1, value: 3, scoreType: { displayValue: "-1" } }
+          ]
+        }, 
+        { 
+          period: 2, 
+          value: 68,
+          linescores: [
+            { period: 1, value: 3, scoreType: { displayValue: "-2" } }
+          ]
+        }
+      ],
       score: '-6',
     },
     {
@@ -75,7 +90,7 @@ describe('Activity Feed Generator (src/lib/activityFeed.ts)', () => {
     const hotRoundEvents = events.filter((e) => e.type === 'birdie_streak');
     expect(hotRoundEvents.length).toBeGreaterThan(0);
     expect(hotRoundEvents[0].icon).toBe('Flame');
-    expect(hotRoundEvents[0].title).toContain('Hot Round');
+    expect(hotRoundEvents[0].title).toMatch(/Hot Round|Eagle Highlight/);
 
     // Check Cut / WD events
     const cutEvents = events.filter((e) => e.type === 'cut');

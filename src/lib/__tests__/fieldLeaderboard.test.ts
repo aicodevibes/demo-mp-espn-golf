@@ -15,9 +15,9 @@ describe('evaluateFieldLeaderboard domain module', () => {
       id,
       athlete: { id, displayName: `Golfer ${i + 1}` },
       status: {
-        position: { id: i + 1, displayName: `${i + 1}` },
+        position: { id: String(i + 1), displayName: `${i + 1}` },
         thru: 'F',
-      },
+      } as any,
       score: `${i - 5}`,
     };
   });
@@ -35,10 +35,11 @@ describe('evaluateFieldLeaderboard domain module', () => {
 
   it('includes ties at position 10 in Top 10 leaders', () => {
     const competitorsWithTies = [...sampleCompetitors];
-    // Set 11th competitor to T10 tie
+    // Set 11th competitor score to match 10th competitor ('+4' score to par)
     competitorsWithTies[10] = {
       ...competitorsWithTies[10],
-      status: { position: { id: 10, displayName: 'T10' } },
+      score: competitorsWithTies[9].score,
+      status: { position: { id: '10', displayName: 'T10' } } as any,
     };
 
     const res = evaluateFieldLeaderboard({
@@ -70,7 +71,7 @@ describe('evaluateFieldLeaderboard domain module', () => {
     // Mark 14th golfer as CUT
     competitorsWithCut[13] = {
       ...competitorsWithCut[13],
-      status: { type: { name: 'STATUS_CUT' }, position: { displayName: 'CUT' } },
+      status: { type: { name: 'STATUS_CUT', description: 'Cut', detail: 'CUT', state: 'post' }, position: { displayName: 'CUT' } } as any,
     };
 
     const res = evaluateFieldLeaderboard({
@@ -116,5 +117,15 @@ describe('evaluateFieldLeaderboard domain module', () => {
 
     const activeIds = res.activeFieldCompetitors.map((c) => c.id);
     expect(activeIds).toEqual(['svensson', 'mcgreevy', 'finau', 'stevens']);
+
+    // Check rankDisplayMap correctly dynamically labels positions based on live score
+    expect(res.rankDisplayMap.get('svensson')).toBe('1');
+    expect(res.rankDisplayMap.get('mcgreevy')).toBe('2');
+    expect(res.rankDisplayMap.get('finau')).toBe('3');
+    expect(res.rankDisplayMap.get('stevens')).toBe('4');
+
+    // Top 4 from top10Competitors matching live score
+    const top4Ids = res.top10Competitors.slice(0, 4).map((c) => c.id);
+    expect(top4Ids).toEqual(['svensson', 'mcgreevy', 'finau', 'stevens']);
   });
 });

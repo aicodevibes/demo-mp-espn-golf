@@ -1,5 +1,5 @@
-import { ESPNCompetitor } from '@/types/espn';
-import { getPlayerStatusInfo, formatScoreDisplay } from '@/lib/espn';
+import { ESPNCompetitor, ESPNEventStatus } from '@/types/espn';
+import { getPlayerStatusInfo, formatScoreDisplay, evaluateGolferRoundScore } from '@/lib/espn';
 import {
   Participant,
   ParticipantStanding,
@@ -45,55 +45,16 @@ export function getGolferRoundStrokes(comp: ESPNCompetitor, round: number): numb
 
 /**
  * Helper to calculate score-to-par for a specific round dynamically
+ * Delegates directly to the deep module seam at @/lib/espn.
  */
 export function getGolferRoundScoreToPar(
   comp: ESPNCompetitor,
   round: number,
   coursePar?: number | null
 ): number | null {
-  // First check displayValue on linescore for explicit relative scores like "-2", "+3", "E"
-  const ls = comp.linescores?.find((l) => l.period === round);
-  if (ls?.displayValue) {
-    const dv = ls.displayValue.trim();
-    if (dv === 'E' || dv === 'EVEN') return 0;
-    if (dv.startsWith('+') || dv.startsWith('-')) {
-      const parsed = parseInt(dv.replace('+', ''), 10);
-      if (!isNaN(parsed) && Math.abs(parsed) <= 30) return parsed;
-    }
-  }
-
-  const strokes = getGolferRoundStrokes(comp, round);
-  if (strokes === null) return null;
-
-  // If strokes is already a relative score (e.g. -5, +3, 0 when strokes <= 25)
-  if (Math.abs(strokes) <= 25) {
-    return strokes;
-  }
-
-  // If explicit course par is provided
-  if (coursePar && coursePar > 50) {
-    return strokes - coursePar;
-  }
-
-  // Derive course par dynamically from cumulative score-to-par (comp.score) and completed linescores
-  if (comp.score && comp.linescores && comp.linescores.length > 0) {
-    const rawToPar = formatScoreDisplay(comp.score).trim();
-    const toPar = rawToPar === 'E' ? 0 : parseInt(rawToPar.replace('+', ''), 10);
-    if (!isNaN(toPar)) {
-      const completed = comp.linescores.filter((l) => typeof l.value === 'number' && l.value > 40);
-      if (completed.length > 0) {
-        const totalStrokes = completed.reduce((sum, l) => sum + l.value, 0);
-        const inferredPar = Math.round((totalStrokes - toPar) / completed.length);
-        if (inferredPar > 50) {
-          return strokes - inferredPar;
-        }
-      }
-    }
-  }
-
-  // Default fallback if par cannot be inferred (assume 72 as standard PGA par)
-  return strokes - 72;
+  return evaluateGolferRoundScore(comp, round, coursePar).scoreToPar;
 }
+
 
 /**
  * Calculates participant daily scores, total scores, cut status, and payouts
@@ -102,7 +63,7 @@ export function calculateParticipantStandings(
   participants: Participant[],
   allCompetitors: ESPNCompetitor[],
   contestConfig?: ContestConfig | null,
-  eventStatus?: any
+  eventStatus?: ESPNEventStatus | null
 ): ParticipantStanding[] {
   const mainPayouts = contestConfig?.mainPayouts || DEFAULT_MAIN_PAYOUTS;
   const coursePar = contestConfig?.coursePar ?? null;
@@ -126,15 +87,20 @@ export function calculateParticipantStandings(
 
       const displayParts: string[] = [];
       for (let rd = 1; rd <= 4; rd++) {
-        const isCutRound = rd >= 3 && (statusInfo.isCut || statusInfo.isWD);
-        if (isCutRound) {
+        const strokes = comp ? getGolferRoundStrokes(comp, rd) : null;
+        const isCutOrWD = statusInfo.isCut || statusInfo.isWD;
+        
+        // For rounds 3 and 4, if a player is CUT or WD, they must be marked as C or WD and have null roundScoresToPar
+        const isPostCutRound = rd >= 3 && isCutOrWD;
+        
+        if (isPostCutRound || (isCutOrWD && strokes === null)) {
           roundScoresToPar[rd] = null;
-          displayParts.push('C');
+          displayParts.push(statusInfo.isWD ? 'WD' : 'C');
         } else {
           const rel = comp ? getGolferRoundScoreToPar(comp, rd, coursePar) : null;
           roundScoresToPar[rd] = rel;
           if (rel === null) {
-            displayParts.push('-');
+            displayParts.push(isCutOrWD ? (statusInfo.isWD ? 'WD' : 'C') : '-');
           } else {
             displayParts.push(rel === 0 ? 'E' : rel > 0 ? `+${rel}` : `${rel}`);
           }
@@ -163,12 +129,7 @@ export function calculateParticipantStandings(
 
     for (let rd = 1; rd <= 4; rd++) {
       const roundScoresToPar = golferDetails
-        .map((g) => {
-          if ((rd === 3 || rd === 4) && (g.isCut || g.isWD)) {
-            return null;
-          }
-          return g.roundScoresToPar[rd];
-        })
+        .map((g) => g.roundScoresToPar[rd])
         .filter((s): s is number => s !== null && s !== undefined);
 
       if (roundScoresToPar.length === 0) {
@@ -243,7 +204,7 @@ export function calculateDayMoneyWinners(
   participants: Participant[],
   allCompetitors: ESPNCompetitor[],
   contestConfig?: ContestConfig | null,
-  eventStatus?: any
+  eventStatus?: ESPNEventStatus | null
 ): DayMoneyRoundResult[] {
   const dayMoneyPool = contestConfig?.dayMoneyPool ?? DEFAULT_DAY_MONEY_POOL;
 
@@ -401,7 +362,7 @@ export function calculateWagerSettlement(
   participants: Participant[] = [],
   allCompetitors: ESPNCompetitor[] = [],
   contestConfig?: ContestConfig | null,
-  eventStatus?: any
+  eventStatus?: ESPNEventStatus | null
 ): WagerSettlementSummary {
   const entryFee = contestConfig?.entryFee ?? 50;
   const isFinalized = Boolean(contestConfig?.isFinalized || eventStatus?.type?.state === 'post');

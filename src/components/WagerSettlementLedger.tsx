@@ -101,7 +101,6 @@ export function WagerSettlementLedger({
           <thead>
             <tr className="bg-surface-container text-[10px] font-extrabold uppercase tracking-wider border-b border-outline-variant/60 text-on-surface-variant">
               <th className="py-3 px-4">Participant</th>
-              <th className="py-3 px-4 text-center">Entry Payment</th>
               <th className="py-3 px-4 text-right">Main Prize</th>
               <th className="py-3 px-4 text-right">Day Money</th>
               <th className="py-3 px-4 text-right">Total Earnings</th>
@@ -117,18 +116,6 @@ export function WagerSettlementLedger({
                 <tr key={s.participantId} className="hover:bg-surface-container-high transition-colors">
                   <td className="py-3.5 px-4 font-bold text-on-surface">
                     {s.participantName}
-                  </td>
-
-                  <td className="py-3.5 px-4 text-center">
-                    <span
-                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border ${
-                        s.hasPaid
-                          ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
-                          : 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30'
-                      }`}
-                    >
-                      {s.hasPaid ? 'Paid ✅' : 'Unpaid ⏳'}
-                    </span>
                   </td>
 
                   <td className="py-3.5 px-4 text-right font-mono text-on-surface-variant">

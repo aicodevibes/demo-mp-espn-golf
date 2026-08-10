@@ -156,17 +156,15 @@ export function evaluateFieldLeaderboard({
   if (activeCompetitors.length > 0) {
     const limit = Math.min(10, activeCompetitors.length);
     const tenthComp = activeCompetitors[limit - 1];
-    const tenthPos = parsePositionNumber(tenthComp, 10);
     const tenthScore = parseCompetitorScoreToPar(tenthComp);
 
     activeCompetitors.forEach((comp, idx) => {
       if (!comp) return;
       const pid = comp.athlete?.id || comp.id;
-      const pos = parsePositionNumber(comp, idx + 1);
       const score = parseCompetitorScoreToPar(comp);
 
       const isInsideFirst10 = idx < 10;
-      const isTiedWithTenth = pos <= tenthPos || score <= tenthScore;
+      const isTiedWithTenth = score === tenthScore;
 
       if (isInsideFirst10 || isTiedWithTenth) {
         top10Competitors.push(comp);

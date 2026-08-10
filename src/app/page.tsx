@@ -31,6 +31,7 @@ import {
 import { ESPNEvent, ESPNCompetitor, ESPNPlayerSummary } from '@/types/espn';
 import { formatPlayerSummaryFromCompetitor, formatPlayerSummaryFromESPNData, createSyntheticCompetitor } from '@/lib/espn';
 import { evaluateContest } from '@/lib/contestEngine';
+import { evaluateFieldLeaderboard } from '@/lib/fieldLeaderboard';
 
 // Vercel Performance Rule: bundle-dynamic-imports
 // Dynamically import heavy Admin Control Drawer only when needed
@@ -54,12 +55,17 @@ export default function DashboardPage() {
   const [playerSummary, setPlayerSummary] = useState<ESPNPlayerSummary | null>(null);
   const [loadingSummary, setLoadingSummary] = useState<boolean>(false);
 
-  const [isWatchlistCollapsed, setIsWatchlistCollapsed] = useState<boolean>(() => {
+  const [isWatchlistCollapsed, setIsWatchlistCollapsed] = useState<boolean>(false);
+
+  // Load watchlist collapse preference client-side to prevent hydration mismatch
+  useEffect(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('mp_watchlist_collapsed') === 'true';
+      const stored = localStorage.getItem('mp_watchlist_collapsed');
+      if (stored !== null) {
+        setIsWatchlistCollapsed(stored === 'true');
+      }
     }
-    return false;
-  });
+  }, []);
 
   const toggleWatchlistCollapse = () => {
     setIsWatchlistCollapsed((prev) => {
@@ -165,12 +171,23 @@ export default function DashboardPage() {
     return participants.find((p) => p.id === selectedParticipantId) || null;
   }, [participants, selectedParticipantId, isTopView]);
 
+  const fieldEvaluation = useMemo(() => {
+    return evaluateFieldLeaderboard({
+      competitors,
+      participants,
+      eventStatus: activeEvent?.status,
+    });
+  }, [competitors, participants, activeEvent]);
+
   // Vercel Performance Rule: rerender-memo & js-index-maps
   const displayCompetitors = useMemo(() => {
     const compMap = new Map(competitors.map((c) => [c.athlete?.id || c.id, c]));
 
-    // 1. Top View: 1st through 4th golfer in tournament leaderboard
+    // 1. Top View: 1st through 4th golfer in sorted tournament leaderboard
     if (isTopView) {
+      if (fieldEvaluation.top10Competitors.length > 0) {
+        return fieldEvaluation.top10Competitors.slice(0, 4);
+      }
       if (competitors.length > 0) {
         return competitors.slice(0, 4);
       }
@@ -346,6 +363,7 @@ export default function DashboardPage() {
               trackedCompetitors={displayCompetitors}
               allCompetitors={competitors}
               eventStatus={activeEvent?.status}
+              rankDisplayMap={fieldEvaluation.rankDisplayMap}
               selectedPlayerId={selectedPlayerId || selectedCompetitor?.athlete?.id || selectedCompetitor?.id}
               onSelectPlayer={(id) => setSelectedPlayerId(id)}
             />
