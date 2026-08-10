@@ -10,9 +10,19 @@ interface HeaderProps {
   eventName?: string;
   eventObj?: ESPNEvent;
   loading?: boolean;
+  events?: ESPNEvent[];
+  selectedEventId?: string;
+  onSelectEvent?: (eventId: string) => void;
 }
 
-export function Header({ eventName, eventObj, loading: eventLoading }: HeaderProps) {
+export function Header({
+  eventName,
+  eventObj,
+  loading: eventLoading,
+  events,
+  selectedEventId,
+  onSelectEvent,
+}: HeaderProps) {
   const { user, loading, isAdmin, signInWithGoogle, signOut } = useAuth();
 
   const formattedDates = formatEventDates(eventObj?.date, eventObj?.endDate);
@@ -50,11 +60,29 @@ export function Header({ eventName, eventObj, loading: eventLoading }: HeaderPro
                 </div>
               ) : (
                 <>
-                  {eventName && (
-                    <p className="text-xs font-semibold truncate max-w-xs sm:max-w-md text-on-surface-variant">
-                      <span>{eventName}</span>
-                    </p>
+                  {events && events.length > 0 && onSelectEvent ? (
+                    <select
+                      data-testid="header-event-selector"
+                      value={selectedEventId || ''}
+                      onChange={(e) => onSelectEvent(e.target.value)}
+                      className="bg-surface-container-low border border-outline-variant rounded px-2 py-0.5 text-xs font-semibold text-on-surface outline-none focus:border-outline cursor-pointer"
+                    >
+                      {events.map((event) => (
+                        <option key={event.id} value={event.id}>
+                          {event.name}
+                        </option>
+                      ))}
+                    </select>
+
+                  ) : (
+                    (eventName || eventObj?.name) && (
+                      <p className="text-xs font-semibold truncate max-w-xs sm:max-w-md text-on-surface-variant">
+                        <span>{eventName || eventObj?.name}</span>
+                      </p>
+                    )
                   )}
+
+
 
                   {formattedDates && (
                     <span className="inline-flex items-center gap-1 text-[11px] font-medium text-on-surface-variant bg-surface-container-low px-2 py-0.5 rounded border border-outline-variant">

@@ -12,8 +12,9 @@ import { ParticipantStandings } from '@/components/ParticipantStandings';
 import { DayMoneyWinners } from '@/components/DayMoneyWinners';
 import { WagerSettlementLedger } from '@/components/WagerSettlementLedger';
 import { LiveActivityFeed } from '@/components/LiveActivityFeed';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, Trophy } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+
 
 // ... (keep rest of top code intact until component body)
 
@@ -104,15 +105,18 @@ export default function DashboardPage() {
     fetchScoreboard();
   }, []);
 
-  // 2. Set Active Event ID (from Firestore config or default to 1st event)
-  const activeEventId = config?.activeEventId || events[0]?.id;
+  // 2. Set Active Event ID & Viewer Override
+  const [viewerEventIdOverride, setViewerEventIdOverride] = useState<string>('');
+  const effectiveActiveEventId = config?.activeEventId || events[0]?.id;
+  const selectedViewerEventId = viewerEventIdOverride || effectiveActiveEventId;
+  const isHistoricalView = Boolean(viewerEventIdOverride && viewerEventIdOverride !== config?.activeEventId);
 
   const activeEvent = useMemo(() => {
-    return resolveActiveEvent(events, activeEventObj, activeEventId);
-  }, [events, activeEventObj, activeEventId]);
+    return resolveActiveEvent(events, activeEventObj, selectedViewerEventId);
+  }, [events, activeEventObj, selectedViewerEventId]);
 
-  const { config: contestConfig, loading: contestConfigLoading } = useContestConfig(activeEventId);
-  const { participants, loading: participantsLoading } = useParticipants(activeEventId);
+  const { config: contestConfig, loading: contestConfigLoading } = useContestConfig(selectedViewerEventId);
+  const { participants, loading: participantsLoading } = useParticipants(selectedViewerEventId);
 
   // Auto-select 1st participant when loaded
   useEffect(() => {
@@ -121,9 +125,9 @@ export default function DashboardPage() {
     }
   }, [participants, selectedParticipantId]);
 
-  // 3. Fetch Active Event Leaderboard — stable callback so polling can call it without re-creating on every render
+  // 3. Fetch Selected Event Leaderboard — stable callback so polling can call it without re-creating on every render
   const fetchLeaderboard = useCallback(async () => {
-    if (!activeEventId) return;
+    if (!selectedViewerEventId) return;
     
     // Only show loading skeleton on initial fetch when competitors are empty
     setCompetitors((currentComps) => {
@@ -134,7 +138,8 @@ export default function DashboardPage() {
     });
 
     try {
-      const res = await fetch(`/api/espn/leaderboard?event=${activeEventId}`);
+      const res = await fetch(`/api/espn/leaderboard?event=${selectedViewerEventId}`);
+
       if (res.ok) {
         const data = await res.json();
         if (data.events && data.events[0]) {
@@ -160,7 +165,7 @@ export default function DashboardPage() {
     } finally {
       setLoadingLeaderboard(false);
     }
-  }, [activeEventId, trackedPlayers]);
+  }, [selectedViewerEventId, trackedPlayers]);
 
   // Initial leaderboard fetch on active event change
   useEffect(() => {
@@ -168,7 +173,8 @@ export default function DashboardPage() {
   }, [fetchLeaderboard]);
 
   // 3a. Poll leaderboard every 5 minutes while tab is visible; re-fetch immediately on tab return
-  useLeaderboardPolling({ activeEventId, onPoll: fetchLeaderboard });
+  useLeaderboardPolling({ activeEventId: selectedViewerEventId, onPoll: fetchLeaderboard });
+
 
   // Vercel Performance Rule: rerender-derived-state & js-set-map-lookups
   const trackedPlayerIdsSet = useMemo(
@@ -260,7 +266,7 @@ export default function DashboardPage() {
 
   // 4. Fetch Hole-by-Hole Player Summary from ESPN API for selected golfer
   useEffect(() => {
-    if (!selectedCompetitorId || !activeEventId || !selectedCompetitor) return;
+    if (!selectedCompetitorId || !selectedViewerEventId || !selectedCompetitor) return;
 
     let isMounted = true;
     setLoadingSummary(true);
@@ -269,7 +275,7 @@ export default function DashboardPage() {
       try {
         const season = new Date().getFullYear();
         const res = await fetch(
-          `/api/espn/playersummary?eventId=${activeEventId}&playerId=${selectedCompetitorId}&season=${season}`
+          `/api/espn/playersummary?eventId=${selectedViewerEventId}&playerId=${selectedCompetitorId}&season=${season}`
         );
         if (res.ok) {
           const data = await res.json();
@@ -299,7 +305,8 @@ export default function DashboardPage() {
     return () => {
       isMounted = false;
     };
-  }, [selectedCompetitorId, activeEventId]);
+  }, [selectedCompetitorId, selectedViewerEventId]);
+
 
   // Admin Actions
   const handleSelectEvent = useCallback(async (eventId: string) => {
@@ -328,10 +335,35 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-surface text-on-surface flex flex-col">
       {/* Top Navigation Header */}
-      <Header eventName={activeEvent?.name} eventObj={activeEvent || undefined} />
+      <Header
+        eventName={activeEvent?.name}
+        eventObj={activeEvent || undefined}
+        events={events}
+        selectedEventId={selectedViewerEventId}
+        onSelectEvent={setViewerEventIdOverride}
+      />
+
+      {/* Historical Archive Banner */}
+      {isHistoricalView && (
+        <div className="max-w-7xl w-full mx-auto px-4 lg:px-8 mt-4">
+          <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 flex flex-wrap items-center justify-between gap-3 shadow-xs">
+            <div className="flex items-center gap-2 text-xs font-bold">
+              <Trophy className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
+              <span>Viewing Historical Archive: {activeEvent?.name || 'Tournament'} ({selectedViewerEventId})</span>
+            </div>
+            <button
+              onClick={() => setViewerEventIdOverride('')}
+              className="text-[11px] font-extrabold px-2.5 py-1 rounded bg-amber-500 text-amber-950 hover:bg-amber-400 transition cursor-pointer"
+            >
+              Return to Live Event
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Main Content Dashboard Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 lg:px-8 py-6 space-y-8">
+
         {/* Section 1: Participant View Selector & Watchlist Hero Grid */}
         <section className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3 bg-surface-container-low p-3.5 rounded-xl border border-outline-variant/60">
