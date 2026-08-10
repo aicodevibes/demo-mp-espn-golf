@@ -120,40 +120,40 @@ export default function DashboardPage() {
     }
   }, [participants, selectedParticipantId]);
 
-  // 3. Fetch Active Event Leaderboard
-  useEffect(() => {
+  // 3. Fetch Active Event Leaderboard — stable callback so polling can call it without re-creating on every render
+  const fetchLeaderboard = useCallback(async () => {
     if (!activeEventId) return;
+    setLoadingLeaderboard(true);
+    try {
+      const res = await fetch(`/api/espn/leaderboard?event=${activeEventId}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.events && data.events[0]) {
+          setActiveEventObj(data.events[0]);
+          const comps = data.events[0]?.competitions?.[0]?.competitors || [];
+          setCompetitors(comps);
+          syncPlayersToFirestore(comps);
 
-    async function fetchLeaderboard() {
-      setLoadingLeaderboard(true);
-      try {
-        const res = await fetch(`/api/espn/leaderboard?event=${activeEventId}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data.events && data.events[0]) {
-            setActiveEventObj(data.events[0]);
-            const comps = data.events[0]?.competitions?.[0]?.competitors || [];
-            setCompetitors(comps);
-            syncPlayersToFirestore(comps);
-
-            // Auto-select first tracked player or first field competitor
-            if (comps.length > 0 && !selectedPlayerId) {
-              const firstTracked = comps.find((c: ESPNCompetitor) =>
-                trackedPlayers.some((p) => p.playerId === (c.athlete?.id || c.id))
-              );
-              setSelectedPlayerId(firstTracked ? firstTracked.athlete?.id || firstTracked.id : comps[0].athlete?.id || comps[0].id);
-            }
+          // Auto-select first tracked player or first field competitor
+          if (comps.length > 0 && !selectedPlayerId) {
+            const firstTracked = comps.find((c: ESPNCompetitor) =>
+              trackedPlayers.some((p) => p.playerId === (c.athlete?.id || c.id))
+            );
+            setSelectedPlayerId(firstTracked ? firstTracked.athlete?.id || firstTracked.id : comps[0].athlete?.id || comps[0].id);
           }
         }
-      } catch (err) {
-        console.error('Failed to fetch ESPN Leaderboard:', err);
-      } finally {
-        setLoadingLeaderboard(false);
       }
+    } catch (err) {
+      console.error('Failed to fetch ESPN Leaderboard:', err);
+    } finally {
+      setLoadingLeaderboard(false);
     }
+  }, [activeEventId, selectedPlayerId, trackedPlayers]);
 
+  // Initial leaderboard fetch on active event change
+  useEffect(() => {
     fetchLeaderboard();
-  }, [activeEventId]);
+  }, [fetchLeaderboard]);
 
   // Vercel Performance Rule: rerender-derived-state & js-set-map-lookups
   const trackedPlayerIdsSet = useMemo(
