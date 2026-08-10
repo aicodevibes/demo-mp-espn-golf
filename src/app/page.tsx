@@ -29,7 +29,14 @@ import {
   TrackedPlayer,
 } from '@/lib/firebase/firestore';
 import { ESPNEvent, ESPNCompetitor, ESPNPlayerSummary } from '@/types/espn';
-import { formatPlayerSummaryFromCompetitor, formatPlayerSummaryFromESPNData, createSyntheticCompetitor } from '@/lib/espn';
+import {
+  formatPlayerSummaryFromCompetitor,
+  formatPlayerSummaryFromESPNData,
+  createSyntheticCompetitor,
+  resolveActiveEvent,
+  readScoreboardCache,
+  writeScoreboardCache,
+} from '@/lib/espn';
 import { evaluateContest } from '@/lib/contestEngine';
 import { evaluateFieldLeaderboard } from '@/lib/fieldLeaderboard';
 
@@ -46,7 +53,7 @@ export default function DashboardPage() {
   const { players: trackedPlayers, loading: playersLoading } = useTrackedPlayers();
 
   const [events, setEvents] = useState<ESPNEvent[]>([]);
-  const [activeEvent, setActiveEventObj] = useState<ESPNEvent | null>(null);
+  const [activeEventObj, setActiveEventObj] = useState<ESPNEvent | null>(null);
   const [competitors, setCompetitors] = useState<ESPNCompetitor[]>([]);
   const [loadingLeaderboard, setLoadingLeaderboard] = useState<boolean>(true);
 
@@ -56,6 +63,14 @@ export default function DashboardPage() {
   const [loadingSummary, setLoadingSummary] = useState<boolean>(false);
 
   const [isWatchlistCollapsed, setIsWatchlistCollapsed] = useState<boolean>(false);
+
+  // Synchronously hydrate events from client localStorage cache if available
+  useEffect(() => {
+    const cachedEvents = readScoreboardCache();
+    if (cachedEvents && cachedEvents.length > 0) {
+      setEvents(cachedEvents);
+    }
+  }, []);
 
   // Load watchlist collapse preference client-side to prevent hydration mismatch
   useEffect(() => {
@@ -77,14 +92,16 @@ export default function DashboardPage() {
     });
   };
 
-  // 1. Fetch ESPN Scoreboard (Events List)
+  // 1. Fetch ESPN Scoreboard (Events List) & Revalidate Local Cache
   useEffect(() => {
     async function fetchScoreboard() {
       try {
         const res = await fetch('/api/espn/scoreboard');
         if (res.ok) {
           const data = await res.json();
-          setEvents(data.events || []);
+          const fetchedEvents = data.events || [];
+          setEvents(fetchedEvents);
+          writeScoreboardCache(fetchedEvents);
         }
       } catch (err) {
         console.error('Failed to fetch ESPN Scoreboard:', err);
@@ -95,6 +112,10 @@ export default function DashboardPage() {
 
   // 2. Set Active Event ID (from Firestore config or default to 1st event)
   const activeEventId = config?.activeEventId || events[0]?.id;
+
+  const activeEvent = useMemo(() => {
+    return resolveActiveEvent(events, activeEventObj, activeEventId);
+  }, [events, activeEventObj, activeEventId]);
 
   const { config: contestConfig, loading: contestConfigLoading } = useContestConfig(activeEventId);
   const { participants, loading: participantsLoading } = useParticipants(activeEventId);

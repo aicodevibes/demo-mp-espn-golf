@@ -96,7 +96,7 @@ export function ParticipantStandings({
         {/* DRAFTED PLAYERS — multi-line, name + round score string */}
         <td className="py-2 px-3 align-middle">
           <div className="flex flex-col gap-0.5">
-            {s.draftedGolferDetails.map((g) => (
+            {s.draftedGolferDetails.map((g, idx) => (
               <div
                 key={g.id}
                 onClick={(e) => {
@@ -119,6 +119,11 @@ export function ParticipantStandings({
                   >
                     {g.name}
                   </span>
+                  {idx === 3 && (
+                    <span className="text-[9px] font-black uppercase text-purple-400 bg-purple-500/10 px-1 py-px rounded leading-none shrink-0 border border-purple-500/20">
+                      4th · Post-Cut
+                    </span>
+                  )}
                   {g.isCut && (
                     <span className="text-[9px] font-black uppercase text-red-500 bg-red-500/10 px-1 py-px rounded leading-none shrink-0 border border-red-500/20">
                       CUT

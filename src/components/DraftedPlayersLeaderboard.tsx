@@ -62,6 +62,8 @@ export function DraftedPlayersLeaderboard({
           const draftedBy = playerDraftedByMap.get(playerId) || [];
           const computedRank = rankDisplayMap.get(playerId) || comp.status?.position?.displayName || idx + 11;
 
+          const isFourthGolfer = participants.some(p => p.draftedPlayerIds && p.draftedPlayerIds[3] === playerId);
+
           return (
             <CompetitorRow
               key={`drafted-${playerId}-${idx}`}
@@ -70,6 +72,7 @@ export function DraftedPlayersLeaderboard({
               rankDisplay={computedRank}
               isSelected={isSelected}
               eventStatus={eventObj?.status}
+              isFourthGolfer={isFourthGolfer}
               onSelectPlayer={onSelectPlayer}
             />
           );

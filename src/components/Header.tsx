@@ -9,14 +9,17 @@ import { formatEventDates } from '@/lib/espn';
 interface HeaderProps {
   eventName?: string;
   eventObj?: ESPNEvent;
+  loading?: boolean;
 }
 
-export function Header({ eventName, eventObj }: HeaderProps) {
+export function Header({ eventName, eventObj, loading: eventLoading }: HeaderProps) {
   const { user, loading, isAdmin, signInWithGoogle, signOut } = useAuth();
 
   const formattedDates = formatEventDates(eventObj?.date, eventObj?.endDate);
   const eventState = eventObj?.status?.type?.state;
   const statusDetail = eventObj?.status?.type?.detail || 'Scheduled';
+  const isEventUnpopulated = !eventName && !eventObj;
+  const isLoadingEvent = eventLoading || isEventUnpopulated;
 
   return (
     <header className="w-full border-b border-outline-variant bg-surface-container-lowest/90 text-on-surface backdrop-blur-md shadow-xs px-4 lg:px-8 py-3.5 sticky top-0 z-40">
@@ -38,32 +41,42 @@ export function Header({ eventName, eventObj }: HeaderProps) {
               )}
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 mt-0.5">
-              {eventName && (
-                <p className="text-xs font-semibold truncate max-w-xs sm:max-w-md text-on-surface-variant">
-                  <span>{eventName}</span>
-                </p>
-              )}
-
-              {formattedDates && (
-                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-on-surface-variant bg-surface-container-low px-2 py-0.5 rounded border border-outline-variant">
-                  <Calendar className="w-3 h-3 text-secondary" /> {formattedDates}
-                </span>
-              )}
-
-              {/* Status Badge */}
-              {eventState === 'in' ? (
-                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-on-tertiary bg-tertiary px-2 py-0.5 rounded shadow-xs animate-pulse">
-                  <Activity className="w-3 h-3 text-white" /> Live ({statusDetail})
-                </span>
-              ) : eventState === 'post' ? (
-                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-on-primary-container bg-primary-container px-2 py-0.5 rounded border border-primary-container">
-                  <Trophy className="w-3 h-3 text-tertiary" /> Final
-                </span>
+            <div className="flex flex-wrap items-center gap-2 mt-0.5 min-h-[22px]">
+              {isLoadingEvent ? (
+                <div className="flex items-center gap-2" data-testid="header-event-skeleton">
+                  <div className="h-4 w-32 bg-surface-container-high animate-pulse rounded" />
+                  <div className="h-4 w-24 bg-surface-container-high animate-pulse rounded hidden sm:block" />
+                  <div className="h-5 w-20 bg-surface-container-high animate-pulse rounded-md" />
+                </div>
               ) : (
-                <span className="inline-flex items-center gap-1 text-[11px] font-medium text-on-surface-variant bg-surface-container-low px-2 py-0.5 rounded border border-outline-variant">
-                  Scheduled
-                </span>
+                <>
+                  {eventName && (
+                    <p className="text-xs font-semibold truncate max-w-xs sm:max-w-md text-on-surface-variant">
+                      <span>{eventName}</span>
+                    </p>
+                  )}
+
+                  {formattedDates && (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-on-surface-variant bg-surface-container-low px-2 py-0.5 rounded border border-outline-variant">
+                      <Calendar className="w-3 h-3 text-secondary" /> {formattedDates}
+                    </span>
+                  )}
+
+                  {/* Status Badge */}
+                  {eventState === 'in' ? (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-on-tertiary bg-tertiary px-2 py-0.5 rounded shadow-xs animate-pulse">
+                      <Activity className="w-3 h-3 text-white" /> Live ({statusDetail})
+                    </span>
+                  ) : eventState === 'post' ? (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-on-primary-container bg-primary-container px-2 py-0.5 rounded border border-primary-container">
+                      <Trophy className="w-3 h-3 text-tertiary" /> Final
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-on-surface-variant bg-surface-container-low px-2 py-0.5 rounded border border-outline-variant">
+                      Scheduled
+                    </span>
+                  )}
+                </>
               )}
             </div>
           </div>

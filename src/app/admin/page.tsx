@@ -41,7 +41,7 @@ import { getGolferRoundScoreToPar } from '@/lib/scoring';
 import { doc, deleteDoc, collection, getDocs, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import { parseCommaDelimitedGolfers, matchGolferInputToId } from '@/lib/espn/golferMatcher';
-import { formatScoreDisplay } from '@/lib/espn';
+import { formatScoreDisplay, getPlayerStatusInfo } from '@/lib/espn';
 
 const ADMIN_EMAILS = ['aicodevibes@gmail.com'];
 
@@ -1140,7 +1140,174 @@ export default function AdminPage() {
             </div>
           </section>
 
-          {/* SECTION 5: GREEDY GAME PARTICIPANTS */}
+          {/* SECTION 5: 4TH GOLFER POST-CUT ASSIGNMENT INTERFACE */}
+          <section className="bg-surface-container-low border border-outline-variant rounded-xl p-6 space-y-4 shadow-xs">
+            <div className="border-b border-outline-variant/60 pb-3 flex justify-between items-center">
+              <div>
+                <h2 className="text-sm font-black uppercase tracking-widest text-on-surface flex items-center gap-2">
+                  <UserPlus className="w-5 h-5 text-tertiary" /> 4th Golfer Post-Cut Assignment
+                </h2>
+                <p className="text-[11px] text-on-surface-variant mt-0.5">
+                  Participants who lose 2 drafted golfers to CUT or WD after Round 2 receive a 4th replacement golfer for Rounds 3 & 4.
+                </p>
+              </div>
+              <span className="text-xs font-bold text-on-surface-variant bg-surface-container px-2.5 py-1 rounded-full border border-outline-variant/60">
+                {selectedParticipants.filter((p) => {
+                  const compMap = new Map(competitors.map((c) => [c.athlete?.id || c.id, c]));
+                  const cutCount = p.draftedPlayerIds.slice(0, 3).filter((id) => {
+                    const comp = compMap.get(id);
+                    if (!comp) return false;
+                    const status = getPlayerStatusInfo(comp);
+                    return status.isCut || status.isWD;
+                  }).length;
+                  return cutCount >= 2;
+                }).length} Eligible
+              </span>
+            </div>
+
+            <div className="overflow-x-auto border border-outline-variant/60 rounded-lg">
+              <table className="w-full border-collapse text-left text-xs">
+                <thead>
+                  <tr className="bg-surface-container text-[10px] font-extrabold uppercase tracking-wider border-b border-outline-variant/60 text-on-surface-variant">
+                    <th className="py-2.5 px-4 w-1/4">Participant</th>
+                    <th className="py-2.5 px-4 w-1/3">Roster Status (R1-R3 Cut/WDs)</th>
+                    <th className="py-2.5 px-4 w-5/12">4th Replacement Golfer Pick</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-outline-variant/40">
+                  {selectedParticipants.length === 0 ? (
+                    <tr>
+                      <td colSpan={3} className="py-6 text-center text-on-surface-variant italic">
+                        No participants in event.
+                      </td>
+                    </tr>
+                  ) : (
+                    (() => {
+                      const compMap = new Map(competitors.map((c) => [c.athlete?.id || c.id, c]));
+                      const allDraftedIds = new Set(
+                        selectedParticipants.flatMap((p) => p.draftedPlayerIds)
+                      );
+
+                      // Available undrafted golfers from field (or include current 4th golfer if selected)
+                      const getAvailableGolfersForParticipant = (current4thId?: string) => {
+                        return fieldGolfers.filter(
+                          (g) => !allDraftedIds.has(g.id) || g.id === current4thId
+                        );
+                      };
+
+                      return selectedParticipants.map((p) => {
+                        const originalPicks = p.draftedPlayerIds.slice(0, 3);
+                        const cutCount = originalPicks.filter((id) => {
+                          const comp = compMap.get(id);
+                          if (!comp) return false;
+                          const status = getPlayerStatusInfo(comp);
+                          return status.isCut || status.isWD;
+                        }).length;
+
+                        const isEligible = cutCount >= 2;
+                        const fourthGolferId = p.draftedPlayerIds[3] || '';
+
+                        const handleFourthGolferSelect = async (playerId: string) => {
+                          if (!selectedEventId) return;
+                          try {
+                            const newDrafted = [...p.draftedPlayerIds.slice(0, 3)];
+                            if (playerId) {
+                              newDrafted[3] = playerId;
+                            }
+                            const updated: Participant = {
+                              ...p,
+                              draftedPlayerIds: newDrafted,
+                            };
+                            await addParticipantToEvent(selectedEventId, updated);
+                          } catch (err) {
+                            console.error(err);
+                            alert('Failed to update 4th golfer assignment.');
+                          }
+                        };
+
+                        return (
+                          <tr
+                            key={p.id}
+                            className={`transition-colors ${
+                              isEligible ? 'bg-amber-500/5 hover:bg-amber-500/10' : 'hover:bg-surface-container-high'
+                            }`}
+                          >
+                            <td className="py-3 px-4 font-bold text-on-surface">
+                              <div className="flex items-center gap-2">
+                                <span>{p.name}</span>
+                                {isEligible && (
+                                  <span className="text-[9px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/40 px-1.5 py-0.5 rounded">
+                                    Needs 4th Golfer
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="space-y-1">
+                                <div className="flex flex-wrap gap-1">
+                                  {originalPicks.map((id) => {
+                                    const comp = compMap.get(id);
+                                    const status = comp ? getPlayerStatusInfo(comp) : { isCut: false, isWD: false };
+                                    const name = getGolferNameById(id);
+                                    const isLost = status.isCut || status.isWD;
+                                    return (
+                                      <span
+                                        key={id}
+                                        className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
+                                          isLost
+                                            ? 'bg-red-500/10 text-red-700 dark:text-red-300 border-red-500/30 line-through'
+                                            : 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
+                                        }`}
+                                      >
+                                        {name} {status.isWD ? '(WD)' : status.isCut ? '(CUT)' : ''}
+                                      </span>
+                                    );
+                                  })}
+                                </div>
+                                <p className="text-[10px] text-on-surface-variant">
+                                  Cut/WD Count: <strong className={cutCount >= 2 ? 'text-red-600 dark:text-red-400 font-bold' : ''}>{cutCount} / 3</strong>
+                                </p>
+                              </div>
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="flex items-center gap-2">
+                                <select
+                                  value={fourthGolferId}
+                                  onChange={(e) => handleFourthGolferSelect(e.target.value)}
+                                  disabled={!isEligible}
+                                  className="w-full max-w-xs bg-surface-container border border-outline-variant rounded px-2.5 py-1 text-xs text-on-surface outline-none focus:border-outline disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  <option value="">
+                                    {isEligible ? '-- Select 4th Undrafted Golfer --' : 'N/A (Roster Intact)'}
+                                  </option>
+                                  {getAvailableGolfersForParticipant(fourthGolferId).map((g) => (
+                                    <option key={g.id} value={g.id}>
+                                      {g.name}
+                                    </option>
+                                  ))}
+                                </select>
+                                {fourthGolferId && (
+                                  <button
+                                    onClick={() => handleFourthGolferSelect('')}
+                                    title="Remove 4th Golfer"
+                                    className="p-1 text-red-600 hover:bg-red-500/10 rounded transition"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      });
+                    })()
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          {/* SECTION 6: GREEDY GAME PARTICIPANTS */}
           <section className="bg-surface-container-low border border-outline-variant rounded-xl p-6 space-y-4 shadow-xs">
             <div className="border-b border-outline-variant/60 pb-3 flex justify-between items-center">
               <h2 className="text-sm font-black uppercase tracking-widest text-on-surface flex items-center gap-2">

@@ -45,6 +45,10 @@ export interface ESPNEvent {
     city?: string;
     state?: string;
   }>;
+  competitions?: Array<{
+    id: string;
+    competitors: ESPNCompetitor[];
+  }>;
   status?: ESPNEventStatus;
 }
 

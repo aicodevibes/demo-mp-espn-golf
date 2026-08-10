@@ -13,6 +13,7 @@ export interface CompetitorRowProps {
   isSelected?: boolean;
   eventStatus?: any;
   priorityHeadshot?: boolean;
+  isFourthGolfer?: boolean;
   onSelectPlayer?: (playerId: string) => void;
 }
 
@@ -23,6 +24,7 @@ export function CompetitorRow({
   isSelected = false,
   eventStatus,
   priorityHeadshot = false,
+  isFourthGolfer = false,
   onSelectPlayer,
 }: CompetitorRowProps) {
   if (!competitor) return null;
@@ -77,6 +79,13 @@ export function CompetitorRow({
             {isDrafted && (
               <span className="inline-flex items-center text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-tertiary/15 text-tertiary border border-tertiary/40">
                 Drafted by {draftedBy.join(', ')}
+              </span>
+            )}
+
+            {/* 4th Golfer Badge */}
+            {isFourthGolfer && (
+              <span className="text-[9px] font-black uppercase text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded border border-purple-500/20">
+                4th · Post-Cut
               </span>
             )}
 

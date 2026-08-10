@@ -7,6 +7,7 @@ export {
   formatScoreDisplay,
   getScoreMeta,
   parseESPNScoreboardResponse,
+  resolveActiveEvent,
   getWinnerStatus,
   getPlayerStatusInfo,
   getTop10WithTies,
@@ -23,3 +24,4 @@ export {
   findCompetitorByQuery,
   parseCommaDelimitedGolfers,
 } from './golferMatcher';
+export { readScoreboardCache, writeScoreboardCache, SCOREBOARD_CACHE_KEY } from './scoreboardCache';

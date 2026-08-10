@@ -99,6 +99,24 @@ export function parseESPNScoreboardResponse(data: ESPNScoreboardPayload | unknow
   return calendarEvents.length > 0 ? calendarEvents : liveEvents;
 }
 
+/**
+ * Resolves the active ESPN event metadata immediately from scoreboard fallback
+ * while detailed event leaderboard payload is loading asynchronously.
+ */
+export function resolveActiveEvent(
+  events: ESPNEvent[] = [],
+  activeEventObj: ESPNEvent | null = null,
+  activeEventId?: string | null
+): ESPNEvent | null {
+  if (activeEventObj) return activeEventObj;
+  if (events.length === 0) return null;
+  if (activeEventId) {
+    const found = events.find((e) => e.id === activeEventId);
+    if (found) return found;
+  }
+  return events[0] || null;
+}
+
 export interface WinnerStatusInfo {
   isWinner: boolean;
   isPlayoff: boolean;
