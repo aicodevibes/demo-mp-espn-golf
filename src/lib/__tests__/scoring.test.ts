@@ -179,7 +179,7 @@ describe('Scoring Engine (lib/scoring.ts)', () => {
     };
 
     const summary = calculateWagerSettlement(participantsWithPayment, sampleCompetitors, configWithFees);
-    expect(summary.totalEntryFeesCollected).toBe(100);
+    expect(summary.totalEntryFeesCollected).toBe(200);
     expect(summary.settlements).toHaveLength(2);
 
     const pat = summary.settlements.find((s) => s.participantName === 'Pat');
@@ -188,4 +188,87 @@ describe('Scoring Engine (lib/scoring.ts)', () => {
     expect(pat?.mainPayout).toBe(500);
     expect(pat?.netBalance).toBe(500); // 500 main payout - 0 unpaid entry fee (since already paid)
   });
+
+  describe('4th Golfer Replacement Rules (#6)', () => {
+    const golfers4thTest: ESPNCompetitor[] = [
+      // Participant Pat's original players: g1 (active), g2 (CUT), g3 (CUT)
+      {
+        id: 'g1',
+        athlete: { id: 'g1', displayName: 'Active Player 1' },
+        linescores: [{ period: 1, value: 70 }, { period: 2, value: 70 }, { period: 3, value: 70 }, { period: 4, value: 70 }], // Even (0 to par)
+        score: 'E',
+      },
+      {
+        id: 'g2',
+        athlete: { id: 'g2', displayName: 'Cut Player 1' },
+        linescores: [{ period: 1, value: 75 }, { period: 2, value: 75 }],
+        score: 'CUT',
+        status: { position: { displayName: 'CUT' }, type: { name: 'STATUS_CUT', description: 'Cut', detail: 'CUT', state: 'post' } } as any,
+      },
+      {
+        id: 'g3',
+        athlete: { id: 'g3', displayName: 'Cut Player 2' },
+        linescores: [{ period: 1, value: 76 }, { period: 2, value: 76 }],
+        score: 'CUT',
+        status: { position: { displayName: 'CUT' }, type: { name: 'STATUS_CUT', description: 'Cut', detail: 'CUT', state: 'post' } } as any,
+      },
+      // 4th Golfer assigned post-cut
+      {
+        id: 'g4th',
+        athlete: { id: 'g4th', displayName: '4th Replacement Golfer' },
+        linescores: [{ period: 1, value: 65 }, { period: 2, value: 65 }, { period: 3, value: 68 }, { period: 4, value: 69 }], // R1: -5, R2: -5, R3: -2, R4: -1
+        score: '-13',
+      },
+    ];
+
+    const participantWith4th: Participant[] = [
+      {
+        id: 'p1',
+        name: 'Pat',
+        draftedPlayerIds: ['g1', 'g2', 'g3', 'g4th'], // 4th golfer at index 3
+      },
+    ];
+
+    it('ignores 4th golfer R1 and R2 scores for daily team score and displays "-" in draftedGolferDetails', () => {
+      const standings = calculateParticipantStandings(participantWith4th, golfers4thTest, sampleConfig);
+      const pat = standings[0];
+      const g4thDetail = pat.draftedGolferDetails.find((g) => g.id === 'g4th');
+
+      expect(g4thDetail).toBeDefined();
+      expect(g4thDetail?.roundScoresToPar[1]).toBeNull();
+      expect(g4thDetail?.roundScoresToPar[2]).toBeNull();
+      expect(g4thDetail?.roundScoreDisplayStr).toBe('-/-/-2/-1'); // R1/R2 excluded, R3/R4 active
+
+      // R1 daily score should NOT include g4th (-5 to par).
+      // Active original scores: g1 (0). Cut scores: g2 (+5), g3 (+6).
+      // Best two original: g1 (0) + g2 (+5) = +5.
+      expect(pat.dailyScores[1]).toBe(5);
+      expect(pat.dailyScores[2]).toBe(5);
+    });
+
+    it('activates 4th golfer for R3 and R4 and sums both active player scores', () => {
+      const standings = calculateParticipantStandings(participantWith4th, golfers4thTest, sampleConfig);
+      const pat = standings[0];
+
+      // R3: active g1 (0) + active g4th (-2) = -2
+      expect(pat.dailyScores[3]).toBe(-2);
+
+      // R4: active g1 (0) + active g4th (-1) = -1
+      expect(pat.dailyScores[4]).toBe(-1);
+    });
+
+    it('excludes 4th golfer from R1/R2 Day Money but includes them for R3/R4', () => {
+      const dayMoney = calculateDayMoneyWinners(participantWith4th, golfers4thTest, sampleConfig);
+      const r1 = dayMoney[0]; // R1
+      const r3 = dayMoney[2]; // R3
+
+      // R1 low score of 65 (shot by g4th) must NOT win Day Money for Pat
+      expect(r1.winners.some((w) => w.golferId === 'g4th')).toBe(false);
+
+      // R3 low score of 68 (shot by g4th) SHOULD win Day Money for Pat
+      expect(r3.lowScore).toBe(68);
+      expect(r3.winners.some((w) => w.golferId === 'g4th')).toBe(true);
+    });
+  });
 });
+

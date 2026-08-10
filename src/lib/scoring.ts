@@ -11,6 +11,7 @@ import {
   ParticipantSettlement,
   WagerSettlementSummary,
 } from '@/types/contest';
+import { calculateWagerSettlement as calculateWagerSettlementFromSettlement } from '@/lib/settlement';
 
 const DEFAULT_MAIN_PAYOUTS = [600, 320, 180, 100];
 const DEFAULT_DAY_MONEY_POOL = 75;
@@ -73,7 +74,8 @@ export function calculateParticipantStandings(
   );
 
   const standings: ParticipantStanding[] = participants.map((p) => {
-    const golferDetails: DraftedGolferStatus[] = p.draftedPlayerIds.map((id) => {
+    const golferDetails: DraftedGolferStatus[] = p.draftedPlayerIds.map((id, index) => {
+      const isFourthGolfer = index === 3;
       const comp = compMap.get(id);
       const name = comp?.athlete?.displayName || `Golfer (${id})`;
       const statusInfo = comp ? getPlayerStatusInfo(comp, eventStatus) : { isCut: false, isWD: false };
@@ -90,6 +92,13 @@ export function calculateParticipantStandings(
         const strokes = comp ? getGolferRoundStrokes(comp, rd) : null;
         const isCutOrWD = statusInfo.isCut || statusInfo.isWD;
         
+        // 4th golfer (index 3) is strictly excluded for R1 and R2
+        if (isFourthGolfer && (rd === 1 || rd === 2)) {
+          roundScoresToPar[rd] = null;
+          displayParts.push('-');
+          continue;
+        }
+
         // For rounds 3 and 4, if a player is CUT or WD, they must be marked as C or WD and have null roundScoresToPar
         const isPostCutRound = rd >= 3 && isCutOrWD;
         
@@ -212,12 +221,13 @@ export function calculateDayMoneyWinners(
     allCompetitors.map((c) => [c.athlete?.id || c.id, c])
   );
 
-  // Map each drafted golfer to their participant owner(s)
-  const golferOwnerMap = new Map<string, Participant[]>();
+  // Map each drafted golfer to their participant owner(s) and round eligibility
+  const golferOwnerMap = new Map<string, { owner: Participant; isFourthGolfer: boolean }[]>();
   participants.forEach((p) => {
-    p.draftedPlayerIds.forEach((gid) => {
+    p.draftedPlayerIds.forEach((gid, index) => {
+      const isFourthGolfer = index === 3;
       const existing = golferOwnerMap.get(gid) || [];
-      golferOwnerMap.set(gid, [...existing, p]);
+      golferOwnerMap.set(gid, [...existing, { owner: p, isFourthGolfer }]);
     });
   });
 
@@ -226,11 +236,15 @@ export function calculateDayMoneyWinners(
   for (let rd = 1; rd <= 4; rd++) {
     let minScore: number | null = null;
 
-    golferOwnerMap.forEach((owners, golferId) => {
+    golferOwnerMap.forEach((entries, golferId) => {
       const comp = compMap.get(golferId);
       if (!comp) return;
       const statusInfo = getPlayerStatusInfo(comp, eventStatus);
       if ((rd === 3 || rd === 4) && (statusInfo.isCut || statusInfo.isWD)) return;
+
+      // Exclude 4th golfer entries if round is 1 or 2
+      const hasEligibleOwner = entries.some((e) => !(e.isFourthGolfer && (rd === 1 || rd === 2)));
+      if (!hasEligibleOwner) return;
 
       const score = getGolferRoundStrokes(comp, rd);
       if (score === null || score === undefined) return;
@@ -243,7 +257,7 @@ export function calculateDayMoneyWinners(
     const winners: DayMoneyWinner[] = [];
 
     if (minScore !== null) {
-      golferOwnerMap.forEach((owners, golferId) => {
+      golferOwnerMap.forEach((entries, golferId) => {
         const comp = compMap.get(golferId);
         if (!comp) return;
         const statusInfo = getPlayerStatusInfo(comp, eventStatus);
@@ -252,7 +266,9 @@ export function calculateDayMoneyWinners(
         const score = getGolferRoundStrokes(comp, rd);
         if (score === minScore) {
           const golferName = comp.athlete?.displayName || `Golfer (${golferId})`;
-          owners.forEach((owner) => {
+          entries.forEach(({ owner, isFourthGolfer }) => {
+            if (isFourthGolfer && (rd === 1 || rd === 2)) return;
+
             winners.push({
               participantId: owner.id,
               participantName: owner.name,
@@ -356,7 +372,7 @@ export function calculateGreedyStandings(
 }
 
 /**
- * Calculates Wager Settlement Ledger & Pot Summaries.
+ * Calculates Wager Settlement Ledger & Pot Summaries by delegating to the settlement deep module seam.
  */
 export function calculateWagerSettlement(
   participants: Participant[] = [],
@@ -364,71 +380,24 @@ export function calculateWagerSettlement(
   contestConfig?: ContestConfig | null,
   eventStatus?: ESPNEventStatus | null
 ): WagerSettlementSummary {
-  const entryFee = contestConfig?.entryFee ?? 50;
-  const isFinalized = Boolean(contestConfig?.isFinalized || eventStatus?.type?.state === 'post');
-
-  // Compute standings & Day Money
   const standings = calculateParticipantStandings(participants, allCompetitors, contestConfig, eventStatus);
   const dayMoneyResults = calculateDayMoneyWinners(participants, allCompetitors, contestConfig, eventStatus);
+  const greedyParticipants = (participants || []).filter((p) => p.isGreedyParticipant);
+  const greedyStandings = calculateGreedyStandings(
+    greedyParticipants,
+    allCompetitors,
+    contestConfig?.coursePar
+  );
 
-  // Map day money winnings per participant
-  const dayMoneyMap = new Map<string, number>();
-  dayMoneyResults.forEach((rd) => {
-    rd.winners.forEach((w) => {
-      const current = dayMoneyMap.get(w.participantId) || 0;
-      dayMoneyMap.set(w.participantId, current + w.payout);
-    });
-  });
-
-  let totalEntryFeesCollected = 0;
-  let totalMainPayoutsDistributed = 0;
-  let totalDayMoneyDistributed = 0;
-  let totalGreedyDistributed = 0;
-
-  const settlements: ParticipantSettlement[] = (participants || []).map((p) => {
-    const standing = standings.find((s) => s.participant.id === p.id);
-    const mainPayout = standing?.projectedPayout || 0;
-    const dayMoneyPayout = dayMoneyMap.get(p.id) || 0;
-    const greedyPayout = 0; // Reserved for greedy side bet purse
-    const hasPaid = Boolean(p.hasPaidEntry);
-
-    if (hasPaid) {
-      totalEntryFeesCollected += entryFee;
-    }
-    totalMainPayoutsDistributed += mainPayout;
-    totalDayMoneyDistributed += dayMoneyPayout;
-    totalGreedyDistributed += greedyPayout;
-
-    const totalWinnings = mainPayout + dayMoneyPayout + greedyPayout;
-    const netBalance = totalWinnings - (hasPaid ? entryFee : 0);
-
-    return {
-      participantId: p.id,
-      participantName: p.name,
-      entryFee,
-      hasPaid,
-      mainPayout,
-      dayMoneyPayout,
-      greedyPayout,
-      totalWinnings,
-      netBalance,
-    };
-  });
-
-  const totalPayoutsDistributed = totalMainPayoutsDistributed + totalDayMoneyDistributed + totalGreedyDistributed;
-  const netPoolBalance = totalEntryFeesCollected - totalPayoutsDistributed;
-
-  return {
-    totalEntryFeesCollected,
-    totalMainPayoutsDistributed,
-    totalDayMoneyDistributed,
-    totalGreedyDistributed,
-    totalPayoutsDistributed,
-    netPoolBalance,
-    isFinalized,
-    settlements,
-  };
+  return calculateWagerSettlementFromSettlement(
+    participants,
+    standings,
+    dayMoneyResults,
+    greedyStandings,
+    contestConfig
+  );
 }
+
 
 
 

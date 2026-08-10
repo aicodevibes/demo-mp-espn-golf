@@ -36,7 +36,12 @@ The system is designed to run automatically during the tournament (via cron scor
   * Golfer cuts are checked dynamically (based on a cutline configuration value or ESPN status).
   * Any player who has been cut is assigned a dummy penalty score of **999** for Day 3 and Day 4. 
   * This effectively excludes them from the "lowest two" calculation, unless a participant has fewer than two active golfers remaining.
-* **Participant Cut Status**: If a participant has **zero active players** remaining after the Day 2 cut line, they are marked as "Cut" (`isCut: true`). Cut participants are automatically sorted to the bottom of the standings.
+* **Participant Cut Status & 4th Golfer Replacement**: 
+  * If a participant loses **all 3 drafted players** after the Day 2 cut line, they are marked as "Cut" (`isCut: true`). Cut participants are automatically sorted to the bottom of the standings and eliminated.
+  * If a participant loses **exactly 2 drafted players** (due to Cut or WD) after Day 2, an Admin manually assigns a **4th golfer** to their roster.
+  * **4th Golfer Scoring Rules**:
+    * **Day 1 & Day 2**: The 4th golfer's scores do **NOT** count toward the participant's daily score or Day Money eligibility.
+    * **Day 3 & Day 4**: The 4th golfer is active for R3 and R4. Both the remaining original active golfer and the 4th golfer's scores count for the participant's daily score (sum of both active golfers). The 4th golfer is also eligible for Day Money on Day 3 and Day 4.
 
 ### B. Overall Score
 * The total participant score is the cumulative sum of the calculated daily scores across all 4 days.
