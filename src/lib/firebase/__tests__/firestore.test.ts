@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { addTrackedPlayer, removeTrackedPlayer, syncPlayersToFirestore, TrackedPlayer, resolveParticipantsFromSnapshot } from '../firestore';
+import { addTrackedPlayer, removeTrackedPlayer, syncPlayersToFirestore, TrackedPlayer, resolveParticipantsFromSnapshot, resetParticipantRoster } from '../firestore';
 
 describe('Firestore Data Persistence & Validation', () => {
   it('throws a friendly error if player or playerId is undefined', async () => {
@@ -44,6 +44,34 @@ describe('Firestore Data Persistence & Validation', () => {
       expect(resultNull).toEqual(resultUndefined);
     });
   });
+
+  describe('resetParticipantRoster', () => {
+    it('copies participant names and IDs while clearing drafted golfers, greedy pick, and payments', () => {
+      const sourceList = [
+        {
+          id: 'p1',
+          name: 'John Doe',
+          draftedPlayerIds: ['3470', '1234'],
+          isGreedyParticipant: true,
+          greedyPlayerId: '3470',
+          hasPaidEntry: true,
+          hasPaidGreedy: true,
+        },
+      ];
+
+      const resetResult = resetParticipantRoster(sourceList);
+      expect(resetResult).toHaveLength(1);
+      expect(resetResult[0].id).toBe('p1');
+      expect(resetResult[0].name).toBe('John Doe');
+      expect(resetResult[0].draftedPlayerIds).toEqual([]);
+      expect(resetResult[0].isGreedyParticipant).toBe(false);
+      expect(resetResult[0].greedyPlayerId).toBeNull();
+      expect(resetResult[0].hasPaidEntry).toBe(false);
+
+      expect(resetResult[0].hasPaidGreedy).toBe(false);
+    });
+  });
 });
+
 
 

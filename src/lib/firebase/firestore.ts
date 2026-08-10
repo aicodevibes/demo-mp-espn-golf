@@ -347,6 +347,31 @@ export function useParticipants(eventId?: string | null) {
   return { participants, loading };
 }
 
+export function resetParticipantRoster(participants: Participant[]): Participant[] {
+  return participants.map((p) => ({
+    id: p.id,
+    name: p.name,
+    draftedPlayerIds: [],
+    isGreedyParticipant: false,
+    greedyPlayerId: null,
+    hasPaidEntry: false,
+    hasPaidGreedy: false,
+  }));
+}
+
+
+export async function copyRosterFromEvent(
+  sourceEventId: string,
+  targetEventId: string
+): Promise<Participant[]> {
+  if (!sourceEventId || !targetEventId) return [];
+  const sourceParticipants = await getParticipantsForEvent(sourceEventId);
+  const resetList = resetParticipantRoster(sourceParticipants);
+  await setParticipantsForEvent(targetEventId, resetList);
+  return resetList;
+}
+
+
 
 
 

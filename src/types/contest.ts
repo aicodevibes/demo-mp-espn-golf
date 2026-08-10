@@ -3,10 +3,11 @@ export interface Participant {
   name: string;
   draftedPlayerIds: string[];
   isGreedyParticipant?: boolean;
-  greedyPlayerId?: string;
+  greedyPlayerId?: string | null;
   hasPaidEntry?: boolean;
   hasPaidGreedy?: boolean;
 }
+
 
 export interface DraftedGolferStatus {
   id: string;
