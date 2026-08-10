@@ -133,4 +133,14 @@ describe('Contest Engine Seam (lib/contestEngine.ts)', () => {
     expect(p2?.projectedPayout).toBe(400);
     expect(p3?.projectedPayout).toBe(400);
   });
+
+  it('reflects isFinalized status in wagerLedger when contest is finalized', () => {
+    const finalizedConfig: ContestConfig = {
+      ...sampleConfig,
+      isFinalized: true,
+    };
+    const result = evaluateContest(sampleParticipants, sampleCompetitors, finalizedConfig);
+    expect(result.wagerLedger.isFinalized).toBe(true);
+  });
 });
+

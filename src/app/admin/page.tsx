@@ -71,7 +71,12 @@ export default function AdminPage() {
 
   const handleCopyRosterFromEvent = async () => {
     if (!sourceCopyEventId || !selectedEventId) return;
+    if (isEventFinalized) {
+      alert('This tournament event is finalized and locked in read-only mode.');
+      return;
+    }
     if (sourceCopyEventId === selectedEventId) {
+
       alert('Please select a different source event to copy from.');
       return;
     }
@@ -121,6 +126,8 @@ export default function AdminPage() {
   // Load selected event details from Firestore
   const { config: selectedContestConfig, loading: configLoading } = useContestConfig(selectedEventId);
   const { participants: selectedParticipants, loading: participantsLoading } = useParticipants(selectedEventId);
+  const isEventFinalized = Boolean(selectedContestConfig?.isFinalized);
+
 
   // ESPN field details for the selected event
   const [competitors, setCompetitors] = useState<ESPNCompetitor[]>([]);
@@ -249,6 +256,10 @@ export default function AdminPage() {
   // Toggle Participant Payment Checkmark
   const handleTogglePayment = async (p: Participant) => {
     if (!selectedEventId) return;
+    if (isEventFinalized) {
+      alert('This tournament event is finalized and locked in read-only mode.');
+      return;
+    }
     try {
       const updated = {
         ...p,
@@ -283,6 +294,10 @@ export default function AdminPage() {
   // Delete Event Subtree
   const handleDeleteEvent = async () => {
     if (!selectedEventId) return;
+    if (isEventFinalized) {
+      alert('This tournament event is finalized and locked in read-only mode.');
+      return;
+    }
     if (!confirm('Are you sure you want to delete this event and all associated participants? This action cannot be undone.')) {
       return;
     }
@@ -316,6 +331,10 @@ export default function AdminPage() {
   // Seeding: Seed 12 standard names
   const handleSeedDefaultNames = async () => {
     if (!selectedEventId) return;
+    if (isEventFinalized) {
+      alert('This tournament event is finalized and locked in read-only mode.');
+      return;
+    }
     if (!confirm('This will seed the 12 default participants. Continue?')) return;
     setSyncing(true);
     try {
@@ -353,6 +372,10 @@ export default function AdminPage() {
   // Reset rosters
   const handleResetRosters = async () => {
     if (!selectedEventId) return;
+    if (isEventFinalized) {
+      alert('This tournament event is finalized and locked in read-only mode.');
+      return;
+    }
     if (!confirm('Reset all rosters? This clears all participants for this event.')) return;
     setSyncing(true);
     try {
@@ -369,6 +392,11 @@ export default function AdminPage() {
   // Mock auto-assign rosters
   const handleAutoAssignRosters = async () => {
     if (!selectedEventId) return;
+    if (isEventFinalized) {
+      alert('This tournament event is finalized and locked in read-only mode.');
+      return;
+    }
+
     if (competitors.length < 36) {
       alert('Not enough competitors in the tournament field to assign 3 unique players to 12 participants.');
       return;
@@ -424,6 +452,10 @@ export default function AdminPage() {
   const handleSaveParticipant = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedEventId) return;
+    if (isEventFinalized) {
+      alert('This tournament event is finalized and locked in read-only mode.');
+      return;
+    }
     if (!partName.trim()) {
       alert('Name is required.');
       return;
@@ -469,6 +501,10 @@ export default function AdminPage() {
 
   const handleProcessBatchRosters = async () => {
     if (!selectedEventId || !batchRosterText.trim()) return;
+    if (isEventFinalized) {
+      alert('This tournament event is finalized and locked in read-only mode.');
+      return;
+    }
     setSyncing(true);
     try {
       const lines = batchRosterText.split('\n').filter((l) => l.trim());
@@ -523,6 +559,11 @@ export default function AdminPage() {
   // Delete Participant
   const handleDeleteParticipant = async (pId: string) => {
     if (!selectedEventId) return;
+    if (isEventFinalized) {
+      alert('This tournament event is finalized and locked in read-only mode.');
+      return;
+    }
+
     if (!confirm('Are you sure you want to remove this participant?')) return;
     try {
       await removeParticipantFromEvent(selectedEventId, pId);
@@ -684,8 +725,19 @@ export default function AdminPage() {
       <main className="max-w-7xl w-full mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-12 gap-8 flex-1">
         {/* Left Column: Config, Seeding, Participants List (8 cols) */}
         <div className="lg:col-span-8 space-y-8">
+          {/* FINALIZED LOCK BANNER */}
+          {isEventFinalized && (
+            <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 flex items-center justify-between gap-3 shadow-xs">
+              <div className="flex items-center gap-2 text-xs font-bold">
+                <ShieldAlert className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
+                <span>This tournament event is finalized and locked in read-only mode. Uncheck 'Finalize Standings' below to enable editing.</span>
+              </div>
+            </div>
+          )}
+
           {/* SECTION 1: EVENT CONFIGURATION */}
           <section className="bg-surface-container-low border border-outline-variant rounded-xl p-6 space-y-6 shadow-xs">
+
             <div className="flex justify-between items-center border-b border-outline-variant/60 pb-3">
               <h2 className="text-sm font-black uppercase tracking-widest text-on-surface flex items-center gap-2">
                 Event Selection & Config
@@ -839,7 +891,7 @@ export default function AdminPage() {
                 <div className="flex flex-wrap gap-2">
                   <button
                     onClick={() => setShowBatchModal(true)}
-                    disabled={syncing}
+                    disabled={syncing || isEventFinalized}
                     className="inline-flex items-center gap-1 bg-surface-container-high hover:bg-surface-container-highest text-on-surface border border-outline-variant text-[11px] font-bold px-3 py-2 rounded transition disabled:opacity-50"
                   >
                     📋 Batch Paste Rosters
@@ -847,7 +899,7 @@ export default function AdminPage() {
 
                   <button
                     onClick={() => setShowCopyModal(true)}
-                    disabled={syncing || events.length < 2}
+                    disabled={syncing || events.length < 2 || isEventFinalized}
                     className="inline-flex items-center gap-1 bg-surface-container-high hover:bg-surface-container-highest text-on-surface border border-outline-variant text-[11px] font-bold px-3 py-2 rounded transition disabled:opacity-50"
                   >
                     <Copy className="w-3.5 h-3.5" /> Copy Roster from Event
@@ -855,7 +907,7 @@ export default function AdminPage() {
 
                   <button
                     onClick={handleSeedDefaultNames}
-                    disabled={syncing}
+                    disabled={syncing || isEventFinalized}
                     className="inline-flex items-center gap-1 bg-secondary text-on-secondary hover:bg-secondary/95 text-[11px] font-bold px-3 py-2 rounded transition disabled:opacity-50"
                   >
                     <Users className="w-3.5 h-3.5" /> Seed Default Names
@@ -864,7 +916,7 @@ export default function AdminPage() {
 
                   <button
                     onClick={handleAutoAssignRosters}
-                    disabled={syncing || selectedParticipants.length === 0}
+                    disabled={syncing || selectedParticipants.length === 0 || isEventFinalized}
                     className="inline-flex items-center gap-1 bg-tertiary text-on-tertiary hover:bg-tertiary/95 text-[11px] font-bold px-3 py-2 rounded transition disabled:opacity-50"
                   >
                     <RefreshCw className="w-3.5 h-3.5" /> Auto-Assign Field Golfers
@@ -872,9 +924,10 @@ export default function AdminPage() {
 
                   <button
                     onClick={handleResetRosters}
-                    disabled={syncing}
+                    disabled={syncing || isEventFinalized}
                     className="inline-flex items-center gap-1 bg-red-600/10 text-red-600 border border-red-500/20 hover:bg-red-600/15 text-[11px] font-bold px-3 py-2 rounded transition disabled:opacity-50"
                   >
+
                     <X className="w-3.5 h-3.5" /> Reset Rosters
                   </button>
                 </div>
@@ -1088,7 +1141,8 @@ export default function AdminPage() {
                 <div className="pt-2">
                   <button
                     type="submit"
-                    className="inline-flex items-center gap-1 bg-primary text-on-primary hover:bg-primary/95 text-xs font-bold px-4 py-2 rounded-lg transition"
+                    disabled={isEventFinalized}
+                    className="inline-flex items-center gap-1 bg-primary text-on-primary hover:bg-primary/95 text-xs font-bold px-4 py-2 rounded-lg transition disabled:opacity-50"
                   >
                     <Plus className="w-3.5 h-3.5" /> {editingParticipant ? 'Save Participant' : 'Add Participant'}
                   </button>
@@ -1144,8 +1198,9 @@ export default function AdminPage() {
                         <td className="py-3 px-4 text-center">
                           <button
                             type="button"
+                            disabled={isEventFinalized}
                             onClick={() => handleTogglePayment(p)}
-                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold border transition cursor-pointer ${
+                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold border transition cursor-pointer disabled:opacity-50 ${
                               p.hasPaidEntry
                                 ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/20'
                                 : 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30 hover:bg-amber-500/20'
@@ -1157,14 +1212,16 @@ export default function AdminPage() {
                         <td className="py-3 px-4 text-right space-x-1.5">
                           <button
                             onClick={() => startEditParticipant(p)}
-                            className="text-secondary hover:text-primary font-bold transition text-[11px]"
+                            disabled={isEventFinalized}
+                            className="text-secondary hover:text-primary font-bold transition text-[11px] disabled:opacity-50"
                           >
                             Edit
                           </button>
                           <span className="text-outline-variant/40">|</span>
                           <button
                             onClick={() => handleDeleteParticipant(p.id)}
-                            className="text-red-600 hover:text-red-700 font-bold transition text-[11px]"
+                            disabled={isEventFinalized}
+                            className="text-red-600 hover:text-red-700 font-bold transition text-[11px] disabled:opacity-50"
                           >
                             Delete
                           </button>
