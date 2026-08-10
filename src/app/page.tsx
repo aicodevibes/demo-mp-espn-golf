@@ -39,9 +39,7 @@ import {
 } from '@/lib/espn';
 import { evaluateContest } from '@/lib/contestEngine';
 import { evaluateFieldLeaderboard } from '@/lib/fieldLeaderboard';
-
-/** Poll ESPN leaderboard every 5 minutes while the tab is visible — matching the previous cron cadence. */
-const LEADERBOARD_POLL_INTERVAL_MS = 5 * 60 * 1000;
+import { useLeaderboardPolling } from '@/hooks/useLeaderboardPolling';
 
 export default function DashboardPage() {
   const { user, isAdmin } = useAuth();
@@ -159,25 +157,7 @@ export default function DashboardPage() {
   }, [fetchLeaderboard]);
 
   // 3a. Poll leaderboard every 5 minutes while tab is visible; re-fetch immediately on tab return
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (!document.hidden) {
-        fetchLeaderboard();
-      }
-    }, LEADERBOARD_POLL_INTERVAL_MS);
-
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        fetchLeaderboard();
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      clearInterval(interval);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [fetchLeaderboard]);
+  useLeaderboardPolling({ activeEventId, onPoll: fetchLeaderboard });
 
   // Vercel Performance Rule: rerender-derived-state & js-set-map-lookups
   const trackedPlayerIdsSet = useMemo(
