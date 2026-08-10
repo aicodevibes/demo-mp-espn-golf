@@ -29,5 +29,5 @@ The layered surface structure establishing visual depth and theme consistency:
 ### Rank Badging & Clean Header System
 - **Rank Badges**: High-contrast, solid badge styling for top positions (1st Gold, 2nd Silver, 3rd Bronze, 4th Green).
 - **Clean Component Headers**: Uppercase, icon-free section headers without sub-header text for a crisp presentation.
-- **Global Player Selection Sync**: Selecting any golfer updates the global player state, updating visual selection highlights across components and rendering the golfer's 18-hole scorecard matrix.
+- **Global Player Selection Sync**: Selecting any golfer updates the global player state, updating visual selection highlights across components. Scorecard Matrix updates in-place seamlessly using synchronous competitor fallback data and client-side summary caching, eliminating component unmounting, layout shifting, or skeleton flashes when switching watchlist player cards.
 - **Fixed 18-Hole Scorecard Matrix**: Scorecard view mapping all 18 holes (1–9 front nine and 10–18 back nine), locking `OUT`, `IN`, and `TOT` summary columns to their table headers with unplayed holes rendering as `-`.

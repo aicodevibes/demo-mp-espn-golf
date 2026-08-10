@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { Header } from '@/components/Header';
 import { TrackedPlayerHeroGrid } from '@/components/TrackedPlayerHeroGrid';
@@ -56,6 +56,8 @@ export default function DashboardPage() {
   const [selectedParticipantId, setSelectedParticipantId] = useState<string>('top_view');
   const [playerSummary, setPlayerSummary] = useState<ESPNPlayerSummary | null>(null);
   const [loadingSummary, setLoadingSummary] = useState<boolean>(false);
+  const [isFetchingSummary, setIsFetchingSummary] = useState<boolean>(false);
+  const playerSummaryCacheRef = useRef<Map<string, ESPNPlayerSummary>>(new Map());
 
   const [isWatchlistCollapsed, setIsWatchlistCollapsed] = useState<boolean>(false);
 
@@ -269,7 +271,21 @@ export default function DashboardPage() {
     if (!selectedCompetitorId || !selectedViewerEventId || !selectedCompetitor) return;
 
     let isMounted = true;
-    setLoadingSummary(true);
+    const cacheKey = `${selectedViewerEventId}_${selectedCompetitorId}`;
+
+    // 4a. Check in-memory summary cache
+    const cachedSummary = playerSummaryCacheRef.current.get(cacheKey);
+    if (cachedSummary) {
+      setPlayerSummary(cachedSummary);
+      setLoadingSummary(false);
+      setIsFetchingSummary(false);
+      return;
+    }
+
+    // 4b. Immediately populate fallback summary from competitor so scorecard never unmounts
+    const fallbackSummary = formatPlayerSummaryFromCompetitor(selectedCompetitor);
+    setPlayerSummary(fallbackSummary);
+    setIsFetchingSummary(true);
 
     async function fetchPlayerSummary() {
       try {
@@ -281,21 +297,16 @@ export default function DashboardPage() {
           const data = await res.json();
           if (isMounted) {
             const summary = formatPlayerSummaryFromESPNData(data, selectedCompetitor);
+            playerSummaryCacheRef.current.set(cacheKey, summary);
             setPlayerSummary(summary);
-          }
-        } else {
-          if (isMounted) {
-            setPlayerSummary(formatPlayerSummaryFromCompetitor(selectedCompetitor));
           }
         }
       } catch (err) {
         console.error('Failed to fetch player summary from ESPN API:', err);
-        if (isMounted) {
-          setPlayerSummary(formatPlayerSummaryFromCompetitor(selectedCompetitor));
-        }
       } finally {
         if (isMounted) {
           setLoadingSummary(false);
+          setIsFetchingSummary(false);
         }
       }
     }
@@ -305,7 +316,7 @@ export default function DashboardPage() {
     return () => {
       isMounted = false;
     };
-  }, [selectedCompetitorId, selectedViewerEventId]);
+  }, [selectedCompetitorId, selectedViewerEventId, selectedCompetitor]);
 
 
   // Admin Actions
@@ -437,6 +448,7 @@ export default function DashboardPage() {
             competitor={selectedCompetitor}
             eventStatus={activeEvent?.status}
             loading={loadingSummary}
+            isFetching={isFetchingSummary}
             playerName={selectedCompetitor?.athlete?.displayName}
           />
         </section>

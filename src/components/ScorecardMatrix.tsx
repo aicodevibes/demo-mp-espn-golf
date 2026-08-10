@@ -12,6 +12,7 @@ interface ScorecardMatrixProps {
   competitor?: ESPNCompetitor | null;
   eventStatus?: any;
   loading?: boolean;
+  isFetching?: boolean;
   playerName?: string;
 }
 
@@ -20,6 +21,7 @@ export function ScorecardMatrix({
   competitor,
   eventStatus,
   loading,
+  isFetching,
   playerName = 'Selected Golfer',
 }: ScorecardMatrixProps) {
   const [activeRound, setActiveRound] = useState<number>(1);
@@ -68,7 +70,7 @@ export function ScorecardMatrix({
   // Use the leaderboard competitor (has linescores) for CUT detection
   const statusInfo = competitor ? getPlayerStatusInfo(competitor, eventStatus) : null;
 
-  if (loading) {
+  if (loading && !playerSummary) {
     return (
       <div className="p-4 rounded-xl bg-surface-container-low border border-outline-variant animate-pulse space-y-3">
         <div className="h-6 w-48 bg-surface-container-high rounded" />
@@ -188,7 +190,12 @@ export function ScorecardMatrix({
   }
 
   return (
-    <div className="rounded-xl bg-surface-container-low border border-outline-variant p-4 sm:p-5 space-y-4 shadow-xs">
+    <div className="relative overflow-hidden rounded-xl bg-surface-container-low border border-outline-variant p-4 sm:p-5 space-y-4 shadow-xs">
+      {/* Top Accent Progress Line during Background Fetch */}
+      {isFetching && (
+        <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-tertiary/20 via-tertiary to-tertiary/20 animate-pulse" />
+      )}
+
       {/* Ribbon Header & Round Tabs */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-outline-variant pb-3">
         <div className="flex items-center gap-3">
@@ -256,7 +263,7 @@ export function ScorecardMatrix({
       </div>
 
       {/* Scorecard Table Matrix */}
-      <div className="overflow-x-auto">
+      <div className={`overflow-x-auto transition-opacity duration-200 ${isFetching ? 'opacity-85' : 'opacity-100'}`}>
         <table className="w-full text-center border-collapse min-w-160">
           <thead>
             <tr className="bg-surface-container-high text-[11px] font-bold text-on-surface-variant uppercase tracking-wider border-b border-outline-variant">
