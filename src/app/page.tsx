@@ -124,7 +124,15 @@ export default function DashboardPage() {
   // 3. Fetch Active Event Leaderboard — stable callback so polling can call it without re-creating on every render
   const fetchLeaderboard = useCallback(async () => {
     if (!activeEventId) return;
-    setLoadingLeaderboard(true);
+    
+    // Only show loading skeleton on initial fetch when competitors are empty
+    setCompetitors((currentComps) => {
+      if (currentComps.length === 0) {
+        setLoadingLeaderboard(true);
+      }
+      return currentComps;
+    });
+
     try {
       const res = await fetch(`/api/espn/leaderboard?event=${activeEventId}`);
       if (res.ok) {
@@ -135,12 +143,15 @@ export default function DashboardPage() {
           setCompetitors(comps);
           syncPlayersToFirestore(comps);
 
-          // Auto-select first tracked player or first field competitor
-          if (comps.length > 0 && !selectedPlayerId) {
-            const firstTracked = comps.find((c: ESPNCompetitor) =>
-              trackedPlayers.some((p) => p.playerId === (c.athlete?.id || c.id))
-            );
-            setSelectedPlayerId(firstTracked ? firstTracked.athlete?.id || firstTracked.id : comps[0].athlete?.id || comps[0].id);
+          // Auto-select first tracked player or first field competitor if none selected yet
+          if (comps.length > 0) {
+            setSelectedPlayerId((prev) => {
+              if (prev) return prev;
+              const firstTracked = comps.find((c: ESPNCompetitor) =>
+                trackedPlayers.some((p) => p.playerId === (c.athlete?.id || c.id))
+              );
+              return firstTracked ? firstTracked.athlete?.id || firstTracked.id : comps[0].athlete?.id || comps[0].id;
+            });
           }
         }
       }
@@ -149,7 +160,7 @@ export default function DashboardPage() {
     } finally {
       setLoadingLeaderboard(false);
     }
-  }, [activeEventId, selectedPlayerId, trackedPlayers]);
+  }, [activeEventId, trackedPlayers]);
 
   // Initial leaderboard fetch on active event change
   useEffect(() => {
@@ -245,12 +256,11 @@ export default function DashboardPage() {
     return compMap.get(selectedPlayerId) || displayCompetitors[0];
   }, [competitors, selectedPlayerId, displayCompetitors]);
 
+  const selectedCompetitorId = selectedCompetitor?.athlete?.id || selectedCompetitor?.id;
+
   // 4. Fetch Hole-by-Hole Player Summary from ESPN API for selected golfer
   useEffect(() => {
-    if (!selectedCompetitor || !activeEventId) return;
-
-    const playerId = selectedCompetitor.athlete?.id || selectedCompetitor.id;
-    if (!playerId) return;
+    if (!selectedCompetitorId || !activeEventId || !selectedCompetitor) return;
 
     let isMounted = true;
     setLoadingSummary(true);
@@ -259,7 +269,7 @@ export default function DashboardPage() {
       try {
         const season = new Date().getFullYear();
         const res = await fetch(
-          `/api/espn/playersummary?eventId=${activeEventId}&playerId=${playerId}&season=${season}`
+          `/api/espn/playersummary?eventId=${activeEventId}&playerId=${selectedCompetitorId}&season=${season}`
         );
         if (res.ok) {
           const data = await res.json();
@@ -289,7 +299,7 @@ export default function DashboardPage() {
     return () => {
       isMounted = false;
     };
-  }, [selectedCompetitor, activeEventId]);
+  }, [selectedCompetitorId, activeEventId]);
 
   // Admin Actions
   const handleSelectEvent = useCallback(async (eventId: string) => {
