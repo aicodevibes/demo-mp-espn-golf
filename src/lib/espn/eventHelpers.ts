@@ -447,55 +447,25 @@ export function evaluateGolferRoundScore(
   };
 }
 
-export const SYNTHETIC_PGA_FIELD: ESPNCompetitor[] = [
-  { id: '3470', name: 'Scottie Scheffler' },
-  { id: '1097', name: 'Rory McIlroy' },
-  { id: '6007', name: 'Xander Schauffele' },
-  { id: '3092582', name: 'Collin Morikawa' },
-  { id: '9890', name: 'Viktor Hovland' },
-  { id: '4808132', name: 'Ludvig Aberg' },
-  { id: '10538', name: 'Wyndham Clark' },
-  { id: '3588', name: 'Hideki Matsuyama' },
-  { id: '11096', name: 'Patrick Cantlay' },
-  { id: '5548', name: 'Tommy Fleetwood' },
-  { id: '3550', name: 'Max Homa' },
-  { id: '4604625', name: 'Sahith Theegala' },
-  { id: '3471', name: 'Keegan Bradley' },
-  { id: '4407908', name: 'Sam Burns' },
-  { id: '5553', name: 'Tony Finau' },
-  { id: '4686', name: 'Justin Thomas' },
-  { id: '5467', name: 'Jordan Spieth' },
-  { id: '10899', name: 'Cameron Young' },
-  { id: '3488', name: 'Shane Lowry' },
-  { id: '436', name: 'Matt Fitzpatrick' },
-  { id: '4587', name: 'Jon Rahm' },
-  { id: '1225', name: 'Brian Harman' },
-  { id: '11382', name: 'Sungjae Im' },
-  { id: '9131', name: 'Corey Conners' },
-  { id: '5409', name: 'Russell Henley' },
-  { id: '3989', name: 'Byeong Hun An' },
-  { id: '4692797', name: 'Tom Kim' },
-  { id: '1680', name: 'Jason Day' },
-  { id: '3449', name: 'Chris Kirk' },
-  { id: '9891', name: 'Sepp Straka' },
-  { id: '9261', name: 'Matthieu Pavon' },
-  { id: '4373678', name: 'Will Zalatoris' },
-  { id: '4375971', name: 'Min Woo Lee' },
-  { id: '9134', name: 'Taylor Pendrith' },
-  { id: '10423', name: 'Robert MacIntyre' },
-  { id: '5405', name: 'Nick Taylor' },
-  { id: '10425', name: 'Aaron Rai' },
-  { id: '4604624', name: 'Davis Thompson' },
-  { id: '5827', name: 'Stephan Jaeger' },
-  { id: '9889', name: 'Denny McCarthy' },
-  { id: '4373656', name: 'Eric Cole' },
-].map((item) => ({
+import espnCatalogData from './espnPlayerDirectory.json';
+
+export const AUTHENTIC_ESPN_PGA_CATALOG: Array<{
+  id: string;
+  name: string;
+  headshotUrl: string;
+  country?: string;
+  flag?: string;
+}> = espnCatalogData;
+
+export const SYNTHETIC_PGA_FIELD: ESPNCompetitor[] = AUTHENTIC_ESPN_PGA_CATALOG.map((item) => ({
   id: item.id,
   athlete: {
     id: item.id,
     displayName: item.name,
     isSynthetic: true,
-    headshot: { href: `https://a.espncdn.com/i/headshots/golf/players/full/${item.id}.png` },
+    headshot: { href: item.headshotUrl },
+    country: item.country ? { abbreviation: item.country } : undefined,
+    flag: item.flag ? { href: item.flag } : undefined,
   },
 }));
 
@@ -516,12 +486,12 @@ export const DEFAULT_PLAYER_DIRECTORY_MAP: Record<
   string,
   { id: string; name: string; headshotUrl?: string }
 > = Object.fromEntries(
-  SYNTHETIC_PGA_FIELD.map((c) => [
-    c.athlete?.id || c.id,
+  AUTHENTIC_ESPN_PGA_CATALOG.map((c) => [
+    c.id,
     {
-      id: c.athlete?.id || c.id,
-      name: c.athlete?.displayName || 'Golfer',
-      headshotUrl: c.athlete?.headshot?.href || `https://a.espncdn.com/i/headshots/golf/players/full/${c.id}.png`,
+      id: c.id,
+      name: c.name,
+      headshotUrl: c.headshotUrl,
     },
   ])
 );

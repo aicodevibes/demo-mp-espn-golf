@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PGA Tour Player Directory & Headshots Reference Gallery</title>
+  <title>PGA Tour Player Directory & Headshots Reference Gallery (279 Authentic Golfers)</title>
   <style>
     :root {
       --bg: #0f172a;
@@ -147,8 +147,8 @@
 <body>
 
   <header>
-    <h1>⛳ PGA Tour Player Directory & Headshots Reference Gallery</h1>
-    <p>Visual verification gallery for all PGA Tour players in the application database.</p>
+    <h1>⛳ Authentic PGA Tour Player Directory Reference (279 Golfers)</h1>
+    <p>Extracted directly from ESPN's PGA Tour API — verified athlete IDs and live headshots.</p>
 
     <div class="stats">
       <div class="stat-item">
@@ -169,113 +169,92 @@
   <div class="grid" id="playerGrid"></div>
 
   <script>
-    const players = [
-      { id: '3470', name: 'Scottie Scheffler' },
-      { id: '1097', name: 'Rory McIlroy' },
-      { id: '6007', name: 'Xander Schauffele' },
-      { id: '3092582', name: 'Collin Morikawa' },
-      { id: '9890', name: 'Viktor Hovland' },
-      { id: '4808132', name: 'Ludvig Aberg' },
-      { id: '10538', name: 'Wyndham Clark' },
-      { id: '3588', name: 'Hideki Matsuyama' },
-      { id: '11096', name: 'Patrick Cantlay' },
-      { id: '5548', name: 'Tommy Fleetwood' },
-      { id: '3550', name: 'Max Homa' },
-      { id: '4604625', name: 'Sahith Theegala' },
-      { id: '3471', name: 'Keegan Bradley' },
-      { id: '4407908', name: 'Sam Burns' },
-      { id: '5553', name: 'Tony Finau' },
-      { id: '4686', name: 'Justin Thomas' },
-      { id: '5467', name: 'Jordan Spieth' },
-      { id: '10899', name: 'Cameron Young' },
-      { id: '3488', name: 'Shane Lowry' },
-      { id: '436', name: 'Matt Fitzpatrick' },
-      { id: '4587', name: 'Jon Rahm' },
-      { id: '1225', name: 'Brian Harman' },
-      { id: '11382', name: 'Sungjae Im' },
-      { id: '9131', name: 'Corey Conners' },
-      { id: '5409', name: 'Russell Henley' },
-      { id: '3989', name: 'Byeong Hun An' },
-      { id: '4692797', name: 'Tom Kim' },
-      { id: '1680', name: 'Jason Day' },
-      { id: '3449', name: 'Chris Kirk' },
-      { id: '9891', name: 'Sepp Straka' },
-      { id: '9261', name: 'Matthieu Pavon' },
-      { id: '4373678', name: 'Will Zalatoris' },
-      { id: '4375971', name: 'Min Woo Lee' },
-      { id: '9134', name: 'Taylor Pendrith' },
-      { id: '10423', name: 'Robert MacIntyre' },
-      { id: '5405', name: 'Nick Taylor' },
-      { id: '10425', name: 'Aaron Rai' },
-      { id: '4604624', name: 'Davis Thompson' },
-      { id: '5827', name: 'Stephan Jaeger' },
-      { id: '9889', name: 'Denny McCarthy' },
-      { id: '4373656', name: 'Eric Cole' }
-    ];
+    async function loadGallery() {
+      let players = [];
+      try {
+        const res = await fetch('/_next/static/chunks/espnPlayerDirectory.json').catch(() => null);
+        if (res && res.ok) {
+          players = await res.json();
+        }
+      } catch (e) {}
 
-    function getInitials(name) {
-      const parts = name.split(' ');
-      if (parts.length >= 2) {
-        return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+      if (!players || players.length === 0) {
+        // Fallback embed of top golfers
+        players = [
+          { id: "9478", name: "Scottie Scheffler", headshotUrl: "https://a.espncdn.com/i/headshots/golf/players/full/9478.png" },
+          { id: "3470", name: "Rory McIlroy", headshotUrl: "https://a.espncdn.com/i/headshots/golf/players/full/3470.png" },
+          { id: "10140", name: "Xander Schauffele", headshotUrl: "https://a.espncdn.com/i/headshots/golf/players/full/10140.png" },
+          { id: "10592", name: "Collin Morikawa", headshotUrl: "https://a.espncdn.com/i/headshots/golf/players/full/10592.png" },
+          { id: "9780", name: "Jon Rahm", headshotUrl: "https://a.espncdn.com/i/headshots/golf/players/full/9780.png" },
+          { id: "10906", name: "Aaron Rai", headshotUrl: "https://a.espncdn.com/i/headshots/golf/players/full/10906.png" },
+          { id: "4425906", name: "Cameron Young", headshotUrl: "https://a.espncdn.com/i/headshots/golf/players/full/4425906.png" },
+          { id: "10054", name: "Denny McCarthy", headshotUrl: "https://a.espncdn.com/i/headshots/golf/players/full/10054.png" },
+          { id: "10522", name: "Eric Cole", headshotUrl: "https://a.espncdn.com/i/headshots/golf/players/full/10522.png" }
+        ];
       }
-      return name.slice(0, 2).toUpperCase();
+
+      document.getElementById('totalCount').textContent = players.length;
+
+      let loadedCount = 0;
+      let failedCount = 0;
+      const grid = document.getElementById('playerGrid');
+
+      function getInitials(name) {
+        const parts = name.split(' ');
+        if (parts.length >= 2) {
+          return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+        }
+        return name.slice(0, 2).toUpperCase();
+      }
+
+      players.forEach((p) => {
+        const card = document.createElement('div');
+        card.className = 'card';
+
+        const directUrl = p.headshotUrl || `https://a.espncdn.com/i/headshots/golf/players/full/${p.id}.png`;
+        const combinerUrl = `https://a.espncdn.com/combiner/i?img=/i/headshots/golf/players/full/${p.id}.png&w=120&h=120&scale=crop`;
+
+        card.innerHTML = `
+          <div class="avatar-wrapper">
+            <img src="${directUrl}" alt="${p.name}" class="avatar" id="img-${p.id}">
+          </div>
+          <div class="info">
+            <div class="name">${p.name}</div>
+            <div class="meta">ESPN ID: ${p.id}</div>
+            <div id="badge-${p.id}" class="status-badge status-success">Testing...</div>
+          </div>
+        `;
+
+        grid.appendChild(card);
+
+        const imgEl = document.getElementById(`img-${p.id}`);
+        const badgeEl = document.getElementById(`badge-${p.id}`);
+        let triedCombiner = false;
+
+        imgEl.onload = function() {
+          loadedCount++;
+          document.getElementById('successCount').textContent = loadedCount;
+          badgeEl.textContent = 'Loaded';
+          badgeEl.className = 'status-badge status-success';
+        };
+
+        imgEl.onerror = function() {
+          if (!triedCombiner) {
+            triedCombiner = true;
+            imgEl.src = combinerUrl;
+          } else {
+            failedCount++;
+            document.getElementById('errorCount').textContent = failedCount;
+            badgeEl.textContent = 'Failed (Initials)';
+            badgeEl.className = 'status-badge status-error';
+            const wrapper = imgEl.parentElement;
+            wrapper.innerHTML = `<div class="avatar-fallback">${getInitials(p.name)}</div>`;
+          }
+        };
+      });
     }
 
-    let loadedCount = 0;
-    let failedCount = 0;
-
-    document.getElementById('totalCount').textContent = players.length;
-
-    const grid = document.getElementById('playerGrid');
-
-    players.forEach((p) => {
-      const card = document.createElement('div');
-      card.className = 'card';
-
-      const directUrl = `https://a.espncdn.com/i/headshots/golf/players/full/${p.id}.png`;
-      const combinerUrl = `https://a.espncdn.com/combiner/i?img=/i/headshots/golf/players/full/${p.id}.png&w=120&h=120&scale=crop`;
-
-      card.innerHTML = `
-        <div class="avatar-wrapper">
-          <img src="${directUrl}" alt="${p.name}" class="avatar" id="img-${p.id}">
-        </div>
-        <div class="info">
-          <div class="name">${p.name}</div>
-          <div class="meta">ID: ${p.id}</div>
-          <div id="badge-${p.id}" class="status-badge status-success">Testing...</div>
-        </div>
-      `;
-
-      grid.appendChild(card);
-
-      const imgEl = document.getElementById(`img-${p.id}`);
-      const badgeEl = document.getElementById(`badge-${p.id}`);
-
-      let triedCombiner = false;
-
-      imgEl.onload = function() {
-        loadedCount++;
-        document.getElementById('successCount').textContent = loadedCount;
-        badgeEl.textContent = 'Loaded';
-        badgeEl.className = 'status-badge status-success';
-      };
-
-      imgEl.onerror = function() {
-        if (!triedCombiner) {
-          triedCombiner = true;
-          // Try ESPN combiner endpoint
-          imgEl.src = combinerUrl;
-        } else {
-          failedCount++;
-          document.getElementById('errorCount').textContent = failedCount;
-          badgeEl.textContent = 'Failed (Initials Fallback)';
-          badgeEl.className = 'status-badge status-error';
-          // Replace with Initials Avatar
-          const wrapper = imgEl.parentElement;
-          wrapper.innerHTML = `<div class="avatar-fallback">${getInitials(p.name)}</div>`;
-        }
-      };
-    });
+    loadGallery();
   </script>
 </body>
 </html>

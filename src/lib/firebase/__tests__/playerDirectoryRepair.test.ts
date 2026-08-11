@@ -5,8 +5,8 @@ describe('Player Directory Corruption Repair & Protection', () => {
   it('protects against legacy corrupt records where document ID conflicts with canonical golfer names', () => {
     // Legacy corrupt record from prior sync
     const legacyCorruptFirestoreData: Record<string, { id: string; name: string; headshotUrl?: string }> = {
-      '3471': { id: '3471', name: 'Rory McIlroy', headshotUrl: 'https://a.espncdn.com/i/headshots/golf/players/full/3471.png' },
-      '1097': { id: '1097', name: 'Rory McIlroy', headshotUrl: 'https://a.espncdn.com/i/headshots/golf/players/full/1097.png' },
+      '3470': { id: '3470', name: 'Scottie Scheffler', headshotUrl: 'https://a.espncdn.com/i/headshots/golf/players/full/3470.png' },
+      '9478': { id: '9478', name: 'Scottie Scheffler', headshotUrl: 'https://a.espncdn.com/i/headshots/golf/players/full/9478.png' },
     };
 
     const resolvedMap: Record<string, { id: string; name: string; headshotUrl?: string }> = {
@@ -22,12 +22,12 @@ describe('Player Directory Corruption Repair & Protection', () => {
       resolvedMap[docId] = data;
     });
 
-    // ID 3471 must remain Keegan Bradley (NOT Rory McIlroy)
-    expect(resolvedMap['3471'].name).toBe('Keegan Bradley');
-    expect(resolvedMap['3471'].name).not.toBe('Rory McIlroy');
+    // ID 3470 must remain Rory McIlroy (NOT Scottie Scheffler)
+    expect(resolvedMap['3470'].name).toBe('Rory McIlroy');
+    expect(resolvedMap['3470'].name).not.toBe('Scottie Scheffler');
 
-    // ID 1097 must remain Rory McIlroy
-    expect(resolvedMap['1097'].name).toBe('Rory McIlroy');
-    expect(resolvedMap['1097'].headshotUrl).toBe('https://a.espncdn.com/i/headshots/golf/players/full/1097.png');
+    // ID 9478 must remain Scottie Scheffler
+    expect(resolvedMap['9478'].name).toBe('Scottie Scheffler');
+    expect(resolvedMap['9478'].headshotUrl).toBe('https://a.espncdn.com/i/headshots/golf/players/full/9478.png');
   });
 });

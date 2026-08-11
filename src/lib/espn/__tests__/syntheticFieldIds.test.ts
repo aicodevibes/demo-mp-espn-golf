@@ -8,14 +8,14 @@ describe('SYNTHETIC_PGA_FIELD real ESPN IDs & Headshot mapping', () => {
     const schauffele = SYNTHETIC_PGA_FIELD.find((c) => c.athlete?.displayName === 'Xander Schauffele');
     const morikawa = SYNTHETIC_PGA_FIELD.find((c) => c.athlete?.displayName === 'Collin Morikawa');
 
-    expect(scheffler?.id).toBe('3470');
-    expect(mcIlroy?.id).toBe('1097');
-    expect(schauffele?.id).toBe('6007');
-    expect(morikawa?.id).toBe('3092582');
+    expect(scheffler?.id).toBe('9478');
+    expect(mcIlroy?.id).toBe('3470');
+    expect(schauffele?.id).toBe('10140');
+    expect(morikawa?.id).toBe('10592');
 
-    expect(scheffler?.athlete?.headshot?.href).toBe('https://a.espncdn.com/i/headshots/golf/players/full/3470.png');
-    expect(mcIlroy?.athlete?.headshot?.href).toBe('https://a.espncdn.com/i/headshots/golf/players/full/1097.png');
-    expect(schauffele?.athlete?.headshot?.href).toBe('https://a.espncdn.com/i/headshots/golf/players/full/6007.png');
-    expect(morikawa?.athlete?.headshot?.href).toBe('https://a.espncdn.com/i/headshots/golf/players/full/3092582.png');
+    expect(scheffler?.athlete?.headshot?.href).toBe('https://a.espncdn.com/i/headshots/golf/players/full/9478.png');
+    expect(mcIlroy?.athlete?.headshot?.href).toBe('https://a.espncdn.com/i/headshots/golf/players/full/3470.png');
+    expect(schauffele?.athlete?.headshot?.href).toBe('https://a.espncdn.com/i/headshots/golf/players/full/10140.png');
+    expect(morikawa?.athlete?.headshot?.href).toBe('https://a.espncdn.com/i/headshots/golf/players/full/10592.png');
   });
 });

@@ -9,8 +9,8 @@ describe('Scheduled/Upcoming Event Dashboard Evaluation', () => {
       {
         id: 'p1',
         name: 'Alice',
-        draftedPlayerIds: ['3470', '3471', '3472'],
-        greedyPlayerId: '3470',
+        draftedPlayerIds: ['9478', '3470', '10140'],
+        greedyPlayerId: '9478',
         hasPaidEntry: true,
       },
     ];
