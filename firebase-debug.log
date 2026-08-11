@@ -1,0 +1,86 @@
+[debug] [2026-08-10T20:40:04.583Z] ----------------------------------------------------------------------
+[debug] [2026-08-10T20:40:04.587Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\jl479\AppData\Local\npm-cache\_npx\ba4f1959e38407b5\node_modules\firebase-tools\lib\bin\firebase.js deploy --only firestore --project fir-demo-mp --non-interactive
+[debug] [2026-08-10T20:40:04.588Z] CLI Version:   15.26.0
+[debug] [2026-08-10T20:40:04.588Z] Platform:      win32
+[debug] [2026-08-10T20:40:04.588Z] Node Version:  v24.14.1
+[debug] [2026-08-10T20:40:04.588Z] Detected Agent: antigravity
+[debug] [2026-08-10T20:40:04.589Z] Time:          Mon Aug 10 2026 16:40:04 GMT-0400 (Eastern Daylight Time)
+[debug] [2026-08-10T20:40:04.589Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-08-10T20:40:06.845Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-08-10T20:40:06.845Z] > authorizing via signed-in user (aicodevibes@gmail.com)
+[debug] [2026-08-10T20:40:06.845Z] [iam] checking project fir-demo-mp for permissions ["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]
+[debug] [2026-08-10T20:40:06.898Z] Checked if tokens are valid: true, expires at: 1786397994285
+[debug] [2026-08-10T20:40:06.899Z] Checked if tokens are valid: true, expires at: 1786397994285
+[debug] [2026-08-10T20:40:06.902Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/fir-demo-mp:testIamPermissions [none]
+[debug] [2026-08-10T20:40:06.903Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/fir-demo-mp:testIamPermissions  x-goog-user-project=fir-demo-mp
+[debug] [2026-08-10T20:40:06.903Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/fir-demo-mp:testIamPermissions {"permissions":["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]}
+[debug] [2026-08-10T20:40:07.264Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/fir-demo-mp:testIamPermissions 200
+[debug] [2026-08-10T20:40:07.264Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/fir-demo-mp:testIamPermissions {"permissions":["datastore.indexes.create","datastore.indexes.delete","datastore.indexes.list","datastore.indexes.update","firebase.projects.get"]}
+[info] 
+[info] === Deploying to 'fir-demo-mp'...
+[info] 
+[info] i  deploying firestore 
+[info] i  firestore: ensuring required API firestore.googleapis.com is enabled... 
+[info] i  firestore: ensuring required API firestore.googleapis.com is enabled... 
+[debug] [2026-08-10T20:40:07.275Z] Checked if tokens are valid: true, expires at: 1786397994285
+[debug] [2026-08-10T20:40:07.275Z] Checked if tokens are valid: true, expires at: 1786397994285
+[debug] [2026-08-10T20:40:07.276Z] >>> [apiv2][query] GET https://firestore.googleapis.com/v1/projects/fir-demo-mp/databases/fir-demo-mp [none]
+[debug] [2026-08-10T20:40:07.728Z] <<< [apiv2][status] GET https://firestore.googleapis.com/v1/projects/fir-demo-mp/databases/fir-demo-mp 200
+[debug] [2026-08-10T20:40:07.729Z] <<< [apiv2][body] GET https://firestore.googleapis.com/v1/projects/fir-demo-mp/databases/fir-demo-mp {"name":"projects/fir-demo-mp/databases/fir-demo-mp","uid":"f28449c2-ab81-464c-97ce-661c34f4ee65","createTime":"2026-08-03T20:13:52.418972Z","updateTime":"2026-08-03T20:13:52.418972Z","locationId":"nam5","type":"FIRESTORE_NATIVE","concurrencyMode":"PESSIMISTIC","versionRetentionPeriod":"3600s","earliestVersionTime":"2026-08-10T19:40:07.596801Z","appEngineIntegrationMode":"DISABLED","pointInTimeRecoveryEnablement":"POINT_IN_TIME_RECOVERY_DISABLED","deleteProtectionState":"DELETE_PROTECTION_DISABLED","databaseEdition":"STANDARD","freeTier":true,"realtimeUpdatesMode":"REALTIME_UPDATES_MODE_ENABLED","etag":"IOfi3+D1lpYDMLqrt8q0hZYD"}
+[info] i  firestore: reading indexes from firestore.indexes.json... 
+[info] i  cloud.firestore: checking firestore.rules for compilation errors... 
+[debug] [2026-08-10T20:40:07.737Z] Checked if tokens are valid: true, expires at: 1786397994285
+[debug] [2026-08-10T20:40:07.737Z] Checked if tokens are valid: true, expires at: 1786397994285
+[debug] [2026-08-10T20:40:07.737Z] >>> [apiv2][query] POST https://firebaserules.googleapis.com/v1/projects/fir-demo-mp:test [none]
+[debug] [2026-08-10T20:40:07.738Z] >>> [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/fir-demo-mp:test [omitted]
+[debug] [2026-08-10T20:40:08.139Z] <<< [apiv2][status] POST https://firebaserules.googleapis.com/v1/projects/fir-demo-mp:test 200
+[debug] [2026-08-10T20:40:08.140Z] <<< [apiv2][body] POST https://firebaserules.googleapis.com/v1/projects/fir-demo-mp:test {}
+[info] +  cloud.firestore: rules file firestore.rules compiled successfully 
+[debug] [2026-08-10T20:40:08.143Z] Checked if tokens are valid: true, expires at: 1786397994285
+[debug] [2026-08-10T20:40:08.143Z] Checked if tokens are valid: true, expires at: 1786397994285
+[debug] [2026-08-10T20:40:08.144Z] >>> [apiv2][query] GET https://firebaserules.googleapis.com/v1/projects/fir-demo-mp/releases pageSize=10&pageToken=
+[debug] [2026-08-10T20:40:08.323Z] <<< [apiv2][status] GET https://firebaserules.googleapis.com/v1/projects/fir-demo-mp/releases 200
+[debug] [2026-08-10T20:40:08.323Z] <<< [apiv2][body] GET https://firebaserules.googleapis.com/v1/projects/fir-demo-mp/releases {"releases":[{"name":"projects/fir-demo-mp/releases/cloud.firestore/fir-demo-mp","rulesetName":"projects/fir-demo-mp/rulesets/a772f77c-ef60-436c-b861-93f4399d151f","createTime":"2026-08-03T20:13:53.009522Z","updateTime":"2026-08-10T20:39:57.879834Z"}]}
+[debug] [2026-08-10T20:40:08.324Z] Checked if tokens are valid: true, expires at: 1786397994285
+[debug] [2026-08-10T20:40:08.325Z] Checked if tokens are valid: true, expires at: 1786397994285
+[debug] [2026-08-10T20:40:08.325Z] >>> [apiv2][query] GET https://firebaserules.googleapis.com/v1/projects/fir-demo-mp/rulesets/a772f77c-ef60-436c-b861-93f4399d151f [none]
+[debug] [2026-08-10T20:40:08.544Z] <<< [apiv2][status] GET https://firebaserules.googleapis.com/v1/projects/fir-demo-mp/rulesets/a772f77c-ef60-436c-b861-93f4399d151f 200
+[debug] [2026-08-10T20:40:08.544Z] <<< [apiv2][body] GET https://firebaserules.googleapis.com/v1/projects/fir-demo-mp/rulesets/a772f77c-ef60-436c-b861-93f4399d151f [omitted]
+[info] i  firestore: latest version of firestore.rules already up to date, skipping upload... 
+[info] i  firestore: deploying indexes... 
+[debug] [2026-08-10T20:40:08.550Z] Checked if tokens are valid: true, expires at: 1786397994285
+[debug] [2026-08-10T20:40:08.550Z] Checked if tokens are valid: true, expires at: 1786397994285
+[debug] [2026-08-10T20:40:08.551Z] >>> [apiv2][query] GET https://firestore.googleapis.com/v1/projects/fir-demo-mp/databases/fir-demo-mp/collectionGroups/-/indexes [none]
+[debug] [2026-08-10T20:40:08.745Z] <<< [apiv2][status] GET https://firestore.googleapis.com/v1/projects/fir-demo-mp/databases/fir-demo-mp/collectionGroups/-/indexes 200
+[debug] [2026-08-10T20:40:08.746Z] <<< [apiv2][body] GET https://firestore.googleapis.com/v1/projects/fir-demo-mp/databases/fir-demo-mp/collectionGroups/-/indexes {}
+[debug] [2026-08-10T20:40:08.746Z] Checked if tokens are valid: true, expires at: 1786397994285
+[debug] [2026-08-10T20:40:08.747Z] Checked if tokens are valid: true, expires at: 1786397994285
+[debug] [2026-08-10T20:40:08.747Z] >>> [apiv2][query] GET https://firestore.googleapis.com/v1/projects/fir-demo-mp/databases/fir-demo-mp/collectionGroups/-/fields?filter=indexConfig.usesAncestorConfig=false OR ttlConfig:* [none]
+[debug] [2026-08-10T20:40:08.874Z] <<< [apiv2][status] GET https://firestore.googleapis.com/v1/projects/fir-demo-mp/databases/fir-demo-mp/collectionGroups/-/fields?filter=indexConfig.usesAncestorConfig=false OR ttlConfig:* 200
+[debug] [2026-08-10T20:40:08.874Z] <<< [apiv2][body] GET https://firestore.googleapis.com/v1/projects/fir-demo-mp/databases/fir-demo-mp/collectionGroups/-/fields?filter=indexConfig.usesAncestorConfig=false OR ttlConfig:* {"fields":[{"name":"projects/fir-demo-mp/databases/fir-demo-mp/collectionGroups/__default__/fields/*","indexConfig":{"indexes":[{"queryScope":"COLLECTION","fields":[{"fieldPath":"*","order":"ASCENDING"}],"state":"READY"},{"queryScope":"COLLECTION","fields":[{"fieldPath":"*","order":"DESCENDING"}],"state":"READY"},{"queryScope":"COLLECTION","fields":[{"fieldPath":"*","arrayConfig":"CONTAINS"}],"state":"READY"}]}}]}
+[debug] [2026-08-10T20:40:08.875Z] Checked if tokens are valid: true, expires at: 1786397994285
+[debug] [2026-08-10T20:40:08.876Z] Checked if tokens are valid: true, expires at: 1786397994285
+[debug] [2026-08-10T20:40:08.876Z] >>> [apiv2][query] GET https://firestore.googleapis.com/v1/projects/fir-demo-mp/databases/fir-demo-mp [none]
+[debug] [2026-08-10T20:40:09.001Z] <<< [apiv2][status] GET https://firestore.googleapis.com/v1/projects/fir-demo-mp/databases/fir-demo-mp 200
+[debug] [2026-08-10T20:40:09.002Z] <<< [apiv2][body] GET https://firestore.googleapis.com/v1/projects/fir-demo-mp/databases/fir-demo-mp {"name":"projects/fir-demo-mp/databases/fir-demo-mp","uid":"f28449c2-ab81-464c-97ce-661c34f4ee65","createTime":"2026-08-03T20:13:52.418972Z","updateTime":"2026-08-03T20:13:52.418972Z","locationId":"nam5","type":"FIRESTORE_NATIVE","concurrencyMode":"PESSIMISTIC","versionRetentionPeriod":"3600s","earliestVersionTime":"2026-08-10T19:40:08.941023Z","appEngineIntegrationMode":"DISABLED","pointInTimeRecoveryEnablement":"POINT_IN_TIME_RECOVERY_DISABLED","deleteProtectionState":"DELETE_PROTECTION_DISABLED","databaseEdition":"STANDARD","freeTier":true,"realtimeUpdatesMode":"REALTIME_UPDATES_MODE_ENABLED","etag":"IM7lseH1lpYDMLqrt8q0hZYD"}
+[info] +  firestore: deployed indexes in firestore.indexes.json successfully for fir-demo-mp database 
+[debug] [2026-08-10T20:40:09.003Z] [rules] releasing cloud.firestore/fir-demo-mp with ruleset projects/fir-demo-mp/rulesets/a772f77c-ef60-436c-b861-93f4399d151f
+[debug] [2026-08-10T20:40:09.004Z] Checked if tokens are valid: true, expires at: 1786397994285
+[debug] [2026-08-10T20:40:09.004Z] Checked if tokens are valid: true, expires at: 1786397994285
+[debug] [2026-08-10T20:40:09.005Z] >>> [apiv2][query] PATCH https://firebaserules.googleapis.com/v1/projects/fir-demo-mp/releases/cloud.firestore/fir-demo-mp [none]
+[debug] [2026-08-10T20:40:09.005Z] >>> [apiv2][body] PATCH https://firebaserules.googleapis.com/v1/projects/fir-demo-mp/releases/cloud.firestore/fir-demo-mp {"release":{"name":"projects/fir-demo-mp/releases/cloud.firestore/fir-demo-mp","rulesetName":"projects/fir-demo-mp/rulesets/a772f77c-ef60-436c-b861-93f4399d151f"}}
+[debug] [2026-08-10T20:40:09.314Z] <<< [apiv2][status] PATCH https://firebaserules.googleapis.com/v1/projects/fir-demo-mp/releases/cloud.firestore/fir-demo-mp 200
+[debug] [2026-08-10T20:40:09.314Z] <<< [apiv2][body] PATCH https://firebaserules.googleapis.com/v1/projects/fir-demo-mp/releases/cloud.firestore/fir-demo-mp {"name":"projects/fir-demo-mp/releases/cloud.firestore/fir-demo-mp","rulesetName":"projects/fir-demo-mp/rulesets/a772f77c-ef60-436c-b861-93f4399d151f","createTime":"2026-08-03T20:13:53.009522Z","updateTime":"2026-08-10T20:40:09.207932Z"}
+[debug] [2026-08-10T20:40:09.314Z] [rules] updated release projects/fir-demo-mp/releases/cloud.firestore/fir-demo-mp
+[info] +  firestore: released rules firestore.rules to cloud.firestore 
+[info] 
+[info] +  Deploy complete! 
+[info] 
+[info] Project Console: https://console.firebase.google.com/project/fir-demo-mp/overview
+[debug] [2026-08-10T20:40:14.520Z] Error: Timed out.
+    at Timeout._onTimeout (C:\Users\jl479\AppData\Local\npm-cache\_npx\ba4f1959e38407b5\node_modules\firebase-tools\lib\utils.js:296:49)
+    at listOnTimeout (node:internal/timers:605:17)
+    at process.processTimers (node:internal/timers:541:7)
+[error] 
+[error] Error: An unexpected error has occurred.

@@ -37,7 +37,8 @@ import {
   Users,
   Copy,
   ShieldCheck,
-
+  Edit2,
+  Eye,
   ShieldAlert,
   LogIn,
   LogOut,
@@ -1090,6 +1091,15 @@ export default function AdminPage() {
                   <ShieldCheck className="w-3.5 h-3.5 text-tertiary" />
                   Repair Player Directory
                 </button>
+
+                <Link
+                  href="/admin/gallery"
+                  className="inline-flex items-center gap-1.5 bg-tertiary/10 text-tertiary hover:bg-tertiary/20 text-[11px] font-bold px-3.5 py-2 rounded border border-tertiary/30 transition"
+                  title="Open reference gallery displaying all player headshots and IDs side-by-side"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  View Player Gallery
+                </Link>
               </div>
 
               {/* Add / Update Single Custom Golfer Form */}
