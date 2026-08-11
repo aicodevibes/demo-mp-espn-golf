@@ -493,6 +493,7 @@ export const SYNTHETIC_PGA_FIELD: ESPNCompetitor[] = [
   athlete: {
     id: item.id,
     displayName: item.name,
+    isSynthetic: true,
     headshot: { href: `https://a.espncdn.com/i/headshots/golf/players/full/${item.id}.png` },
   },
 }));

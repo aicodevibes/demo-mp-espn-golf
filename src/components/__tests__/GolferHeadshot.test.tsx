@@ -23,4 +23,17 @@ describe('GolferHeadshot & Initials Fallback', () => {
     const img = screen.getByAltText('Scottie Scheffler');
     expect(img).toBeInTheDocument();
   });
+
+  it('renders initials badge fallback when no valid image src is provided', () => {
+    render(
+      <GolferHeadshot
+        name="Rory McIlroy"
+        src=""
+        size={40}
+      />
+    );
+
+    expect(screen.getByText('RM')).toBeInTheDocument();
+    expect(screen.queryByAltText('Rory McIlroy')).not.toBeInTheDocument();
+  });
 });

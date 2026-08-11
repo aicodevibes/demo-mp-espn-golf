@@ -182,28 +182,36 @@ export async function syncPlayersToFirestore(competitors: any[]) {
     const batch = writeBatch(db);
     // Write in chunks of 450 to stay under Firestore's 500 batch limit
     const chunk = competitors.slice(0, 450);
+    let hasWrites = false;
+
     chunk.forEach((comp) => {
       const playerId = comp.athlete?.id || comp.id;
       if (!playerId) return;
-      const headshotUrl =
-        comp.athlete?.headshot?.href ||
-        `https://a.espncdn.com/i/headshots/golf/players/full/${playerId}.png`;
-      const playerRef = doc(db, 'players', playerId);
-      batch.set(
-        playerRef,
-        {
-          id: playerId,
-          name: comp.athlete?.displayName || 'Golfer',
-          headshotUrl: headshotUrl,
-          country: comp.athlete?.country?.abbreviation || '',
-          countryFlag: comp.athlete?.flag?.href || '',
-          lastUpdated: serverTimestamp(),
-        },
-        { merge: true }
-      );
 
+      // Skip synthetic competitors from mutating Firestore player database
+      if (comp.athlete?.isSynthetic) return;
+
+      const playerRef = doc(db, 'players', playerId);
+      const dataToSet: Record<string, any> = {
+        id: playerId,
+        name: comp.athlete?.displayName || 'Golfer',
+        country: comp.athlete?.country?.abbreviation || '',
+        countryFlag: comp.athlete?.flag?.href || '',
+        lastUpdated: serverTimestamp(),
+      };
+
+      // Only set headshotUrl if genuine ESPN headshot href is provided
+      if (comp.athlete?.headshot?.href && typeof comp.athlete.headshot.href === 'string') {
+        dataToSet.headshotUrl = comp.athlete.headshot.href;
+      }
+
+      batch.set(playerRef, dataToSet, { merge: true });
+      hasWrites = true;
     });
-    await batch.commit();
+
+    if (hasWrites) {
+      await batch.commit();
+    }
   } catch (error) {
     console.warn('Firestore player directory auto-sync skipped (rules or offline):', error);
   }
