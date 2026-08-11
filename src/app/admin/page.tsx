@@ -15,6 +15,7 @@ import {
   setParticipantsForEvent,
   copyRosterFromEvent,
   syncPlayersToFirestore,
+  repairAndSeedPlayerDirectory,
 } from '@/lib/firebase/firestore';
 import {
   ArrowLeft,
@@ -450,6 +451,19 @@ export default function AdminPage() {
     } catch (err) {
       console.error(err);
       alert('Scores sync failed.');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleRepairPlayerDirectory = async () => {
+    try {
+      setSyncing(true);
+      const { cleanedCount, seededCount } = await repairAndSeedPlayerDirectory();
+      alert(`Player Directory & Headshots repaired successfully! Cleaned ${cleanedCount} legacy records and updated ${seededCount} authentic PGA player entries.`);
+    } catch (err: any) {
+      console.error('Failed to repair player directory:', err);
+      alert(`Failed to repair player directory: ${err?.message || 'Unknown error'}`);
     } finally {
       setSyncing(false);
     }
@@ -948,7 +962,7 @@ export default function AdminPage() {
                     Syncs scores for ESPN tournament ID: <code className="font-mono bg-surface-container-high px-1 rounded">{selectedEventId}</code>
                   </p>
                 </div>
-                <div>
+                <div className="flex items-center gap-2 flex-wrap">
                   <button
                     onClick={handleFetchLatestScores}
                     disabled={syncing}
@@ -956,6 +970,15 @@ export default function AdminPage() {
                   >
                     <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
                     {syncing ? 'Syncing...' : 'Fetch Latest Scores'}
+                  </button>
+                  <button
+                    onClick={handleRepairPlayerDirectory}
+                    disabled={syncing}
+                    className="inline-flex items-center gap-1 bg-surface-container-high text-on-surface hover:bg-surface-container-highest text-[11px] font-bold px-3 py-2 rounded border border-outline-variant transition disabled:opacity-50"
+                    title="Purges any corrupt legacy records in Firestore and writes authentic PGA player headshot mappings"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5 text-tertiary" />
+                    Repair Player Directory
                   </button>
                 </div>
               </div>

@@ -16,6 +16,7 @@ import { db } from './config';
 import { useEffect, useState } from 'react';
 import { Participant, ContestConfig } from '@/types/contest';
 import { DEFAULT_CONTEST_PARTICIPANTS } from './seedData';
+import { DEFAULT_PLAYER_DIRECTORY_MAP } from '@/lib/espn';
 
 export interface AppConfig {
   activeEventId: string;
@@ -278,21 +279,31 @@ export function useAllPlayers() {
   useEffect(() => {
     const playersRef = collection(db, 'players');
     const unsubscribe = onSnapshot(playersRef, (snapshot) => {
-      const map: Record<string, { id: string; name: string; headshotUrl?: string }> = {};
+      const map: Record<string, { id: string; name: string; headshotUrl?: string }> = {
+        ...DEFAULT_PLAYER_DIRECTORY_MAP,
+      };
       snapshot.forEach((docSnap) => {
         const data = docSnap.data();
+        const docId = docSnap.id;
+        const canonical = DEFAULT_PLAYER_DIRECTORY_MAP[docId];
+
         if (data.id && data.name) {
+          // If Firestore contains a legacy corrupted record where name doesn't match canonical entry, ignore legacy record
+          if (canonical && data.name !== canonical.name) {
+            return;
+          }
           map[data.id] = {
             id: data.id,
             name: data.name,
-            headshotUrl: data.headshotUrl,
+            headshotUrl: data.headshotUrl || canonical?.headshotUrl,
           };
         }
       });
       setPlayerMap(map);
       setLoading(false);
     }, (error) => {
-      console.warn('Firestore players directory read error:', error);
+      console.warn('Firestore players directory read error (using defaults):', error);
+      setPlayerMap(DEFAULT_PLAYER_DIRECTORY_MAP);
       setLoading(false);
     });
 
@@ -300,6 +311,49 @@ export function useAllPlayers() {
   }, []);
 
   return { playerMap, loading };
+}
+
+export async function repairAndSeedPlayerDirectory(): Promise<{ cleanedCount: number; seededCount: number }> {
+  try {
+    const playersRef = collection(db, 'players');
+    const snapshot = await getDocs(playersRef);
+    let cleanedCount = 0;
+
+    const deletePromises: Promise<void>[] = [];
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      const docId = docSnap.id;
+      const canonicalEntry = DEFAULT_PLAYER_DIRECTORY_MAP[docId];
+
+      if (canonicalEntry) {
+        if (data.name && data.name !== canonicalEntry.name) {
+          deletePromises.push(deleteDoc(doc(db, 'players', docId)));
+          cleanedCount++;
+        }
+      }
+    });
+
+    await Promise.all(deletePromises);
+
+    const batch = writeBatch(db);
+    let seededCount = 0;
+    Object.values(DEFAULT_PLAYER_DIRECTORY_MAP).forEach((p) => {
+      const playerRef = doc(db, 'players', p.id);
+      batch.set(playerRef, {
+        id: p.id,
+        name: p.name,
+        headshotUrl: p.headshotUrl,
+        lastUpdated: serverTimestamp(),
+      }, { merge: true });
+      seededCount++;
+    });
+
+    await batch.commit();
+    return { cleanedCount, seededCount };
+  } catch (err) {
+    console.error('Error repairing player directory:', err);
+    throw err;
+  }
 }
 
 export function useContestConfig(eventId: string | null | undefined) {
