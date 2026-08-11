@@ -33,6 +33,7 @@ import { ESPNEvent, ESPNCompetitor } from '@/types/espn';
 import {
   createSyntheticCompetitor,
   resolveActiveEvent,
+  resolveEventCompetitorsWithFallback,
   readScoreboardCache,
   writeScoreboardCache,
 } from '@/lib/espn';
@@ -142,17 +143,18 @@ export default function DashboardPage() {
         if (data.events && data.events[0]) {
           setActiveEventObj(data.events[0]);
           const comps = data.events[0]?.competitions?.[0]?.competitors || [];
-          setCompetitors(comps);
-          syncPlayersToFirestore(comps);
+          const resolvedComps = resolveEventCompetitorsWithFallback(comps, []);
+          setCompetitors(resolvedComps);
+          syncPlayersToFirestore(resolvedComps);
 
           // Auto-select first tracked player or first field competitor if none selected yet
-          if (comps.length > 0) {
+          if (resolvedComps.length > 0) {
             setSelectedPlayerId((prev) => {
               if (prev) return prev;
-              const firstTracked = comps.find((c: ESPNCompetitor) =>
+              const firstTracked = resolvedComps.find((c: ESPNCompetitor) =>
                 trackedPlayers.some((p) => p.playerId === (c.athlete?.id || c.id))
               );
-              return firstTracked ? firstTracked.athlete?.id || firstTracked.id : comps[0].athlete?.id || comps[0].id;
+              return firstTracked ? firstTracked.athlete?.id || firstTracked.id : resolvedComps[0].athlete?.id || resolvedComps[0].id;
             });
           }
         }

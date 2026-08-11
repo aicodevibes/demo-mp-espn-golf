@@ -44,7 +44,7 @@ import { getGolferRoundScoreToPar } from '@/lib/scoring';
 import { doc, deleteDoc, collection, getDocs, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import { parseCommaDelimitedGolfers, matchGolferInputToId } from '@/lib/espn/golferMatcher';
-import { formatScoreDisplay, getPlayerStatusInfo } from '@/lib/espn';
+import { formatScoreDisplay, getPlayerStatusInfo, resolveEventCompetitorsWithFallback } from '@/lib/espn';
 
 const ADMIN_EMAILS = ['aicodevibes@gmail.com'];
 
@@ -143,7 +143,8 @@ export default function AdminPage() {
         if (res.ok) {
           const data = await res.json();
           const comps = data.events?.[0]?.competitions?.[0]?.competitors || [];
-          setCompetitors(comps);
+          const resolved = resolveEventCompetitorsWithFallback(comps, []);
+          setCompetitors(resolved);
         }
       } catch (err) {
         console.error('Failed to fetch competitors:', err);
@@ -397,7 +398,8 @@ export default function AdminPage() {
       return;
     }
 
-    if (competitors.length < 36) {
+    const effectiveCompetitors = resolveEventCompetitorsWithFallback(competitors, []);
+    if (effectiveCompetitors.length < 36) {
       alert('Not enough competitors in the tournament field to assign 3 unique players to 12 participants.');
       return;
     }
@@ -406,7 +408,11 @@ export default function AdminPage() {
     }
     setSyncing(true);
     try {
-      const shuffledGolfers = [...fieldGolfers].sort(() => 0.5 - Math.random());
+      const effectiveFieldGolfers = effectiveCompetitors.map((c) => ({
+        id: c.athlete?.id || c.id,
+        name: c.athlete?.displayName || `Golfer ${c.id}`,
+      }));
+      const shuffledGolfers = [...effectiveFieldGolfers].sort(() => 0.5 - Math.random());
       const updatedParticipants = selectedParticipants.map((p, idx) => {
         const startIndex = idx * 3;
         const draftedPlayerIds = shuffledGolfers.slice(startIndex, startIndex + 3).map((g) => g.id);
@@ -434,8 +440,9 @@ export default function AdminPage() {
       if (res.ok) {
         const data = await res.json();
         const comps = data.events?.[0]?.competitions?.[0]?.competitors || [];
-        await syncPlayersToFirestore(comps);
-        setCompetitors(comps);
+        const resolvedComps = resolveEventCompetitorsWithFallback(comps, []);
+        await syncPlayersToFirestore(resolvedComps);
+        setCompetitors(resolvedComps);
         alert('Scores synced to Firestore successfully!');
       } else {
         alert('Error fetching latest leaderboard.');

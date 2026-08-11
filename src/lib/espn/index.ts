@@ -12,6 +12,8 @@ export {
   getPlayerStatusInfo,
   getTop10WithTies,
   evaluateGolferRoundScore,
+  resolveEventCompetitorsWithFallback,
+  SYNTHETIC_PGA_FIELD,
   type WinnerStatusInfo,
   type PlayerStatusInfo,
   type ScoreMeta,
