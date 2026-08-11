@@ -103,6 +103,8 @@ export function TrackedPlayerHeroGrid({
                     <img
                       src={comp.athlete.flag.href}
                       alt={comp.athlete.country?.abbreviation || 'Flag'}
+                      width={16}
+                      height={16}
                       className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full border border-surface-container-lowest shadow-xs"
                     />
                   )}

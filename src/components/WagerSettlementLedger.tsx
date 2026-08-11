@@ -61,7 +61,7 @@ export function WagerSettlementLedger({
           <span className="text-[10px] font-extrabold uppercase tracking-wider text-on-surface-variant block">
             Total Fees Collected
           </span>
-          <p className="text-lg font-black text-emerald-600 dark:text-emerald-400">
+          <p className="text-lg font-black text-emerald-800 dark:text-emerald-400">
             ${summary.totalEntryFeesCollected}
           </p>
         </div>
@@ -127,13 +127,13 @@ export function WagerSettlementLedger({
 
                   <td className="py-3.5 px-4 text-right font-mono font-black text-sm">
                     {isProfit ? (
-                      <span className="text-emerald-600 dark:text-emerald-400">
+                      <span className="text-emerald-800 dark:text-emerald-400">
                         +${s.netBalance}
                       </span>
                     ) : isBreakEven ? (
                       <span className="text-on-surface-variant">$0</span>
                     ) : (
-                      <span className="text-red-600 dark:text-red-400">
+                      <span className="text-red-700 dark:text-red-400">
                         -${Math.abs(s.netBalance)}
                       </span>
                     )}
