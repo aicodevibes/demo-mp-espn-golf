@@ -160,10 +160,6 @@ export function LiveActivityFeed({
         <h3 className="text-sm font-black uppercase tracking-wider text-on-surface">
           Live Activity Feed
         </h3>
-
-        <span className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full bg-surface-container-high text-on-surface-variant border border-outline-variant/60">
-          Live Feed
-        </span>
       </div>
 
       {/* Filter Buttons */}

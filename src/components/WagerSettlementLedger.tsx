@@ -85,22 +85,13 @@ export function WagerSettlementLedger({
         </div>
       </div>
 
-      {/* Locked Notice Banner */}
-      {!isFinal && (
-        <div className="p-4 rounded-xl bg-surface-container-lowest border border-outline-variant/60 flex items-start gap-3 text-xs text-on-surface-variant">
-          <div>
-            <span className="font-extrabold text-on-surface block mb-0.5">Final Winnings Calculation Locked</span>
-            Per contest rules, final net payouts and winnings distribution are calculated upon completion of Round 4 final scoring. Below is the live projected payout ledger based on current leaderboard positions.
-          </div>
-        </div>
-      )}
-
       {/* Participant Settlement Table */}
       <div className="overflow-x-auto border border-outline-variant/60 rounded-xl">
         <table className="w-full border-collapse text-left text-xs">
           <thead>
             <tr className="bg-surface-container text-[10px] font-extrabold uppercase tracking-wider border-b border-outline-variant/60 text-on-surface-variant">
               <th className="py-3 px-4">Participant</th>
+              <th className="py-3 px-4 text-right">Entry Fee</th>
               <th className="py-3 px-4 text-right">Main Prize</th>
               <th className="py-3 px-4 text-right">Day Money</th>
               <th className="py-3 px-4 text-right">Total Earnings</th>
@@ -116,6 +107,10 @@ export function WagerSettlementLedger({
                 <tr key={s.participantId} className="hover:bg-surface-container-high transition-colors">
                   <td className="py-3.5 px-4 font-bold text-on-surface">
                     {s.participantName}
+                  </td>
+
+                  <td className="py-3.5 px-4 text-right font-mono text-on-surface-variant">
+                    ${s.entryFee}
                   </td>
 
                   <td className="py-3.5 px-4 text-right font-mono text-on-surface-variant">
@@ -149,6 +144,16 @@ export function WagerSettlementLedger({
           </tbody>
         </table>
       </div>
+
+      {/* Locked Notice Banner */}
+      {!isFinal && (
+        <div className="p-4 rounded-xl bg-surface-container-lowest border border-outline-variant/60 flex items-start gap-3 text-xs text-on-surface-variant">
+          <div>
+            <span className="font-extrabold text-on-surface block mb-0.5">Final Winnings Calculation Locked</span>
+            Per contest rules, final net payouts and winnings distribution are calculated upon completion of Round 4 final scoring. Below is the live projected payout ledger based on current leaderboard positions.
+          </div>
+        </div>
+      )}
     </section>
   );
 }

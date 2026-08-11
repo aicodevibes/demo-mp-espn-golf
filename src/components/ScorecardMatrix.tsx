@@ -160,7 +160,7 @@ export function ScorecardMatrix({
       >
         <div className="flex items-center gap-3">
           <span className="text-xs font-black uppercase tracking-wider text-on-surface">
-            {playerName}'s Hole-by-Hole Scorecard
+            {playerName}'s Scorecard
           </span>
           {(() => {
             const rd = currentRoundData;
@@ -201,7 +201,7 @@ export function ScorecardMatrix({
         <div className="flex items-center gap-3">
           <div>
             <h3 className="text-sm font-black uppercase tracking-wider text-on-surface">
-              {playerName}'s Hole-by-Hole Scorecard
+              {playerName}'s Scorecard
             </h3>
             <div className="flex items-center gap-2 mt-1">
               {statusInfo?.isCut && (

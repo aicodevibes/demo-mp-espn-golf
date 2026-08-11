@@ -104,7 +104,7 @@ export default function GreedyPage() {
       {/* Main Content Area */}
       <main className="max-w-6xl w-full mx-auto px-4 py-8 space-y-8 flex-1">
         {/* Banner Card */}
-        <section className="relative overflow-hidden bg-gradient-to-r from-emerald-950 via-surface-container-low to-surface-container-lowest border border-emerald-500/30 rounded-2xl p-6 sm:p-8 shadow-md">
+        <section className="relative overflow-hidden bg-surface-container-low border border-outline-variant rounded-2xl p-6 sm:p-8 shadow-xs">
           <div className="relative z-10 max-w-2xl space-y-3">
             <div className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest bg-tertiary/15 border border-tertiary/30 px-3 py-1 rounded-full text-tertiary">
               <Flame className="w-3.5 h-3.5 fill-tertiary" /> Winner-Take-All Side Pool
@@ -135,7 +135,7 @@ export default function GreedyPage() {
 
           <div className="bg-surface-container-low border border-outline-variant rounded-xl p-5 space-y-1 shadow-xs">
             <span className="text-[10px] font-extrabold uppercase tracking-widest text-on-surface-variant flex items-center gap-1">
-              <Trophy className="w-3.5 h-3.5 text-amber-400" /> Current Leader
+              <Trophy className="w-3.5 h-3.5 text-tertiary" /> Current Leader
             </span>
             <p className="text-lg font-extrabold text-on-surface truncate">
               {standingsWithPayout[0]?.participant.name || 'N/A'}
@@ -214,7 +214,7 @@ export default function GreedyPage() {
                       <tr
                         key={s.participant.id}
                         className={`border-b border-outline-variant/40 transition-colors hover:bg-surface-container ${
-                          isWinner ? 'bg-amber-400/5' : ''
+                          isWinner ? 'bg-tertiary/5' : ''
                         }`}
                       >
                         {/* POS */}
@@ -222,7 +222,7 @@ export default function GreedyPage() {
                           <span
                             className={`inline-flex items-center justify-center w-7 h-7 rounded-full font-black text-xs shadow-xs ${
                               isWinner
-                                ? 'bg-amber-400 text-amber-950 font-black'
+                                ? 'bg-tertiary text-on-tertiary font-black'
                                 : 'bg-surface-container-high text-on-surface-variant'
                             }`}
                           >

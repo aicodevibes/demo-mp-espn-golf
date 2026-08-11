@@ -36,9 +36,6 @@ export function Header({
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
         {/* Branding & Event Badge */}
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-tertiary text-on-tertiary flex items-center justify-center shadow-xs shrink-0">
-            <Trophy className="w-5 h-5 text-white" />
-          </div>
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-lg font-bold tracking-tight text-on-surface">
@@ -114,7 +111,7 @@ export function Header({
         <div className="flex items-center gap-3">
           <a
             href="/greedy"
-            className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30 transition"
+            className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-tertiary/10 hover:bg-tertiary/20 text-tertiary border border-tertiary/30 transition"
           >
             <Award className="w-3.5 h-3.5" /> Greedy Bet
           </a>
