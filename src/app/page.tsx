@@ -29,10 +29,8 @@ import {
   syncPlayersToFirestore,
   TrackedPlayer,
 } from '@/lib/firebase/firestore';
-import { ESPNEvent, ESPNCompetitor, ESPNPlayerSummary } from '@/types/espn';
+import { ESPNEvent, ESPNCompetitor } from '@/types/espn';
 import {
-  formatPlayerSummaryFromCompetitor,
-  formatPlayerSummaryFromESPNData,
   createSyntheticCompetitor,
   resolveActiveEvent,
   readScoreboardCache,
@@ -41,6 +39,7 @@ import {
 import { evaluateContest } from '@/lib/contestEngine';
 import { evaluateFieldLeaderboard } from '@/lib/fieldLeaderboard';
 import { useLeaderboardPolling } from '@/hooks/useLeaderboardPolling';
+import { usePlayerSummary } from '@/hooks/usePlayerSummary';
 
 export default function DashboardPage() {
   const { user, isAdmin } = useAuth();
@@ -54,10 +53,6 @@ export default function DashboardPage() {
 
   const [selectedPlayerId, setSelectedPlayerId] = useState<string>('');
   const [selectedParticipantId, setSelectedParticipantId] = useState<string>('top_view');
-  const [playerSummary, setPlayerSummary] = useState<ESPNPlayerSummary | null>(null);
-  const [loadingSummary, setLoadingSummary] = useState<boolean>(false);
-  const [isFetchingSummary, setIsFetchingSummary] = useState<boolean>(false);
-  const playerSummaryCacheRef = useRef<Map<string, ESPNPlayerSummary>>(new Map());
 
   const [isWatchlistCollapsed, setIsWatchlistCollapsed] = useState<boolean>(false);
 
@@ -266,57 +261,15 @@ export default function DashboardPage() {
 
   const selectedCompetitorId = selectedCompetitor?.athlete?.id || selectedCompetitor?.id;
 
-  // 4. Fetch Hole-by-Hole Player Summary from ESPN API for selected golfer
-  useEffect(() => {
-    if (!selectedCompetitorId || !selectedViewerEventId || !selectedCompetitor) return;
-
-    let isMounted = true;
-    const cacheKey = `${selectedViewerEventId}_${selectedCompetitorId}`;
-
-    // 4a. Check in-memory summary cache
-    const cachedSummary = playerSummaryCacheRef.current.get(cacheKey);
-    if (cachedSummary) {
-      setPlayerSummary(cachedSummary);
-      setLoadingSummary(false);
-      setIsFetchingSummary(false);
-      return;
-    }
-
-    // 4b. Immediately populate fallback summary from competitor so scorecard never unmounts
-    const fallbackSummary = formatPlayerSummaryFromCompetitor(selectedCompetitor);
-    setPlayerSummary(fallbackSummary);
-    setIsFetchingSummary(true);
-
-    async function fetchPlayerSummary() {
-      try {
-        const season = new Date().getFullYear();
-        const res = await fetch(
-          `/api/espn/playersummary?eventId=${selectedViewerEventId}&playerId=${selectedCompetitorId}&season=${season}`
-        );
-        if (res.ok) {
-          const data = await res.json();
-          if (isMounted) {
-            const summary = formatPlayerSummaryFromESPNData(data, selectedCompetitor);
-            playerSummaryCacheRef.current.set(cacheKey, summary);
-            setPlayerSummary(summary);
-          }
-        }
-      } catch (err) {
-        console.error('Failed to fetch player summary from ESPN API:', err);
-      } finally {
-        if (isMounted) {
-          setLoadingSummary(false);
-          setIsFetchingSummary(false);
-        }
-      }
-    }
-
-    fetchPlayerSummary();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [selectedCompetitorId, selectedViewerEventId, selectedCompetitor]);
+  // 4. Fetch Hole-by-Hole Player Summary via usePlayerSummary custom hook
+  const {
+    summary: playerSummary,
+    isLoading: loadingSummary,
+    isFetching: isFetchingSummary,
+  } = usePlayerSummary({
+    eventId: selectedViewerEventId,
+    competitor: selectedCompetitor,
+  });
 
 
   // Admin Actions
