@@ -313,42 +313,77 @@ export function useAllPlayers() {
   return { playerMap, loading };
 }
 
-export async function repairAndSeedPlayerDirectory(): Promise<{ cleanedCount: number; seededCount: number }> {
+export async function clearAllPlayersInFirestore(): Promise<number> {
   try {
     const playersRef = collection(db, 'players');
     const snapshot = await getDocs(playersRef);
-    let cleanedCount = 0;
+    let count = 0;
 
     const deletePromises: Promise<void>[] = [];
     snapshot.forEach((docSnap) => {
-      const data = docSnap.data();
-      const docId = docSnap.id;
-      const canonicalEntry = DEFAULT_PLAYER_DIRECTORY_MAP[docId];
-
-      if (canonicalEntry) {
-        if (data.name && data.name !== canonicalEntry.name) {
-          deletePromises.push(deleteDoc(doc(db, 'players', docId)));
-          cleanedCount++;
-        }
-      }
+      deletePromises.push(deleteDoc(doc(db, 'players', docSnap.id)));
+      count++;
     });
 
     await Promise.all(deletePromises);
+    return count;
+  } catch (err) {
+    console.error('Error clearing players collection:', err);
+    throw err;
+  }
+}
 
+export async function saveSinglePlayerToFirestore(player: {
+  id: string;
+  name: string;
+  headshotUrl?: string;
+  country?: string;
+}) {
+  if (!player.id || !player.name) throw new Error('Player ID and Name are required');
+  const playerRef = doc(db, 'players', player.id);
+  await setDoc(
+    playerRef,
+    {
+      id: player.id,
+      name: player.name.trim(),
+      headshotUrl: player.headshotUrl ? player.headshotUrl.trim() : `https://a.espncdn.com/i/headshots/golf/players/full/${player.id}.png`,
+      country: player.country ? player.country.trim() : '',
+      lastUpdated: serverTimestamp(),
+    },
+    { merge: true }
+  );
+}
+
+export async function importAuthenticPgaCatalogToFirestore(): Promise<number> {
+  try {
     const batch = writeBatch(db);
-    let seededCount = 0;
+    let count = 0;
     Object.values(DEFAULT_PLAYER_DIRECTORY_MAP).forEach((p) => {
       const playerRef = doc(db, 'players', p.id);
-      batch.set(playerRef, {
-        id: p.id,
-        name: p.name,
-        headshotUrl: p.headshotUrl,
-        lastUpdated: serverTimestamp(),
-      }, { merge: true });
-      seededCount++;
+      batch.set(
+        playerRef,
+        {
+          id: p.id,
+          name: p.name,
+          headshotUrl: p.headshotUrl,
+          lastUpdated: serverTimestamp(),
+        },
+        { merge: true }
+      );
+      count++;
     });
-
     await batch.commit();
+    return count;
+  } catch (err) {
+    console.error('Error importing authentic PGA catalog:', err);
+    throw err;
+  }
+}
+
+export async function repairAndSeedPlayerDirectory(): Promise<{ cleanedCount: number; seededCount: number }> {
+  try {
+    const cleanedCount = await clearAllPlayersInFirestore();
+    const seededCount = await importAuthenticPgaCatalogToFirestore();
     return { cleanedCount, seededCount };
   } catch (err) {
     console.error('Error repairing player directory:', err);
