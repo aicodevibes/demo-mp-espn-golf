@@ -21,6 +21,7 @@ describe('Activity Feed Generator (src/lib/activityFeed.ts)', () => {
   const sampleCompetitors: ESPNCompetitor[] = [
     {
       id: 'g1',
+      order: 1,
       athlete: { id: 'g1', displayName: 'Justin Rose' },
       linescores: [
         { 
@@ -71,11 +72,24 @@ describe('Activity Feed Generator (src/lib/activityFeed.ts)', () => {
     expect(events).toEqual([]);
   });
 
-  it('generates activity events for day money, hot rounds, cut/WD, and top 10', () => {
+  it('returns empty array when eventId mismatches contestConfig.espnEventId', () => {
     const events = generateTournamentActivityEvents(
       sampleParticipants,
       sampleCompetitors,
-      sampleConfig
+      sampleConfig,
+      undefined,
+      'different-event-123'
+    );
+    expect(events).toEqual([]);
+  });
+
+  it('generates activity events for day money, drafted leaders, and eagles', () => {
+    const events = generateTournamentActivityEvents(
+      sampleParticipants,
+      sampleCompetitors,
+      sampleConfig,
+      undefined,
+      '401811961'
     );
 
     expect(events.length).toBeGreaterThan(0);
@@ -86,20 +100,21 @@ describe('Activity Feed Generator (src/lib/activityFeed.ts)', () => {
     expect(dayMoneyEvents[0].icon).toBe('DollarSign');
     expect(dayMoneyEvents[0].title).toContain('Day Money Winner');
 
-    // Check Birdie Streak / Hot Round events
-    const hotRoundEvents = events.filter((e) => e.type === 'birdie_streak');
-    expect(hotRoundEvents.length).toBeGreaterThan(0);
-    expect(hotRoundEvents[0].icon).toBe('Flame');
-    expect(hotRoundEvents[0].title).toMatch(/Hot Round|Eagle Highlight/);
+    // Check Drafted Leader events
+    const leaderEvents = events.filter((e) => e.type === 'drafted_leader');
+    expect(leaderEvents.length).toBeGreaterThan(0);
+    expect(leaderEvents[0].icon).toBe('Trophy');
+    expect(leaderEvents[0].title).toContain('Tournament Leader: Justin Rose');
+    expect(leaderEvents[0].subtitle).toContain('Drafted by Pat');
 
-    // Check Cut / WD events
-    const cutEvents = events.filter((e) => e.type === 'cut');
-    expect(cutEvents.length).toBeGreaterThan(0);
-    expect(cutEvents[0].icon).toBe('Scissors');
+    // Check Eagle events
+    const eagleEvents = events.filter((e) => e.type === 'eagle');
+    expect(eagleEvents.length).toBeGreaterThan(0);
+    expect(eagleEvents[0].icon).toBe('Flame');
+    expect(eagleEvents[0].title).toContain('Eagle Highlight: Justin Rose');
 
-    // Check Top 10 events
-    const top10Events = events.filter((e) => e.type === 'top_10');
-    expect(top10Events.length).toBeGreaterThan(0);
-    expect(top10Events[0].icon).toBe('Trophy');
+    // Ensure legacy events (cut, top_10) are removed
+    const cutEvents = events.filter((e) => e.type === ('cut' as any));
+    expect(cutEvents.length).toBe(0);
   });
 });

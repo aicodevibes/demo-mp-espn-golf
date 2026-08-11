@@ -169,10 +169,11 @@ export default function DashboardPage() {
     }
   }, [selectedViewerEventId, trackedPlayers]);
 
-  // Initial leaderboard fetch on active event change
+  // Initial leaderboard fetch on active event change — clear competitors immediately so old event data never bleeds through
   useEffect(() => {
+    setCompetitors([]);
     fetchLeaderboard();
-  }, [fetchLeaderboard]);
+  }, [selectedViewerEventId, fetchLeaderboard]);
 
   // 3a. Poll leaderboard every 5 minutes while tab is visible; re-fetch immediately on tab return
   useLeaderboardPolling({ activeEventId: selectedViewerEventId, onPoll: fetchLeaderboard });
@@ -487,6 +488,7 @@ export default function DashboardPage() {
             competitors={competitors}
             contestConfig={contestConfig}
             eventStatus={activeEvent?.status}
+            selectedEventId={selectedViewerEventId}
           />
         </section>
 

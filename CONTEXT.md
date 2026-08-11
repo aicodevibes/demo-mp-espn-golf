@@ -17,6 +17,12 @@
 - **Day Money**: Side pool prize awarded per round to the participant holding the lowest drafted golfer round score.
 - **Wager Settlement Ledger**: Payout breakdown tracking entry fees collected, main prize distributions, day money earnings, and net balance settlements.
 
+### Live Activity Feed & Event Highlights
+- **Live Activity Feed**: A strictly event-isolated highlight feed displaying top relevant items (default max 3) for the currently selected tournament.
+- **Round-End Day Money Winner Event**: Activity item generated at round completion identifying pool participant(s) earning day money for the lowest team score in that round.
+- **Round-End Drafted PGA Leader Event**: Activity item generated at the end of any round when a drafted PGA golfer holds rank 1 or co-leads (T1) on the PGA tournament leaderboard.
+- **Drafted Player Eagle Event**: Activity item generated when a drafted PGA golfer scores an eagle or better (hole score of -2 or lower relative to hole par).
+
 ## Design & UI Theme System
 
 ### Surface Hierarchy

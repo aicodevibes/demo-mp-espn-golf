@@ -2,12 +2,11 @@ import { Participant, ContestConfig } from '@/types/contest';
 import { ESPNCompetitor } from '@/types/espn';
 import {
   calculateDayMoneyWinners,
-  calculateParticipantStandings,
   createPlayerDraftedByMap,
 } from '@/lib/scoring';
-import { getPlayerStatusInfo, evaluateGolferRoundScore } from '@/lib/espn';
+import { parsePositionNumber } from '@/lib/fieldLeaderboard';
 
-export type ActivityEventType = 'day_money' | 'birdie_streak' | 'cut' | 'top_10';
+export type ActivityEventType = 'day_money' | 'drafted_leader' | 'eagle';
 
 export interface ActivityEvent {
   id: string;
@@ -20,17 +19,26 @@ export interface ActivityEvent {
 
 /**
  * Analyzes current tournament state and returns an array of activity items
- * representing key tournament events (day money, birdie streaks/hot rounds, cut/WD, top 10 standings).
+ * representing key tournament highlights:
+ * 1. Day Money Winners at round completion
+ * 2. Drafted PGA Players leading the tournament after any round
+ * 3. Eagles recorded by drafted PGA players
  */
 export function generateTournamentActivityEvents(
   participants: Participant[] = [],
   competitors: ESPNCompetitor[] = [],
   contestConfig?: ContestConfig | null,
-  eventStatus?: any
+  eventStatus?: any,
+  eventId?: string | null
 ): ActivityEvent[] {
   const events: ActivityEvent[] = [];
   const safeParticipants = Array.isArray(participants) ? participants : [];
   const safeCompetitors = Array.isArray(competitors) ? competitors : [];
+
+  // Guard: if eventId is provided and contestConfig has an espnEventId that doesn't match, return empty events
+  if (eventId && contestConfig?.espnEventId && contestConfig.espnEventId !== eventId) {
+    return events;
+  }
 
   if (safeParticipants.length === 0 && safeCompetitors.length === 0) {
     return events;
@@ -38,7 +46,7 @@ export function generateTournamentActivityEvents(
 
   const draftedMap = createPlayerDraftedByMap(safeParticipants);
 
-  // 1. Day Money Events
+  // 1. Day Money Events (End of Round Winners)
   try {
     const dayMoneyResults = calculateDayMoneyWinners(
       safeParticipants,
@@ -65,12 +73,38 @@ export function generateTournamentActivityEvents(
     console.error('Error generating day money activity events:', err);
   }
 
-  // 2. Birdie Streak / Hot Round Events (Eagles & Completed Under Par Rounds by Drafted Players)
+  // 2. Drafted PGA Players Leading the Tournament
   try {
     safeCompetitors.forEach((comp) => {
       const golferId = comp.athlete?.id || comp.id;
       const drafters = draftedMap.get(golferId) || [];
-      // Only include drafted players
+      if (drafters.length === 0) return;
+
+      const pos = parsePositionNumber(comp);
+      if (pos === 1) {
+        const golferName = comp.athlete?.displayName || comp.athlete?.shortName || `Golfer (${golferId})`;
+        const scoreDisplay = typeof comp.score === 'object' ? (comp.score?.displayValue || 'E') : (comp.score || 'E');
+        const latestRound = comp.linescores?.length || 1;
+
+        events.push({
+          id: `drafted_leader_${golferId}`,
+          type: 'drafted_leader',
+          icon: 'Trophy',
+          title: `Tournament Leader: ${golferName}`,
+          subtitle: `Score: ${scoreDisplay} • Drafted by ${drafters.join(', ')}`,
+          timestamp: `Round ${latestRound}`,
+        });
+      }
+    });
+  } catch (err) {
+    console.error('Error generating drafted leader activity events:', err);
+  }
+
+  // 3. Drafted Player Eagle Events
+  try {
+    safeCompetitors.forEach((comp) => {
+      const golferId = comp.athlete?.id || comp.id;
+      const drafters = draftedMap.get(golferId) || [];
       if (drafters.length === 0) return;
 
       const golferName = comp.athlete?.displayName || comp.athlete?.shortName || `Golfer (${golferId})`;
@@ -78,124 +112,42 @@ export function generateTournamentActivityEvents(
 
       if (comp.linescores && Array.isArray(comp.linescores)) {
         comp.linescores.forEach((ls) => {
-          const round = ls.period;
-          if (!round || typeof ls.value !== 'number') return;
-
-          const roundRes = evaluateGolferRoundScore(comp, round, contestConfig?.coursePar);
-          const relScore = roundRes.scoreToPar;
-          
-          // Check for any eagles or better on individual holes in this round linescores
-          let hasEagleOrBetter = false;
+          const round = ls.period || 1;
           if (ls.linescores && Array.isArray(ls.linescores)) {
-            ls.linescores.forEach((holeLs: any) => {
+            ls.linescores.forEach((holeLs: any, holeIdx: number) => {
+              let isEagle = false;
               const diffStr = holeLs.scoreType?.displayValue;
               if (diffStr) {
                 const diff = parseInt(diffStr, 10);
                 if (!isNaN(diff) && diff <= -2) {
-                  hasEagleOrBetter = true;
+                  isEagle = true;
                 }
+              } else if (typeof holeLs.value === 'number' && typeof holeLs.par === 'number') {
+                if (holeLs.value <= holeLs.par - 2) {
+                  isEagle = true;
+                }
+              } else if (holeLs.scoreType?.name?.toLowerCase().includes('eagle')) {
+                isEagle = true;
+              }
+
+              if (isEagle) {
+                const holeNum = holeLs.period || holeIdx + 1;
+                events.push({
+                  id: `eagle_${golferId}_r${round}_h${holeNum}`,
+                  type: 'eagle',
+                  icon: 'Flame',
+                  title: `Eagle Highlight: ${golferName}`,
+                  subtitle: `Round ${round}, Hole ${holeNum}${drafterStr}`,
+                  timestamp: `Round ${round}`,
+                });
               }
             });
           }
-
-          // A round must be completed and under par (relScore < 0) OR have an eagle or better
-          const isUnderParRound = relScore !== null && relScore < 0;
-
-          if (isUnderParRound || hasEagleOrBetter) {
-            const relDisplay =
-              relScore === null
-                ? `${ls.value} strokes`
-                : relScore === 0
-                ? 'E'
-                : relScore > 0
-                ? `+${relScore}`
-                : `${relScore}`;
-
-            let titleStr = `Hot Round: ${golferName} (${relDisplay})`;
-            if (hasEagleOrBetter && !isUnderParRound) {
-              titleStr = `Eagle Highlight: ${golferName}`;
-            } else if (hasEagleOrBetter && isUnderParRound) {
-              titleStr = `Hot Round & Eagle: ${golferName} (${relDisplay})`;
-            }
-
-            events.push({
-              id: `birdie_streak_${golferId}_r${round}`,
-              type: 'birdie_streak',
-              icon: 'Flame',
-              title: titleStr,
-              subtitle: `Shot ${ls.value} in Round ${round}${drafterStr}`,
-              timestamp: `Round ${round}`,
-            });
-          }
         });
       }
     });
   } catch (err) {
-    console.error('Error generating birdie streak activity events:', err);
-  }
-
-  // 3. Cut / WD Events
-  try {
-    safeCompetitors.forEach((comp) => {
-      const golferId = comp.athlete?.id || comp.id;
-      const golferName = comp.athlete?.displayName || comp.athlete?.shortName || `Golfer (${golferId})`;
-      const statusInfo = getPlayerStatusInfo(comp, eventStatus);
-
-      if (statusInfo.isCut || statusInfo.isWD) {
-        const drafters = draftedMap.get(golferId) || [];
-        const label = statusInfo.isWD ? 'Withdrawn' : 'Missed Cut';
-        const drafterStr =
-          drafters.length > 0
-            ? `Impacts: ${drafters.join(', ')}`
-            : 'Full Field';
-
-        events.push({
-          id: `cut_${golferId}`,
-          type: 'cut',
-          icon: 'Scissors',
-          title: `${golferName} - ${label}`,
-          subtitle: `${drafterStr} • Score: ${comp.score || (statusInfo.isWD ? 'WD' : 'CUT')}`,
-          timestamp: statusInfo.isWD ? 'WD' : 'Cut Line',
-        });
-      }
-    });
-  } catch (err) {
-    console.error('Error generating cut activity events:', err);
-  }
-
-  // 4. Top 10 Standings Events
-  try {
-    const standings = calculateParticipantStandings(
-      safeParticipants,
-      safeCompetitors,
-      contestConfig,
-      eventStatus
-    );
-
-    const top10 = standings.filter((s) => s.rank <= 10 && !s.isCut);
-    top10.forEach((s) => {
-      const scoreDisplay = s.totalScore > 0 ? `+${s.totalScore}` : s.totalScore === 0 ? 'E' : `${s.totalScore}`;
-      const payoutText = s.projectedPayout > 0 ? ` • Projected Payout $${s.projectedPayout.toFixed(2)}` : '';
-      const rankBadge =
-        s.rank === 1
-          ? '🥇 Leader'
-          : s.rank === 2
-          ? '🥈 2nd Place'
-          : s.rank === 3
-          ? '🥉 3rd Place'
-          : `#${s.rank} Standing`;
-
-      events.push({
-        id: `top_10_${s.participant.id}`,
-        type: 'top_10',
-        icon: 'Trophy',
-        title: `${rankBadge}: ${s.participant.name}`,
-        subtitle: `Score: ${scoreDisplay}${payoutText}`,
-        timestamp: 'Live Standings',
-      });
-    });
-  } catch (err) {
-    console.error('Error generating top 10 activity events:', err);
+    console.error('Error generating eagle activity events:', err);
   }
 
   return events;

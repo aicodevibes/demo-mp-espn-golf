@@ -4,6 +4,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { LiveActivityFeed } from '../LiveActivityFeed';
 import { Participant, ContestConfig } from '@/types/contest';
 import { ESPNCompetitor } from '@/types/espn';
+import { ActivityEvent } from '@/lib/activityFeed';
 
 describe('LiveActivityFeed Component', () => {
   const sampleConfig: ContestConfig = {
@@ -22,10 +23,18 @@ describe('LiveActivityFeed Component', () => {
   const sampleCompetitors: ESPNCompetitor[] = [
     {
       id: 'g1',
+      order: 1,
       athlete: { id: 'g1', displayName: 'Justin Rose' },
       linescores: [{ period: 1, value: 65 }],
       score: '-5',
     },
+  ];
+
+  const mockEvents: ActivityEvent[] = [
+    { id: 'e1', type: 'day_money', icon: 'DollarSign', title: 'Day Money 1', subtitle: 'Sub 1', timestamp: 'R1' },
+    { id: 'e2', type: 'drafted_leader', icon: 'Trophy', title: 'Leader 1', subtitle: 'Sub 2', timestamp: 'R1' },
+    { id: 'e3', type: 'eagle', icon: 'Flame', title: 'Eagle 1', subtitle: 'Sub 3', timestamp: 'R1' },
+    { id: 'e4', type: 'eagle', icon: 'Flame', title: 'Eagle 2', subtitle: 'Sub 4', timestamp: 'R1' },
   ];
 
   it('renders title "Live Activity Feed"', () => {
@@ -52,16 +61,40 @@ describe('LiveActivityFeed Component', () => {
   it('allows filtering events by category button click', () => {
     render(
       <LiveActivityFeed
-        participants={sampleParticipants}
-        competitors={sampleCompetitors}
-        contestConfig={sampleConfig}
+        events={mockEvents}
       />
     );
 
     const dayMoneyBtn = screen.getByRole('button', { name: /Day Money/i });
     fireEvent.click(dayMoneyBtn);
 
-    // Button should be active
     expect(dayMoneyBtn.className).toContain('bg-primary');
+    expect(screen.getByText('Day Money 1')).toBeDefined();
+  });
+
+  it('limits default display to top 3 items and toggles expansion', () => {
+    render(
+      <LiveActivityFeed
+        events={mockEvents}
+      />
+    );
+
+    // Initial view shows 3 items
+    expect(screen.getByText('Day Money 1')).toBeDefined();
+    expect(screen.getByText('Leader 1')).toBeDefined();
+    expect(screen.getByText('Eagle 1')).toBeDefined();
+    expect(screen.queryByText('Eagle 2')).toBeNull();
+
+    // Click Show All button
+    const toggleBtn = screen.getByRole('button', { name: /Show All \(4\)/i });
+    fireEvent.click(toggleBtn);
+
+    // 4th item should now be visible
+    expect(screen.getByText('Eagle 2')).toBeDefined();
+
+    // Click Show Less
+    const showLessBtn = screen.getByRole('button', { name: /Show Less/i });
+    fireEvent.click(showLessBtn);
+    expect(screen.queryByText('Eagle 2')).toBeNull();
   });
 });

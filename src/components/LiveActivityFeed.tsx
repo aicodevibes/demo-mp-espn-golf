@@ -12,7 +12,6 @@ import {
   Radio,
   DollarSign,
   Flame,
-  Scissors,
   Trophy,
   Activity,
   Filter,
@@ -24,6 +23,7 @@ export interface LiveActivityFeedProps {
   contestConfig?: ContestConfig | null;
   eventStatus?: any;
   events?: ActivityEvent[];
+  selectedEventId?: string;
   loading?: boolean;
   className?: string;
 }
@@ -42,10 +42,12 @@ export function LiveActivityFeed({
   contestConfig,
   eventStatus,
   events: customEvents,
+  selectedEventId,
   loading = false,
   className = '',
 }: LiveActivityFeedProps) {
   const [activeFilter, setActiveFilter] = useState<FilterType>('all');
+  const [isExpanded, setIsExpanded] = useState<boolean>(false);
 
   // Generate events from tournament state if custom events not provided
   const allEvents = useMemo(() => {
@@ -56,9 +58,10 @@ export function LiveActivityFeed({
       participants,
       competitors,
       contestConfig,
-      eventStatus
+      eventStatus,
+      selectedEventId
     );
-  }, [customEvents, participants, competitors, contestConfig, eventStatus]);
+  }, [customEvents, participants, competitors, contestConfig, eventStatus, selectedEventId]);
 
   // Filter events based on active selection
   const filteredEvents = useMemo(() => {
@@ -66,12 +69,15 @@ export function LiveActivityFeed({
     return allEvents.filter((evt) => evt.type === activeFilter);
   }, [allEvents, activeFilter]);
 
+  const visibleEvents = useMemo(() => {
+    return isExpanded ? filteredEvents : filteredEvents.slice(0, 3);
+  }, [filteredEvents, isExpanded]);
+
   const filterOptions: FilterOption[] = [
     { id: 'all', label: 'All', icon: <Filter className="w-3.5 h-3.5" /> },
     { id: 'day_money', label: 'Day Money', icon: <DollarSign className="w-3.5 h-3.5" /> },
-    { id: 'birdie_streak', label: 'Eagles & Hot Rounds', icon: <Flame className="w-3.5 h-3.5" /> },
-    { id: 'cut', label: 'Cuts & WDs', icon: <Scissors className="w-3.5 h-3.5" /> },
-    { id: 'top_10', label: 'Top 10', icon: <Trophy className="w-3.5 h-3.5" /> },
+    { id: 'drafted_leader', label: 'Drafted Leaders', icon: <Trophy className="w-3.5 h-3.5" /> },
+    { id: 'eagle', label: 'Eagles', icon: <Flame className="w-3.5 h-3.5" /> },
   ];
 
   // Helper to render icon for event cards
@@ -79,12 +85,10 @@ export function LiveActivityFeed({
     switch (type) {
       case 'day_money':
         return <DollarSign className="w-4 h-4 text-emerald-400" />;
-      case 'birdie_streak':
+      case 'drafted_leader':
+        return <Trophy className="w-4 h-4 text-yellow-300" />;
+      case 'eagle':
         return <Flame className="w-4 h-4 text-amber-400" />;
-      case 'cut':
-        return <Scissors className="w-4 h-4 text-rose-400" />;
-      case 'top_10':
-        return <Trophy className="w-4 h-4 text-amber-300" />;
       default:
         return <Activity className="w-4 h-4 text-primary" />;
     }
@@ -99,23 +103,17 @@ export function LiveActivityFeed({
           badgeBg: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
           borderHover: 'hover:border-emerald-500/40',
         };
-      case 'birdie_streak':
-        return {
-          iconBg: 'bg-amber-500/10 border-amber-500/20 text-amber-400',
-          badgeBg: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
-          borderHover: 'hover:border-amber-500/40',
-        };
-      case 'cut':
-        return {
-          iconBg: 'bg-rose-500/10 border-rose-500/20 text-rose-400',
-          badgeBg: 'bg-rose-500/15 text-rose-300 border-rose-500/30',
-          borderHover: 'hover:border-rose-500/40',
-        };
-      case 'top_10':
+      case 'drafted_leader':
         return {
           iconBg: 'bg-yellow-500/10 border-yellow-500/20 text-yellow-300',
           badgeBg: 'bg-yellow-500/15 text-yellow-300 border-yellow-500/30',
           borderHover: 'hover:border-yellow-500/40',
+        };
+      case 'eagle':
+        return {
+          iconBg: 'bg-amber-500/10 border-amber-500/20 text-amber-400',
+          badgeBg: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+          borderHover: 'hover:border-amber-500/40',
         };
       default:
         return {
@@ -137,7 +135,7 @@ export function LiveActivityFeed({
           <div className="h-6 w-24 bg-surface-container-high rounded-full" />
         </div>
         <div className="flex gap-2 flex-wrap">
-          {[1, 2, 3, 4, 5].map((i) => (
+          {[1, 2, 3, 4].map((i) => (
             <div key={i} className="h-7 w-20 bg-surface-container-high rounded-lg" />
           ))}
         </div>
@@ -174,7 +172,10 @@ export function LiveActivityFeed({
           return (
             <button
               key={opt.id}
-              onClick={() => setActiveFilter(opt.id)}
+              onClick={() => {
+                setActiveFilter(opt.id);
+                setIsExpanded(false);
+              }}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all duration-150 cursor-pointer ${
                 isActive
                   ? 'bg-primary text-on-primary shadow-xs ring-1 ring-primary/30'
@@ -210,7 +211,7 @@ export function LiveActivityFeed({
         </div>
       ) : (
         <div className="space-y-2.5 max-h-[460px] overflow-y-auto pr-1">
-          {filteredEvents.slice(0, 10).map((evt) => {
+          {visibleEvents.map((evt) => {
             const styles = getEventTypeStyles(evt.type);
             return (
               <div
@@ -241,10 +242,13 @@ export function LiveActivityFeed({
               </div>
             );
           })}
-          {filteredEvents.length > 10 && (
-            <p className="text-center text-[10px] font-bold text-on-surface-variant/60 pt-2 border-t border-outline-variant/40">
-              Only showing latest 10 events (total {filteredEvents.length})
-            </p>
+          {filteredEvents.length > 3 && (
+            <button
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="w-full py-2 text-center text-xs font-semibold text-primary hover:text-primary/80 transition-colors border-t border-outline-variant/40 mt-2 cursor-pointer"
+            >
+              {isExpanded ? 'Show Less' : `Show All (${filteredEvents.length})`}
+            </button>
           )}
         </div>
       )}
