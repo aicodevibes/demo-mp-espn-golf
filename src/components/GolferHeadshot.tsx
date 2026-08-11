@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import Image from 'next/image';
+import { DEFAULT_PLAYER_DIRECTORY_MAP } from '@/lib/espn';
 
 export function getGolferInitials(name: string): string {
   if (!name || !name.trim()) return 'PGA';
@@ -30,17 +31,22 @@ export function GolferHeadshot({
   className = '',
 }: GolferHeadshotProps) {
   const [imageError, setImageError] = useState<boolean>(false);
+  const [useCombinerFallback, setUseCombinerFallback] = useState<boolean>(false);
   const initials = getGolferInitials(name);
 
-  const effectiveSrc =
+  const directoryEntry = playerId ? DEFAULT_PLAYER_DIRECTORY_MAP[playerId] : null;
+
+  let effectiveSrc =
     src && src.startsWith('http')
       ? src
-      : playerId
-      ? `https://a.espncdn.com/i/headshots/golf/players/full/${playerId}.png`
-      : '';
+      : directoryEntry?.headshotUrl ||
+        (playerId ? `https://a.espncdn.com/i/headshots/golf/players/full/${playerId}.png` : '');
+
+  if (useCombinerFallback && playerId) {
+    effectiveSrc = `https://a.espncdn.com/combiner/i?img=/i/headshots/golf/players/full/${playerId}.png&w=120&h=120&scale=crop`;
+  }
 
   const isValidUrl = effectiveSrc && effectiveSrc.startsWith('http') && !imageError;
-
 
   if (!isValidUrl) {
     return (
@@ -67,12 +73,16 @@ export function GolferHeadshot({
         width={size}
         height={size}
         priority={priority}
-        onError={() => setImageError(true)}
+        onError={() => {
+          if (!useCombinerFallback && playerId) {
+            setUseCombinerFallback(true);
+          } else {
+            setImageError(true);
+          }
+        }}
         className="w-full h-full object-cover"
         unoptimized={true}
       />
-
-
     </div>
   );
 }

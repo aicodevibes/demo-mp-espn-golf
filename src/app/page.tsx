@@ -35,6 +35,7 @@ import {
   createSyntheticCompetitor,
   resolveActiveEvent,
   resolveEventCompetitorsWithFallback,
+  DEFAULT_PLAYER_DIRECTORY_MAP,
   readScoreboardCache,
   writeScoreboardCache,
 } from '@/lib/espn';
@@ -229,7 +230,16 @@ export default function DashboardPage() {
       }
       if (trackedPlayers.length > 0) {
         return trackedPlayers.slice(0, 4).map((p) => {
-          return compMap.get(p.playerId) || createSyntheticCompetitor(p.playerId, p.name, p.headshotUrl, p.country);
+          const directoryPlayer = firestorePlayerMap[p.playerId] || DEFAULT_PLAYER_DIRECTORY_MAP[p.playerId];
+          return (
+            compMap.get(p.playerId) ||
+            createSyntheticCompetitor(
+              p.playerId,
+              p.name || directoryPlayer?.name || `Golfer (${p.playerId})`,
+              p.headshotUrl || directoryPlayer?.headshotUrl,
+              p.country
+            )
+          );
         });
       }
       return [];
@@ -238,7 +248,16 @@ export default function DashboardPage() {
     // 2. Selected Participant View: display their drafted golfers
     if (activeParticipant && activeParticipant.draftedPlayerIds && activeParticipant.draftedPlayerIds.length > 0) {
       return activeParticipant.draftedPlayerIds.map((playerId) => {
-        return compMap.get(playerId) || createSyntheticCompetitor(playerId);
+        const directoryPlayer = firestorePlayerMap[playerId] || DEFAULT_PLAYER_DIRECTORY_MAP[playerId];
+        return (
+          compMap.get(playerId) ||
+          createSyntheticCompetitor(
+            playerId,
+            directoryPlayer?.name || `Golfer (${playerId})`,
+            directoryPlayer?.headshotUrl,
+            ''
+          )
+        );
       });
     }
 
