@@ -76,6 +76,12 @@ The system is designed to run automatically during the tournament and allows adm
   * Adding/removing participants and managing their drafted player IDs.
   * Assigning Greedy golfers and toggling `isGreedyParticipant` flags.
   * Managing tracked watchlist players.
+  * **Player Directory & Database Control Suite**:
+    * **`Clear Players Database`**: Purges legacy corrupted records from the Firestore `players` collection.
+    * **`Load Fresh PGA Player Catalog`**: Batches all 279 authentic ESPN PGA Tour golfers (with verified ESPN IDs and headshot URLs) into Firestore.
+    * **`Repair Player Directory`**: Scans stored records and replaces misaligned legacy entries with canonical PGA data.
+    * **`Add or Edit Specific Golfer Document`**: Allows adding/editing individual player documents by ESPN ID, Name, and Headshot URL.
+* **Player Reference Gallery (`/admin/gallery`)**: An interactive page displaying all 279 PGA Tour golfers alongside their headshots, athlete IDs, and database status in real time. (Also available as a static preview file at `public/player-directory-preview.html`).
 * **Greedy Side-Game (`/greedy`)**: A dedicated page (`src/app/greedy/page.tsx`) displays Greedy side-bet standings and the dynamic total purse.
 * **ESPN Proxy API Routes**: Three ESPN data proxy endpoints under `src/app/api/espn/`:
   * `/api/espn/scoreboard` — fetches available tournament events.

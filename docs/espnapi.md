@@ -221,3 +221,36 @@ To avoid hitting ESPN rate limits and provide instant load times for users:
    - First user request caches the live scores for 60 seconds on the server.
    - All subsequent users receive instant (< 10ms) pre-cached responses.
    - Next.js revalidates ESPN data in the background every 60 seconds.
+
+---
+
+## 📇 PGA Tour Authentic Player Directory & Headshots Architecture
+
+### 1. The Scheduled Event Gap & Catalog Resolution
+* **Completed / Active Events**: ESPN's `/api/espn/leaderboard?event={eventId}` endpoint returns the full field of ~150 competitors with their exact ESPN IDs and `athlete.headshot.href` URLs.
+* **Scheduled / Upcoming Events**: Until pairing tee times are officially posted by the PGA Tour, ESPN's leaderboard endpoint returns `0` competitors.
+* **Solution (`espnPlayerDirectory.json`)**: We extracted all **279 authentic PGA Tour golfers** directly from ESPN's live PGA scoreboard and leaderboard API endpoints across all 2025/2026 tour events. This catalog maps each golfer's exact ESPN athlete ID to their official display name and CDN headshot:
+  - **Scottie Scheffler**: ID `9478` (`https://a.espncdn.com/i/headshots/golf/players/full/9478.png`)
+  - **Rory McIlroy**: ID `3470` (`https://a.espncdn.com/i/headshots/golf/players/full/3470.png`)
+  - **Xander Schauffele**: ID `10140` (`https://a.espncdn.com/i/headshots/golf/players/full/10140.png`)
+  - **Collin Morikawa**: ID `10592` (`https://a.espncdn.com/i/headshots/golf/players/full/10592.png`)
+  - **Jon Rahm**: ID `9780` (`https://a.espncdn.com/i/headshots/golf/players/full/9780.png`)
+  - **Aaron Rai**: ID `10906` (`https://a.espncdn.com/i/headshots/golf/players/full/10906.png`)
+  - **Cameron Young**: ID `4425906` (`https://a.espncdn.com/i/headshots/golf/players/full/4425906.png`)
+  - **Denny McCarthy**: ID `10054` (`https://a.espncdn.com/i/headshots/golf/players/full/10054.png`)
+  - **Eric Cole**: ID `10522` (`https://a.espncdn.com/i/headshots/golf/players/full/10522.png`)
+
+### 2. 2-Stage Headshot Image Failover Pipeline (`GolferHeadshot.tsx`)
+Certain direct PNG CDN links on ESPN's server trigger 404 responses depending on browser cache state. `<GolferHeadshot>` implements a 3-tier loading strategy:
+- **Stage 1 (Primary Direct CDN)**: `https://a.espncdn.com/i/headshots/golf/players/full/${playerId}.png`
+- **Stage 2 (ESPN Combiner Endpoint)**: If Stage 1 triggers `onError`, it automatically retries via `https://a.espncdn.com/combiner/i?img=/i/headshots/golf/players/full/${playerId}.png&w=120&h=120&scale=crop`.
+- **Stage 3 (Initials Fallback)**: Renders a styled initials avatar (`AR`, `BA`, `CY`) only if both Stage 1 and Stage 2 fail.
+
+### 3. Database Protection & Admin Tools
+- **Synthetic Overwrite Protection**: In `syncPlayersToFirestore()`, competitors with `comp.athlete?.isSynthetic === true` are blocked from overwriting stored Firestore `players` documents.
+- **Admin Control Tools (`/admin`)**:
+  - `Clear Players Database`: Purges legacy corrupted documents from Firestore `players`.
+  - `Load Fresh PGA Player Catalog`: Imports the 279 authentic ESPN golfer profiles into Firestore.
+  - `Repair Player Directory`: Audits stored records and resolves conflicting legacy entries.
+  - `View Player Gallery`: Interactive gallery at `/admin/gallery` and static reference file at `public/player-directory-preview.html` to visually inspect all 279 golfer headshots.
+
