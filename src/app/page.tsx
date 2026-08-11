@@ -21,6 +21,7 @@ import { useAuth } from '@/context/AuthContext';
 import {
   useActiveConfig,
   useTrackedPlayers,
+  useAllPlayers,
   useParticipants,
   useContestConfig,
   setActiveEvent,
@@ -46,6 +47,7 @@ export default function DashboardPage() {
   const { user, isAdmin } = useAuth();
   const { config, loading: configLoading } = useActiveConfig();
   const { players: trackedPlayers, loading: playersLoading } = useTrackedPlayers();
+  const { playerMap: firestorePlayerMap } = useAllPlayers();
 
   const [events, setEvents] = useState<ESPNEvent[]>([]);
   const [activeEventObj, setActiveEventObj] = useState<ESPNEvent | null>(null);
@@ -188,8 +190,8 @@ export default function DashboardPage() {
 
   // Evaluate entire contest via deep ContestEngine seam
   const contestEvaluation = useMemo(() => {
-    return evaluateContest(participants, competitors, contestConfig, activeEvent?.status);
-  }, [participants, competitors, contestConfig, activeEvent]);
+    return evaluateContest(participants, competitors, contestConfig, activeEvent?.status, firestorePlayerMap);
+  }, [participants, competitors, contestConfig, activeEvent, firestorePlayerMap]);
 
   const participantStandings = contestEvaluation.standings;
   const dayMoneyResults = contestEvaluation.dayMoneyResults;

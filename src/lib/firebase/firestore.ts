@@ -263,6 +263,37 @@ export function useTrackedPlayers() {
   return { players, loading };
 }
 
+export function useAllPlayers() {
+  const [playerMap, setPlayerMap] = useState<Record<string, { id: string; name: string; headshotUrl?: string }>>({});
+  const [loading, setLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    const playersRef = collection(db, 'players');
+    const unsubscribe = onSnapshot(playersRef, (snapshot) => {
+      const map: Record<string, { id: string; name: string; headshotUrl?: string }> = {};
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        if (data.id && data.name) {
+          map[data.id] = {
+            id: data.id,
+            name: data.name,
+            headshotUrl: data.headshotUrl,
+          };
+        }
+      });
+      setPlayerMap(map);
+      setLoading(false);
+    }, (error) => {
+      console.warn('Firestore players directory read error:', error);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  return { playerMap, loading };
+}
+
 export function useContestConfig(eventId: string | null | undefined) {
   const [config, setConfig] = useState<ContestConfig | null>(null);
   const [loading, setLoading] = useState<boolean>(true);

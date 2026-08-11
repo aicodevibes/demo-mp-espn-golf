@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { useActiveConfig, useContestConfig, useParticipants } from '@/lib/firebase/firestore';
+import { useActiveConfig, useContestConfig, useParticipants, useAllPlayers } from '@/lib/firebase/firestore';
 import { evaluateContest } from '@/lib/contestEngine';
 import { ESPNCompetitor } from '@/types/espn';
 import { GolferHeadshot } from '@/components/GolferHeadshot';
@@ -27,6 +27,7 @@ export default function GreedyPage() {
 
   const { config: contestConfig, loading: configLoading } = useContestConfig(activeEventId);
   const { participants, loading: participantsLoading } = useParticipants(activeEventId);
+  const { playerMap: firestorePlayerMap } = useAllPlayers();
 
   const [competitors, setCompetitors] = useState<ESPNCompetitor[]>([]);
   const [loadingCompetitors, setLoadingCompetitors] = useState<boolean>(true);
@@ -53,8 +54,8 @@ export default function GreedyPage() {
   }, [activeEventId]);
 
   const contestEvaluation = useMemo(() => {
-    return evaluateContest(participants, competitors, contestConfig);
-  }, [participants, competitors, contestConfig]);
+    return evaluateContest(participants, competitors, contestConfig, null, firestorePlayerMap);
+  }, [participants, competitors, contestConfig, firestorePlayerMap]);
 
   const greedyStandings = contestEvaluation.greedyStandings;
 

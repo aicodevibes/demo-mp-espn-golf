@@ -32,7 +32,8 @@ export function evaluateContest(
   participants: Participant[] = [],
   competitors: ESPNCompetitor[] = [],
   contestConfig?: ContestConfig | null,
-  eventStatus?: ESPNEvent['status'] | null
+  eventStatus?: ESPNEvent['status'] | null,
+  playerDirectoryMap?: Record<string, { id: string; name: string; headshotUrl?: string }>
 ): ContestEvaluationResult {
   const safeParticipants = Array.isArray(participants) ? participants : [];
   const safeCompetitors = Array.isArray(competitors) ? competitors : [];
@@ -45,7 +46,8 @@ export function evaluateContest(
     safeParticipants,
     safeCompetitors,
     contestConfig,
-    eventStatus
+    eventStatus,
+    playerDirectoryMap
   );
 
   // 3. Compute Day Money round results (R1-R4)
@@ -61,7 +63,8 @@ export function evaluateContest(
   const greedyStandings = calculateGreedyStandings(
     greedyParticipants,
     safeCompetitors,
-    contestConfig?.coursePar
+    contestConfig?.coursePar,
+    playerDirectoryMap
   );
 
   // 5. Compute Wager Settlement Summary

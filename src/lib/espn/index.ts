@@ -14,6 +14,7 @@ export {
   evaluateGolferRoundScore,
   resolveEventCompetitorsWithFallback,
   SYNTHETIC_PGA_FIELD,
+  DEFAULT_PLAYER_DIRECTORY_MAP,
   type WinnerStatusInfo,
   type PlayerStatusInfo,
   type ScoreMeta,

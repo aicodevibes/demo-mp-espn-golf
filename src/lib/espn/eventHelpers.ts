@@ -510,4 +510,19 @@ export function resolveEventCompetitorsWithFallback(
   return SYNTHETIC_PGA_FIELD;
 }
 
+export const DEFAULT_PLAYER_DIRECTORY_MAP: Record<
+  string,
+  { id: string; name: string; headshotUrl?: string }
+> = Object.fromEntries(
+  SYNTHETIC_PGA_FIELD.map((c) => [
+    c.athlete?.id || c.id,
+    {
+      id: c.athlete?.id || c.id,
+      name: c.athlete?.displayName || 'Golfer',
+      headshotUrl: c.athlete?.headshot?.href || `https://a.espncdn.com/i/headshots/golf/players/full/${c.id}.png`,
+    },
+  ])
+);
+
+
 

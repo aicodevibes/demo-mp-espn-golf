@@ -1,5 +1,5 @@
 import { ESPNCompetitor, ESPNEventStatus } from '@/types/espn';
-import { getPlayerStatusInfo, formatScoreDisplay, evaluateGolferRoundScore } from '@/lib/espn';
+import { getPlayerStatusInfo, formatScoreDisplay, evaluateGolferRoundScore, DEFAULT_PLAYER_DIRECTORY_MAP } from '@/lib/espn';
 import {
   Participant,
   ParticipantStanding,
@@ -64,7 +64,8 @@ export function calculateParticipantStandings(
   participants: Participant[],
   allCompetitors: ESPNCompetitor[],
   contestConfig?: ContestConfig | null,
-  eventStatus?: ESPNEventStatus | null
+  eventStatus?: ESPNEventStatus | null,
+  playerDirectoryMap?: Record<string, { id: string; name: string; headshotUrl?: string }>
 ): ParticipantStanding[] {
   const mainPayouts = contestConfig?.mainPayouts || DEFAULT_MAIN_PAYOUTS;
   const coursePar = contestConfig?.coursePar ?? null;
@@ -77,7 +78,8 @@ export function calculateParticipantStandings(
     const golferDetails: DraftedGolferStatus[] = p.draftedPlayerIds.map((id, index) => {
       const isFourthGolfer = index === 3;
       const comp = compMap.get(id);
-      const name = comp?.athlete?.displayName || `Golfer (${id})`;
+      const directoryPlayer = playerDirectoryMap?.[id] || DEFAULT_PLAYER_DIRECTORY_MAP[id];
+      const name = comp?.athlete?.displayName || directoryPlayer?.name || `Golfer (${id})`;
       const statusInfo = comp ? getPlayerStatusInfo(comp, eventStatus) : { isCut: false, isWD: false };
       const roundStrokes: { [rd: number]: number | null } = {};
       const roundScoresToPar: { [rd: number]: number | null } = {};
@@ -303,21 +305,19 @@ export function calculateDayMoneyWinners(
  * Tracks performance of each participant's designated Greedy Golfer independently of main contest cut status.
  */
 export function calculateGreedyStandings(
-  participants: Participant[],
+  greedyParticipants: Participant[],
   allCompetitors: ESPNCompetitor[],
-  coursePar?: number | null
+  coursePar?: number | null,
+  playerDirectoryMap?: Record<string, { id: string; name: string; headshotUrl?: string }>
 ): GreedyStanding[] {
   const compMap = new Map<string, ESPNCompetitor>(
     allCompetitors.map((c) => [c.athlete?.id || c.id, c])
   );
 
-  const greedyParticipants = (participants || []).filter(
-    (p) => p.isGreedyParticipant || Boolean(p.greedyPlayerId)
-  );
-
   const standings: GreedyStanding[] = greedyParticipants.map((p) => {
     const comp = p.greedyPlayerId ? compMap.get(p.greedyPlayerId) : null;
-    const name = comp?.athlete?.displayName || (p.greedyPlayerId ? `Golfer (${p.greedyPlayerId})` : 'Unassigned');
+    const directoryPlayer = p.greedyPlayerId ? (playerDirectoryMap?.[p.greedyPlayerId] || DEFAULT_PLAYER_DIRECTORY_MAP[p.greedyPlayerId]) : null;
+    const name = comp?.athlete?.displayName || directoryPlayer?.name || (p.greedyPlayerId ? `Golfer (${p.greedyPlayerId})` : 'Unassigned');
     const statusInfo = comp ? getPlayerStatusInfo(comp) : { isCut: false, isWD: false };
 
     const roundStrokes: { [rd: number]: number | null } = {};
