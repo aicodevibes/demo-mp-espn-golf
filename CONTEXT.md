@@ -18,7 +18,8 @@
 ### Scoring & Financial Terms
 - **Daily Score**: Sum of the top drafted golfer stroke scores for a participant in a single round.
 - **Day Money**: Side pool prize awarded per round to the participant holding the lowest drafted golfer round score.
-- **Wager Settlement Ledger**: Payout breakdown tracking entry fees collected, main prize distributions, day money earnings, and net balance settlements.
+- **Wager Settlement Ledger**: Payout breakdown tracking entry fees collected, main prize distributions, day money earnings, and net balance settlements. Payout projections are strictly suppressed until event finalization (`isFinalized: true`), rendering entry fees while displaying "-" for unearned payout columns in a collapsible section.
+
 
 ### Live Activity Feed & Event Highlights
 - **Live Activity Feed**: A strictly event-isolated highlight feed displaying top relevant items (default max 3) for the currently selected tournament.

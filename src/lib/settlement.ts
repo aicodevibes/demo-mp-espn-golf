@@ -58,17 +58,20 @@ export function calculateWagerSettlement(
     const pEntryFee = entryFee;
     totalEntryFeesCollected += pEntryFee;
 
-    const mainPayout = mainPayoutMap.get(p.id) || 0;
+    const rawMainPayout = mainPayoutMap.get(p.id) || 0;
+    const rawDayMoneyPayout = dayMoneyMap.get(p.id) || 0;
+    const rawGreedyPayout = greedyPayoutMap.get(p.id) || 0;
+
+    const mainPayout = isFinalized ? rawMainPayout : 0;
+    const dayMoneyPayout = isFinalized ? rawDayMoneyPayout : 0;
+    const greedyPayout = isFinalized ? rawGreedyPayout : 0;
+
     totalMainPayoutsDistributed += mainPayout;
-
-    const dayMoneyPayout = dayMoneyMap.get(p.id) || 0;
     totalDayMoneyDistributed += dayMoneyPayout;
-
-    const greedyPayout = greedyPayoutMap.get(p.id) || 0;
     totalGreedyDistributed += greedyPayout;
 
     const totalWinnings = Math.round((mainPayout + dayMoneyPayout + greedyPayout) * 100) / 100;
-    const netBalance = Math.round((totalWinnings - pEntryFee) * 100) / 100;
+    const netBalance = isFinalized ? Math.round((totalWinnings - pEntryFee) * 100) / 100 : 0;
 
     return {
       participantId: p.id,
@@ -82,6 +85,7 @@ export function calculateWagerSettlement(
       netBalance,
     };
   });
+
 
   // Sort settlements: Highest total winnings / net balance first
   settlements.sort((a, b) => b.netBalance - a.netBalance);

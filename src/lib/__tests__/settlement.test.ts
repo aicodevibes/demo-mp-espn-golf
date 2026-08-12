@@ -127,15 +127,25 @@ describe('Wager Settlement Engine (src/lib/settlement.ts)', () => {
     expect(pat?.netBalance).toBe(450); // 500 - 50 = 450
   });
 
-  it('respects isFinalized false status', () => {
+  it('suppresses payouts and net balance calculations when isFinalized is false', () => {
     const unfinalizedConfig = { ...sampleConfig, isFinalized: false };
     const summary = calculateWagerSettlement(
       sampleParticipants,
       sampleStandings,
-      [],
+      sampleDayMoneyResults,
       [],
       unfinalizedConfig
     );
     expect(summary.isFinalized).toBe(false);
+    expect(summary.totalMainPayoutsDistributed).toBe(0);
+    expect(summary.totalDayMoneyDistributed).toBe(0);
+    expect(summary.totalPayoutsDistributed).toBe(0);
+
+    const pat = summary.settlements.find((s) => s.participantId === 'p1');
+    expect(pat?.mainPayout).toBe(0);
+    expect(pat?.dayMoneyPayout).toBe(0);
+    expect(pat?.totalWinnings).toBe(0);
+    expect(pat?.netBalance).toBe(0);
   });
 });
+

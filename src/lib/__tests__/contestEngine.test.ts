@@ -12,7 +12,9 @@ describe('Contest Engine Seam (lib/contestEngine.ts)', () => {
     dayMoneyPool: 100,
     coursePar: 70,
     entryFee: 50,
+    isFinalized: true,
   };
+
 
   const sampleParticipants: Participant[] = [
     { id: 'p1', name: 'Pat', draftedPlayerIds: ['g1', 'g2', 'g3'], hasPaidEntry: true },

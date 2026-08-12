@@ -176,7 +176,9 @@ describe('Scoring Engine (lib/scoring.ts)', () => {
     const configWithFees: ContestConfig = {
       ...sampleConfig,
       entryFee: 100,
+      isFinalized: true,
     };
+
 
     const summary = calculateWagerSettlement(participantsWithPayment, sampleCompetitors, configWithFees);
     expect(summary.totalEntryFeesCollected).toBe(200);
