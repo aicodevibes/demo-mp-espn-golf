@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { AuthProvider } from '@/context/AuthContext';
+import { EventContextProvider } from '@/context/EventContext';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -18,11 +19,13 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className={`${inter.className} bg-slate-950 text-slate-100 min-h-screen antialiased selection:bg-emerald-500 selection:text-white`}>
-
         <AuthProvider>
-          {children}
+          <EventContextProvider>
+            {children}
+          </EventContextProvider>
         </AuthProvider>
       </body>
     </html>
   );
 }
+

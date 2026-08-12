@@ -446,9 +446,13 @@ export function useParticipants(eventId?: string | null) {
   const [loading, setLoading] = useState<boolean>(true);
 
   useEffect(() => {
-    const participantsRef = eventId
-      ? collection(db, 'events', eventId, 'participants')
-      : collection(db, 'participants');
+    if (!eventId) {
+      setParticipants(resolveParticipantsFromSnapshot([], eventId));
+      setLoading(false);
+      return;
+    }
+
+    const participantsRef = collection(db, 'events', eventId, 'participants');
 
     const unsubscribe = onSnapshot(
       participantsRef,
@@ -471,6 +475,7 @@ export function useParticipants(eventId?: string | null) {
 
     return () => unsubscribe();
   }, [eventId]);
+
 
   return { participants, loading };
 }
