@@ -22,30 +22,35 @@ export function formatEventDates(startDate?: string, endDate?: string): string {
   }
 }
 
-export function formatScoreDisplay(score: ESPNCompetitorScore): string {
-  if (score === null || score === undefined || score === '') return 'E';
+export function formatScoreDisplay(score: ESPNCompetitorScore, eventStatus?: any): string {
+  const state = eventStatus?.type?.state;
+  const isPreEvent = state === 'pre' || (eventStatus?.type?.completed === false && eventStatus?.type?.description === 'Scheduled');
+
+  if (score === null || score === undefined || score === '') return isPreEvent ? '-' : 'E';
   if (typeof score === 'string') {
     const trimmed = score.trim();
-    if (trimmed === '' || trimmed === '0' || trimmed === 'EVEN') return 'E';
+    if (trimmed === '' || trimmed === '0' || trimmed === 'EVEN') return isPreEvent ? '-' : 'E';
+    if (trimmed === 'E' && isPreEvent) return '-';
     return trimmed;
   }
   if (typeof score === 'number') {
-    if (score === 0) return 'E';
+    if (score === 0) return isPreEvent ? '-' : 'E';
     return score > 0 ? `+${score}` : String(score);
   }
   if (typeof score === 'object') {
     if (score.displayValue !== undefined && score.displayValue !== null) {
       const disp = String(score.displayValue).trim();
-      if (disp === '' || disp === '0' || disp === 'EVEN') return 'E';
+      if (disp === '' || disp === '0' || disp === 'EVEN') return isPreEvent ? '-' : 'E';
+      if (disp === 'E' && isPreEvent) return '-';
       return disp;
     }
     if (score.value !== undefined && score.value !== null) {
       const val = Number(score.value);
-      if (isNaN(val) || val === 0) return 'E';
+      if (isNaN(val) || val === 0) return isPreEvent ? '-' : 'E';
       return val > 0 ? `+${val}` : String(val);
     }
   }
-  return 'E';
+  return isPreEvent ? '-' : 'E';
 }
 
 export interface ScoreMeta {
@@ -54,12 +59,13 @@ export interface ScoreMeta {
   isOverPar: boolean;
 }
 
-export function getScoreMeta(score: ESPNCompetitorScore): ScoreMeta {
-  const formattedScore = formatScoreDisplay(score);
+export function getScoreMeta(score: ESPNCompetitorScore, eventStatus?: any): ScoreMeta {
+  const formattedScore = formatScoreDisplay(score, eventStatus);
   const isUnderPar = formattedScore.startsWith('-');
   const isOverPar = formattedScore.startsWith('+');
   return { formattedScore, isUnderPar, isOverPar };
 }
+
 
 export interface ESPNScoreboardPayload {
   events?: ESPNEvent[];

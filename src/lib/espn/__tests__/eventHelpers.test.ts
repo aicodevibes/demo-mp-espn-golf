@@ -25,6 +25,20 @@ describe('formatScoreDisplay & getScoreMeta', () => {
     expect(formatScoreDisplay(null)).toBe('E');
   });
 
+  it('formats unstarted pre-event scores as "-" and active event even scores as "E"', () => {
+    const preEventStatus = { type: { state: 'pre', completed: false } };
+    const activeEventStatus = { type: { state: 'in', completed: false } };
+
+    expect(formatScoreDisplay(null, preEventStatus)).toBe('-');
+    expect(formatScoreDisplay('E', preEventStatus)).toBe('-');
+    expect(formatScoreDisplay(0, preEventStatus)).toBe('-');
+
+    expect(formatScoreDisplay(null, activeEventStatus)).toBe('E');
+    expect(formatScoreDisplay('E', activeEventStatus)).toBe('E');
+    expect(formatScoreDisplay(0, activeEventStatus)).toBe('E');
+    expect(formatScoreDisplay('-3', preEventStatus)).toBe('-3');
+  });
+
   it('returns expected ScoreMeta par flags', () => {
     const under = getScoreMeta('-5');
     expect(under.formattedScore).toBe('-5');
@@ -42,6 +56,7 @@ describe('formatScoreDisplay & getScoreMeta', () => {
     expect(even.isOverPar).toBe(false);
   });
 });
+
 
 describe('getWinnerStatus', () => {
   const mockRegulationCompetitors = [

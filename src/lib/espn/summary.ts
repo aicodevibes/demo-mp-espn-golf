@@ -137,7 +137,7 @@ export function createSyntheticCompetitor(
 ): ESPNCompetitor {
   return {
     id: playerId,
-    score: 'E',
+    score: '-',
     athlete: {
       id: playerId,
       displayName: displayName || `Golfer (${playerId})`,
@@ -146,3 +146,4 @@ export function createSyntheticCompetitor(
     },
   } as ESPNCompetitor;
 }
+

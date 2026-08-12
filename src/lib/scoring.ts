@@ -125,7 +125,8 @@ export function calculateParticipantStandings(
         name,
         isCut: statusInfo.isCut,
         isWD: statusInfo.isWD,
-        totalScoreToPar: formatScoreDisplay(comp?.score),
+        totalScoreToPar: formatScoreDisplay(comp?.score, eventStatus),
+
         roundStrokes,
         roundScoresToPar,
         roundScoreDisplayStr,
