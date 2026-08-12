@@ -4,7 +4,7 @@ import React, { useMemo } from 'react';
 import { ESPNCompetitor, ESPNEvent } from '@/types/espn';
 import { Users } from 'lucide-react';
 import { Participant } from '@/types/contest';
-import { evaluateFieldLeaderboard } from '@/lib/fieldLeaderboard';
+import { evaluateLeaderboard } from '@/lib/domain';
 import { CompetitorRow } from './CompetitorRow';
 
 interface DraftedPlayersLeaderboardProps {
@@ -22,15 +22,14 @@ export function DraftedPlayersLeaderboard({
   selectedPlayerId,
   onSelectPlayer,
 }: DraftedPlayersLeaderboardProps) {
-  const { otherDraftedCompetitors, playerDraftedByMap, rankDisplayMap } = useMemo(() => {
-    return evaluateFieldLeaderboard({
-      competitors,
+  const { otherDrafted, playerDraftedByMap } = useMemo(() => {
+    return evaluateLeaderboard(competitors, {
       participants,
       eventStatus: eventObj?.status,
     });
   }, [competitors, participants, eventObj]);
 
-  if (otherDraftedCompetitors.length === 0) {
+  if (otherDrafted.length === 0) {
     return (
       <div className="bg-surface-container-low border border-outline-variant rounded-xl p-5 text-center space-y-2">
         <Users className="w-8 h-8 text-tertiary mx-auto opacity-70" />
@@ -50,17 +49,16 @@ export function DraftedPlayersLeaderboard({
           Other Drafted Golfers (Outside Top 10)
         </h3>
         <span className="text-xs font-bold text-on-surface-variant bg-surface-container-high px-2.5 py-1 rounded-full border border-outline-variant/60">
-          {otherDraftedCompetitors.length} Golfer{otherDraftedCompetitors.length === 1 ? '' : 's'}
+          {otherDrafted.length} Golfer{otherDrafted.length === 1 ? '' : 's'}
         </span>
       </div>
 
       {/* Leaderboard Grid / Rows */}
       <div className="space-y-2 max-h-[520px] overflow-y-auto pr-1">
-        {otherDraftedCompetitors.map((comp, idx) => {
+        {otherDrafted.map((comp, idx) => {
           const playerId = comp.athlete?.id || comp.id || `drafted-${idx}`;
           const isSelected = selectedPlayerId === playerId;
-          const draftedBy = playerDraftedByMap.get(playerId) || [];
-          const computedRank = rankDisplayMap.get(playerId) || comp.status?.position?.displayName || idx + 11;
+          const draftedBy = playerDraftedByMap.get(playerId) || comp.profile.draftedBy || [];
 
           const isFourthGolfer = participants.some(p => p.draftedPlayerIds && p.draftedPlayerIds[3] === playerId);
 
@@ -69,7 +67,7 @@ export function DraftedPlayersLeaderboard({
               key={`drafted-${playerId}-${idx}`}
               competitor={comp}
               draftedBy={draftedBy}
-              rankDisplay={computedRank}
+              rankDisplay={comp.formattedRank}
               isSelected={isSelected}
               eventStatus={eventObj?.status}
               isFourthGolfer={isFourthGolfer}
@@ -81,3 +79,4 @@ export function DraftedPlayersLeaderboard({
     </div>
   );
 }
+

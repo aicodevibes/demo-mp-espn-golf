@@ -4,7 +4,7 @@ import React, { useState, useMemo } from 'react';
 import { ESPNCompetitor, ESPNEvent } from '@/types/espn';
 import { Search, Scissors } from 'lucide-react';
 import { Participant } from '@/types/contest';
-import { evaluateFieldLeaderboard } from '@/lib/fieldLeaderboard';
+import { evaluateLeaderboard } from '@/lib/domain';
 import { CompetitorRow } from './CompetitorRow';
 
 interface FullFieldLeaderboardProps {
@@ -24,9 +24,8 @@ export function FullFieldLeaderboard({
 }: FullFieldLeaderboardProps) {
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  const { activeFieldCompetitors, cutFieldCompetitors, playerDraftedByMap, rankDisplayMap } = useMemo(() => {
-    return evaluateFieldLeaderboard({
-      competitors,
+  const { activeField, cutField, playerDraftedByMap } = useMemo(() => {
+    return evaluateLeaderboard(competitors, {
       participants,
       eventStatus: eventObj?.status,
       searchQuery,
@@ -58,18 +57,17 @@ export function FullFieldLeaderboard({
 
       {/* Active Competitors List */}
       <div className="space-y-2 max-h-[520px] overflow-y-auto pr-1">
-        {activeFieldCompetitors.map((comp, idx) => {
+        {activeField.map((comp, idx) => {
           const playerId = comp.athlete?.id || comp.id || `active-${idx}`;
           const isSelected = selectedPlayerId === playerId;
-          const draftedBy = playerDraftedByMap.get(playerId) || [];
-          const computedRank = rankDisplayMap.get(playerId) || comp.status?.position?.displayName || idx + 1;
+          const draftedBy = playerDraftedByMap.get(playerId) || comp.profile.draftedBy || [];
 
           return (
             <CompetitorRow
               key={`field-active-${playerId}-${idx}`}
               competitor={comp}
               draftedBy={draftedBy}
-              rankDisplay={computedRank}
+              rankDisplay={comp.formattedRank}
               isSelected={isSelected}
               eventStatus={eventObj?.status}
               onSelectPlayer={onSelectPlayer}
@@ -78,12 +76,12 @@ export function FullFieldLeaderboard({
         })}
 
         {/* Cut Line Divider */}
-        {cutFieldCompetitors.length > 0 && (
+        {cutField.length > 0 && (
           <div className="pt-4 pb-2">
             <div className="flex items-center gap-3">
               <div className="h-px bg-error/30 flex-1" />
               <span className="text-[11px] font-black uppercase tracking-wider text-error bg-error/10 border border-error/30 px-3 py-1 rounded-full flex items-center gap-1.5">
-                <Scissors className="w-3.5 h-3.5" /> Project Cut Line ({cutFieldCompetitors.length} Golfers Cut / WD)
+                <Scissors className="w-3.5 h-3.5" /> Project Cut Line ({cutField.length} Golfers Cut / WD)
               </span>
               <div className="h-px bg-error/30 flex-1" />
             </div>
@@ -91,17 +89,17 @@ export function FullFieldLeaderboard({
         )}
 
         {/* Cut / Inactive Competitors */}
-        {cutFieldCompetitors.map((comp, idx) => {
+        {cutField.map((comp, idx) => {
           const playerId = comp.athlete?.id || comp.id || `cut-${idx}`;
           const isSelected = selectedPlayerId === playerId;
-          const draftedBy = playerDraftedByMap.get(playerId) || [];
+          const draftedBy = playerDraftedByMap.get(playerId) || comp.profile.draftedBy || [];
 
           return (
             <CompetitorRow
               key={`field-cut-${playerId}-${idx}`}
               competitor={comp}
               draftedBy={draftedBy}
-              rankDisplay={comp.status?.position?.displayName || activeFieldCompetitors.length + idx + 1}
+              rankDisplay={comp.formattedRank}
               isSelected={isSelected}
               eventStatus={eventObj?.status}
               onSelectPlayer={onSelectPlayer}
@@ -112,3 +110,4 @@ export function FullFieldLeaderboard({
     </div>
   );
 }
+

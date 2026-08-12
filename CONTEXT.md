@@ -10,7 +10,8 @@
 - **Top 10 Tournament Leaders**: Live PGA tournament field leaders, including all competitors tied at position T10 or higher.
 - **Other Drafted Golfers**: In-field drafted pool golfers who are currently competing outside the top 10 positions.
 - **Full PGA Field**: Comprehensive tournament field leaderboard with player search and a project cut line divider.
-- **Field Leaderboard Evaluator**: Pure domain evaluation seam that categorizes competitors into Top 10 leaders (including ties), other drafted golfers, active field, and cut field lists in a single pass.
+- **Golfer Profile Evaluator**: Pure domain evaluation seam that resolves golfer identity, name normalization, participant drafting ownership, and 2-stage headshot URL fallbacks into a synchronous Golfer Profile.
+- **Field Leaderboard Evaluator**: Pure domain evaluation seam that composes with the Golfer Profile Evaluator to categorize competitors into Top 10 leaders (including ties), other drafted golfers, active field, and cut field lists, while computing search query filtering and formatted rank badges in a single pass.
 
 ### Scoring & Financial Terms
 - **Daily Score**: Sum of the top drafted golfer stroke scores for a participant in a single round.

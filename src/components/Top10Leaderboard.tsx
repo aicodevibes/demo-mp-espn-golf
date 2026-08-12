@@ -4,7 +4,7 @@ import React, { useMemo } from 'react';
 import { ESPNCompetitor, ESPNEvent } from '@/types/espn';
 import { Trophy } from 'lucide-react';
 import { Participant } from '@/types/contest';
-import { evaluateFieldLeaderboard } from '@/lib/fieldLeaderboard';
+import { evaluateLeaderboard } from '@/lib/domain';
 import { CompetitorRow } from './CompetitorRow';
 
 interface Top10LeaderboardProps {
@@ -22,13 +22,13 @@ export function Top10Leaderboard({
   selectedPlayerId,
   onSelectPlayer,
 }: Top10LeaderboardProps) {
-  const { top10Competitors, playerDraftedByMap, rankDisplayMap } = useMemo(() => {
-    return evaluateFieldLeaderboard({
-      competitors,
+  const { top10Leaders, playerDraftedByMap } = useMemo(() => {
+    return evaluateLeaderboard(competitors, {
       participants,
       eventStatus: eventObj?.status,
     });
   }, [competitors, participants, eventObj]);
+
 
   if (!competitors || competitors.length === 0) {
     return (
@@ -56,19 +56,17 @@ export function Top10Leaderboard({
 
       {/* Leaderboard Table / Cards */}
       <div className="space-y-2 max-h-[520px] overflow-y-auto pr-1">
-        {top10Competitors.map((comp, idx) => {
+        {top10Leaders.map((comp, idx) => {
           const playerId = comp.athlete?.id || comp.id || `top10-${idx}`;
           const isSelected = selectedPlayerId === playerId;
-          const draftedBy = playerDraftedByMap.get(playerId) || [];
-
-          const computedRank = rankDisplayMap.get(playerId) || comp.status?.position?.displayName || idx + 1;
+          const draftedBy = playerDraftedByMap.get(playerId) || comp.profile.draftedBy || [];
 
           return (
             <CompetitorRow
               key={`top10-${playerId}-${idx}`}
               competitor={comp}
               draftedBy={draftedBy}
-              rankDisplay={computedRank}
+              rankDisplay={comp.formattedRank}
               isSelected={isSelected}
               eventStatus={eventObj?.status}
               priorityHeadshot={idx < 5}
@@ -77,6 +75,7 @@ export function Top10Leaderboard({
           );
         })}
       </div>
+
     </div>
   );
 }
