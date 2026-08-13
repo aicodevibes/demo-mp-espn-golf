@@ -1,5 +1,5 @@
 import { ESPNCompetitor, ESPNEventStatus } from '@/types/espn';
-import { getPlayerStatusInfo, formatScoreDisplay, evaluateGolferRoundScore, isRoundCompleted, DEFAULT_PLAYER_DIRECTORY_MAP } from '@/lib/espn';
+import { getPlayerStatusInfo, formatScoreDisplay, evaluateGolferRoundScore, isRoundCompleted, getGolferCumulativeScoreToPar, DEFAULT_PLAYER_DIRECTORY_MAP } from '@/lib/espn';
 import {
   Participant,
   ParticipantStanding,
@@ -311,7 +311,8 @@ export function calculateGreedyStandings(
   greedyParticipants: Participant[],
   allCompetitors: ESPNCompetitor[],
   coursePar?: number | null,
-  playerDirectoryMap?: Record<string, { id: string; name: string; headshotUrl?: string }>
+  playerDirectoryMap?: Record<string, { id: string; name: string; headshotUrl?: string }>,
+  eventStatus?: any
 ): GreedyStanding[] {
   const compMap = new Map<string, ESPNCompetitor>(
     allCompetitors.map((c) => [c.athlete?.id || c.id, c])
@@ -321,7 +322,7 @@ export function calculateGreedyStandings(
     const comp = p.greedyPlayerId ? compMap.get(p.greedyPlayerId) : null;
     const directoryPlayer = p.greedyPlayerId ? (playerDirectoryMap?.[p.greedyPlayerId] || DEFAULT_PLAYER_DIRECTORY_MAP[p.greedyPlayerId]) : null;
     const name = comp?.athlete?.displayName || directoryPlayer?.name || (p.greedyPlayerId ? `Golfer (${p.greedyPlayerId})` : 'Unassigned');
-    const statusInfo = comp ? getPlayerStatusInfo(comp) : { isCut: false, isWD: false };
+    const statusInfo = comp ? getPlayerStatusInfo(comp, eventStatus) : { isCut: false, isWD: false };
 
     const roundStrokes: { [rd: number]: number | null } = {};
     const roundScoresToPar: { [rd: number]: number | null } = {};
@@ -331,13 +332,19 @@ export function calculateGreedyStandings(
       roundScoresToPar[rd] = comp ? getGolferRoundScoreToPar(comp, rd, coursePar) : null;
     }
 
-    const rawScoreStr = formatScoreDisplay(comp?.score);
     let numericScoreToPar = 0;
-    if (rawScoreStr === 'E') {
-      numericScoreToPar = 0;
-    } else if (rawScoreStr.startsWith('+') || rawScoreStr.startsWith('-')) {
-      const parsed = parseInt(rawScoreStr.replace('+', ''), 10);
-      numericScoreToPar = isNaN(parsed) ? 0 : parsed;
+    let rawScoreStr = 'E';
+    if (comp) {
+      const cum = getGolferCumulativeScoreToPar(comp, eventStatus, coursePar || 72);
+      rawScoreStr = cum.formattedScore;
+      if (rawScoreStr === 'E' || rawScoreStr === 'EVEN' || rawScoreStr === '-') {
+        numericScoreToPar = 0;
+      } else if (rawScoreStr.startsWith('+') || rawScoreStr.startsWith('-')) {
+        const parsed = parseInt(rawScoreStr.replace('+', ''), 10);
+        numericScoreToPar = isNaN(parsed) ? 0 : parsed;
+      } else if (rawScoreStr === 'CUT' || rawScoreStr === 'WD' || rawScoreStr === 'DQ') {
+        numericScoreToPar = 999;
+      }
     }
 
     return {

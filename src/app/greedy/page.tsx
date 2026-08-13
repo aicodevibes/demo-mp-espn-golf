@@ -59,21 +59,23 @@ export default function GreedyPage() {
 
   const greedyStandings = contestEvaluation.greedyStandings;
 
+  const isEventFinalized = contestEvaluation.isFinalized || contestConfig?.isFinalized || false;
+
   const totalPool = greedyStandings.length * GREEDY_ENTRY_FEE;
 
-  // Winner take all allocation with tie split
+  // Winner take all allocation with tie split (only awarded at event end)
   const standingsWithPayout = useMemo(() => {
     if (greedyStandings.length === 0) return [];
 
     const topRank = greedyStandings[0]?.rank || 1;
     const winners = greedyStandings.filter((s) => s.rank === topRank);
-    const splitPayout = winners.length > 0 ? Math.round((totalPool / winners.length) * 100) / 100 : 0;
+    const splitPayout = isEventFinalized && winners.length > 0 ? Math.round((totalPool / winners.length) * 100) / 100 : 0;
 
     return greedyStandings.map((s) => ({
       ...s,
       payout: s.rank === topRank ? splitPayout : 0,
     }));
-  }, [greedyStandings, totalPool]);
+  }, [greedyStandings, totalPool, isEventFinalized]);
 
   const isLoading = appConfigLoading || configLoading || participantsLoading || loadingCompetitors;
 
@@ -311,12 +313,12 @@ export default function GreedyPage() {
 
                         {/* POT PAYOUT */}
                         <td className="py-3 pr-4 pl-2 text-right align-middle font-black text-xs">
-                          {s.payout > 0 ? (
+                          {isEventFinalized && s.payout > 0 ? (
                             <span className="inline-flex items-center gap-1 bg-tertiary/15 text-tertiary border border-tertiary/30 px-2.5 py-1 rounded-md">
                               <Trophy className="w-3 h-3 fill-tertiary" /> ${s.payout.toFixed(2)}
                             </span>
                           ) : (
-                            <span className="text-on-surface-variant/40">—</span>
+                            <span className="text-on-surface-variant/40 font-mono">—</span>
                           )}
                         </td>
                       </tr>

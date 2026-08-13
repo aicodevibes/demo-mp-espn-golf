@@ -64,7 +64,8 @@ export function evaluateContest(
     greedyParticipants,
     safeCompetitors,
     contestConfig?.coursePar,
-    playerDirectoryMap
+    playerDirectoryMap,
+    eventStatus
   );
 
   // 5. Compute Wager Settlement Summary
