@@ -5,6 +5,7 @@ import {
   createPlayerDraftedByMap,
 } from '@/lib/scoring';
 import { parsePositionNumber } from '@/lib/fieldLeaderboard';
+import { getGolferCumulativeScoreToPar } from '@/lib/espn';
 
 export type ActivityEventType = 'day_money' | 'drafted_leader' | 'eagle';
 
@@ -84,7 +85,7 @@ export function generateTournamentActivityEvents(
       const pos = parsePositionNumber(comp);
       if (pos === 1) {
         const golferName = comp.athlete?.displayName || comp.athlete?.shortName || `Golfer (${golferId})`;
-        const scoreDisplay = typeof comp.score === 'object' ? (comp.score?.displayValue || 'E') : (comp.score || 'E');
+        const { formattedScore: scoreDisplay } = getGolferCumulativeScoreToPar(comp, eventStatus);
         const activeRound = eventStatus?.period || comp.status?.period || 1;
 
         events.push({
