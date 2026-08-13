@@ -115,32 +115,49 @@ export function generateTournamentActivityEvents(
       const drafterStr = ` • Drafted by ${drafters.join(', ')}`;
 
       const summary = playerSummaries?.get(golferId);
-      const roundSources: any[] = summary?.rounds || comp.linescores || [];
+      const roundSources: any[] = summary?.rounds || comp.linescores || comp.rounds || [];
 
       if (Array.isArray(roundSources)) {
         roundSources.forEach((ls: any, rdIdx: number) => {
           const round = ls.period || rdIdx + 1;
-          const holeList: any[] = ls.linescores || ls.holes || [];
+          const holeList: any[] = ls.linescores || ls.holes || ls.scorecard || ls.lineScores || [];
 
           if (Array.isArray(holeList)) {
             holeList.forEach((holeLs: any, holeIdx: number) => {
               let isEagle = false;
               const holeNum = holeLs.period || holeLs.hole || holeIdx + 1;
 
-              const diffStr = holeLs.scoreType?.displayValue || holeLs.scoreType?.name;
-              if (diffStr) {
-                const diff = parseInt(diffStr, 10);
-                if (!isNaN(diff) && diff <= -2) {
+              // 1. Check scoreType object
+              if (holeLs.scoreType) {
+                const stName = String(holeLs.scoreType?.name || holeLs.scoreType?.displayName || '').toLowerCase();
+                const stDisp = String(holeLs.scoreType?.displayValue || '').trim();
+                const stId = String(holeLs.scoreType?.id || '');
+
+                if (stName.includes('eagle') || stName.includes('albatross') || stName.includes('double eagle')) {
                   isEagle = true;
-                } else if (String(diffStr).toLowerCase().includes('eagle') || String(diffStr).toLowerCase().includes('albatross')) {
+                } else if (stDisp.startsWith('-')) {
+                  const diff = parseInt(stDisp.replace('-', ''), 10);
+                  if (!isNaN(diff) && diff >= 2) {
+                    isEagle = true;
+                  }
+                } else if (stId === '3' || stId === '4') {
                   isEagle = true;
                 }
               }
 
-              const strokes = holeLs.value || holeLs.strokes;
-              const par = holeLs.par;
-              if (typeof strokes === 'number' && typeof par === 'number' && par > 0) {
-                if (strokes > 0 && strokes <= par - 2) {
+              // 2. Check strokes vs par (e.g. 3 on Par 5, 2 on Par 4)
+              const strokes = typeof holeLs.value === 'number' ? holeLs.value : (typeof holeLs.strokes === 'number' ? holeLs.strokes : null);
+              const par = typeof holeLs.par === 'number' ? holeLs.par : null;
+              if (!isEagle && strokes !== null && par !== null && par > 0 && strokes > 0) {
+                if (strokes <= par - 2) {
+                  isEagle = true;
+                }
+              }
+
+              // 3. Check direct displayValue or relativeScore (e.g. "-2", "-3")
+              if (!isEagle) {
+                const dv = String(holeLs.displayValue || holeLs.relativeScore || '').trim();
+                if (dv === '-2' || dv === '-3' || dv === '-4') {
                   isEagle = true;
                 }
               }

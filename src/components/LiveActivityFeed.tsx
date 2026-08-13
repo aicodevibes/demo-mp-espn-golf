@@ -24,6 +24,7 @@ export interface LiveActivityFeedProps {
   eventStatus?: any;
   events?: ActivityEvent[];
   selectedEventId?: string;
+  playerSummary?: any;
   loading?: boolean;
   className?: string;
 }
@@ -43,6 +44,7 @@ export function LiveActivityFeed({
   eventStatus,
   events: customEvents,
   selectedEventId,
+  playerSummary,
   loading = false,
   className = '',
 }: LiveActivityFeedProps) {
@@ -54,14 +56,19 @@ export function LiveActivityFeed({
     if (customEvents && Array.isArray(customEvents)) {
       return customEvents;
     }
+    const summariesMap = new Map<string, any>();
+    if (playerSummary?.id) {
+      summariesMap.set(playerSummary.id, playerSummary);
+    }
     return generateTournamentActivityEvents(
       participants,
       competitors,
       contestConfig,
       eventStatus,
-      selectedEventId
+      selectedEventId,
+      summariesMap
     );
-  }, [customEvents, participants, competitors, contestConfig, eventStatus, selectedEventId]);
+  }, [customEvents, participants, competitors, contestConfig, eventStatus, selectedEventId, playerSummary]);
 
   // Filter events based on active selection
   const filteredEvents = useMemo(() => {
@@ -212,30 +219,22 @@ export function LiveActivityFeed({
       ) : (
         <div className="space-y-2.5 max-h-[460px] overflow-y-auto pr-1">
           {visibleEvents.map((evt) => {
-            const styles = getEventTypeStyles(evt.type);
             return (
               <div
                 key={evt.id}
-                className={`group flex items-start justify-between gap-3 p-3 rounded-xl bg-surface-container-lowest border border-outline-variant/60 transition-all duration-150 ${styles.borderHover} hover:shadow-xs`}
+                className="group flex items-start justify-between gap-3 p-3 rounded-xl bg-surface-container-lowest border border-outline-variant/60 transition-all duration-150 hover:border-outline hover:shadow-xs"
               >
-                <div className="flex items-start gap-3 min-w-0">
-                  <div
-                    className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 border mt-0.5 ${styles.iconBg}`}
-                  >
-                    {renderEventIcon(evt.type, evt.icon)}
-                  </div>
-                  <div className="min-w-0">
-                    <h4 className="text-sm font-bold text-on-surface leading-snug truncate">
-                      {evt.title}
-                    </h4>
-                    <p className="text-xs text-on-surface-variant leading-relaxed line-clamp-2">
-                      {evt.subtitle}
-                    </p>
-                  </div>
+                <div className="min-w-0 flex-1">
+                  <h4 className="text-sm font-bold text-on-surface leading-snug truncate">
+                    {evt.title}
+                  </h4>
+                  <p className="text-xs text-on-surface-variant leading-relaxed line-clamp-2">
+                    {evt.subtitle}
+                  </p>
                 </div>
 
                 <span
-                  className={`shrink-0 text-[11px] font-semibold px-2 py-0.5 rounded border ${styles.badgeBg}`}
+                  className="shrink-0 text-[11px] font-semibold px-2 py-0.5 rounded border border-outline-variant/60 bg-surface-container-high text-on-surface-variant"
                 >
                   {evt.timestamp}
                 </span>

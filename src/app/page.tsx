@@ -489,6 +489,7 @@ export default function DashboardPage() {
             contestConfig={contestConfig}
             eventStatus={activeEvent?.status}
             selectedEventId={selectedViewerEventId}
+            playerSummary={playerSummary}
           />
         </section>
 
