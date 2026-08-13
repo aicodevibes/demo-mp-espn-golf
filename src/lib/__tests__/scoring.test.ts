@@ -80,6 +80,37 @@ describe('Scoring Engine (lib/scoring.ts)', () => {
     expect(r1.winners[1].payout).toBe(50);
   });
 
+  it('sorts tied Day Money leaders by most finished holes (thru count)', () => {
+    const participants: Participant[] = [
+      { id: 'p1', name: 'Pat', draftedPlayerIds: ['g1'] },
+      { id: 'p2', name: 'Greg', draftedPlayerIds: ['g2'] },
+    ];
+
+    const competitors: ESPNCompetitor[] = [
+      {
+        id: 'g1',
+        athlete: { id: 'g1', displayName: 'Leader 1' },
+        status: { period: 1, thru: 15, type: { state: 'in', completed: false } },
+        linescores: [{ period: 1, value: 67 }],
+      },
+      {
+        id: 'g2',
+        athlete: { id: 'g2', displayName: 'Leader 2 Finished' },
+        status: { period: 1, thru: 18, type: { state: 'post', completed: true } },
+        linescores: [{ period: 1, value: 67 }],
+      },
+    ];
+
+    const results = calculateDayMoneyWinners(participants, competitors, sampleConfig);
+    const r1 = results[0];
+    expect(r1.winners).toHaveLength(2);
+    // Player 2 (thru: 18 / F) must be sorted BEFORE Player 1 (thru: 15)
+    expect(r1.winners[0].participantName).toBe('Greg');
+    expect(r1.winners[0].thru).toBe('F');
+    expect(r1.winners[1].participantName).toBe('Pat');
+    expect(r1.winners[1].thru).toBe('15');
+  });
+
   it('computes score to par dynamically via getGolferRoundScoreToPar', () => {
     const comp: ESPNCompetitor = {
       id: 'c1',

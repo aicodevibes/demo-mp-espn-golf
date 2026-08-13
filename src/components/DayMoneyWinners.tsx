@@ -42,6 +42,7 @@ export function DayMoneyWinners({ dayMoneyResults, contestConfig, eventStatus, l
         {dayMoneyResults.map((result) => {
           const hasWinners = result.winners && result.winners.length > 0;
           const isRoundComplete =
+            result.isCompleted ||
             eventStatus?.type?.state === 'post' ||
             (eventStatus?.period && eventStatus.period > result.round);
           const isTie = result.winners && result.winners.length > 1;
@@ -55,8 +56,12 @@ export function DayMoneyWinners({ dayMoneyResults, contestConfig, eventStatus, l
               <div className="flex items-center justify-between border-b border-outline-variant/60 pb-2">
                 <span className="text-xs font-bold text-on-surface">Day {result.round} Money</span>
                 {result.lowScore !== null ? (
-                  <span className="inline-flex items-center gap-1 text-[11px] font-black text-tertiary bg-tertiary/15 px-2 py-0.5 rounded border border-tertiary/30">
-                    {isRoundComplete ? 'Low' : 'Projected Low'}: {result.lowScore}
+                  <span className={`inline-flex items-center gap-1 text-[11px] font-black px-2 py-0.5 rounded border ${
+                    isRoundComplete
+                      ? 'text-tertiary bg-tertiary/15 border-tertiary/30'
+                      : 'text-secondary bg-secondary/15 border-secondary/30'
+                  }`}>
+                    {isRoundComplete ? 'Low' : 'In-Progress Low'}: {result.lowScore}
                   </span>
                 ) : (
                   <span className="text-[10px] text-on-surface-variant bg-surface-container px-2 py-0.5 rounded">
@@ -70,31 +75,43 @@ export function DayMoneyWinners({ dayMoneyResults, contestConfig, eventStatus, l
                 {!hasWinners ? (
                   <div className="text-center py-3">
                     <Award className="w-5 h-5 text-outline mx-auto mb-1 opacity-60" />
-                    <p className="text-[11px] text-on-surface-variant">Round in progress / pending</p>
+                    <p className="text-[11px] text-on-surface-variant">Round pending</p>
                   </div>
                 ) : (
-                  result.winners.map((w, idx) => (
-                    <div
-                      key={`${w.participantId}-${idx}`}
-                      className="flex items-center justify-between p-1.5 rounded bg-surface-container-low border border-outline-variant/40 text-xs"
-                    >
-                      <div>
-                        <p className="font-bold text-on-surface">{w.participantName}</p>
-                        <p className="text-[10px] text-on-surface-variant font-medium truncate max-w-28">
-                          {w.golferName}
-                        </p>
-                      </div>
+                  result.winners.map((w, idx) => {
+                    const projectedPayout = isTie ? result.totalPool / result.winners.length : result.totalPool;
+                    const displayPayout = isRoundComplete ? w.payout : projectedPayout;
 
-                      <div className="text-right">
-                        <span className="font-black text-tertiary text-xs">
-                          ${w.payout.toFixed(2)}
-                        </span>
-                        {isTie && (
-                          <div className="text-[9px] font-bold text-secondary uppercase">Tie Split</div>
-                        )}
+                    return (
+                      <div
+                        key={`${w.participantId}-${idx}`}
+                        className="flex items-center justify-between p-1.5 rounded bg-surface-container-low border border-outline-variant/40 text-xs"
+                      >
+                        <div className="min-w-0 pr-2">
+                          <p className="font-bold text-on-surface truncate">{w.participantName}</p>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] text-on-surface-variant font-medium truncate max-w-24">
+                              {w.golferName}
+                            </span>
+                            {w.thru && (
+                              <span className="text-[9px] font-mono px-1 py-px rounded bg-surface-container-high text-on-surface-variant shrink-0">
+                                {w.thru === 'F' ? 'F' : `Hole ${w.thru}`}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="text-right shrink-0">
+                          <span className={`font-black text-xs ${isRoundComplete ? 'text-tertiary' : 'text-secondary'}`}>
+                            ${displayPayout.toFixed(2)}
+                          </span>
+                          <div className="text-[9px] font-semibold text-on-surface-variant/70">
+                            {isRoundComplete ? (isTie ? 'Tie Split' : 'Winner') : 'Projected'}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
 

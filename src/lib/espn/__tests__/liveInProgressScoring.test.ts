@@ -74,7 +74,7 @@ describe('Live In-Progress Event Scoring Seams', () => {
     expect(isRoundCompleted(finishedCompetitor, 1)).toBe(true);
   });
 
-  it('does not award Day Money for in-progress partial rounds', () => {
+  it('shows in-progress leaders with zero official payout until round is completed', () => {
     const participants = [
       {
         id: 'p1',
@@ -93,7 +93,9 @@ describe('Live In-Progress Event Scoring Seams', () => {
     ];
 
     const results = calculateDayMoneyWinners(participants, allCompetitors);
-    expect(results[0].winners).toHaveLength(0);
-    expect(results[0].lowScore).toBeNull();
+    expect(results[0].isCompleted).toBe(false);
+    expect(results[0].winners).toHaveLength(1);
+    expect(results[0].winners[0].payout).toBe(0);
+    expect(results[0].winners[0].thru).toBe('5');
   });
 });

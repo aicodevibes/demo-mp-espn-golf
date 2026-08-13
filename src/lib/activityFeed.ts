@@ -59,18 +59,20 @@ export function generateTournamentActivityEvents(
 
     dayMoneyResults.forEach((result) => {
       if (result.winners && result.winners.length > 0 && result.lowScore !== null) {
+        if (!eventStatus || result.isCompleted || result.winners.some((w) => w.isCompleted || w.payout > 0)) {
         result.winners.forEach((w) => {
           events.push({
             id: `day_money_r${result.round}_${w.participantId}_${w.golferId}`,
             type: 'day_money',
             icon: 'DollarSign',
             title: `Round ${result.round} Day Money Winner`,
-            subtitle: `${w.participantName} (${w.golferName} shot ${w.dailyScore}) • $${w.payout.toFixed(2)}`,
+            subtitle: `${w.participantName} (${w.golferName} shot ${w.dailyScore}) • $${(w.payout || (result.totalPool / result.winners.length)).toFixed(2)}`,
             timestamp: `Round ${result.round}`,
           });
         });
       }
-    });
+    }
+  });
   } catch (err) {
     console.error('Error generating day money activity events:', err);
   }

@@ -224,7 +224,6 @@ export function calculateDayMoneyWinners(
     allCompetitors.map((c) => [c.athlete?.id || c.id, c])
   );
 
-  // Map each drafted golfer to their participant owner(s) and round eligibility
   const golferOwnerMap = new Map<string, { owner: Participant; isFourthGolfer: boolean }[]>();
   participants.forEach((p) => {
     p.draftedPlayerIds.forEach((gid, index) => {
@@ -237,66 +236,100 @@ export function calculateDayMoneyWinners(
   const results: DayMoneyRoundResult[] = [];
 
   for (let rd = 1; rd <= 4; rd++) {
-    let minScore: number | null = null;
+    interface Candidate {
+      owner: Participant;
+      golferId: string;
+      golferName: string;
+      score: number;
+      thruNum: number;
+      isCompleted: boolean;
+    }
+
+    const candidates: Candidate[] = [];
 
     golferOwnerMap.forEach((entries, golferId) => {
       const comp = compMap.get(golferId);
       if (!comp) return;
-      if (!isRoundCompleted(comp, rd, eventStatus)) return;
+
       const statusInfo = getPlayerStatusInfo(comp, eventStatus);
       if ((rd === 3 || rd === 4) && (statusInfo.isCut || statusInfo.isWD)) return;
 
-      // Exclude 4th golfer entries if round is 1 or 2
-      const hasEligibleOwner = entries.some((e) => !(e.isFourthGolfer && (rd === 1 || rd === 2)));
-      if (!hasEligibleOwner) return;
-
       const score = getGolferRoundStrokes(comp, rd);
-      if (score === null || score === undefined) return;
+      if (score === null || score === undefined || score === 0) return;
 
-      if (minScore === null || score < minScore) {
-        minScore = score;
+      // Ensure golfer has actually started or finished round rd
+      const ls = comp.linescores?.find((l) => l.period === rd);
+      const isRoundDone = isRoundCompleted(comp, rd, eventStatus);
+      const thru = comp.status?.thru;
+
+      let thruNum = 0;
+      if (isRoundDone || thru === 18 || comp.status?.type?.completed) {
+        thruNum = 18;
+      } else if (typeof thru === 'number' && thru > 0) {
+        thruNum = thru;
+      } else if (ls && typeof ls.value === 'number' && ls.value >= 40) {
+        thruNum = 18;
       }
+
+      if (thruNum === 0 && !isRoundDone && (!ls || !ls.value)) return;
+
+      const golferName = comp.athlete?.displayName || `Golfer (${golferId})`;
+
+      entries.forEach(({ owner, isFourthGolfer }) => {
+        if (isFourthGolfer && (rd === 1 || rd === 2)) return;
+
+        candidates.push({
+          owner,
+          golferId,
+          golferName,
+          score,
+          thruNum,
+          isCompleted: isRoundDone,
+        });
+      });
     });
 
-    const winners: DayMoneyWinner[] = [];
-
-    if (minScore !== null) {
-      golferOwnerMap.forEach((entries, golferId) => {
-        const comp = compMap.get(golferId);
-        if (!comp) return;
-        if (!isRoundCompleted(comp, rd, eventStatus)) return;
-        const statusInfo = getPlayerStatusInfo(comp, eventStatus);
-        if ((rd === 3 || rd === 4) && (statusInfo.isCut || statusInfo.isWD)) return;
-
-        const score = getGolferRoundStrokes(comp, rd);
-        if (score === minScore) {
-          const golferName = comp.athlete?.displayName || `Golfer (${golferId})`;
-          entries.forEach(({ owner, isFourthGolfer }) => {
-            if (isFourthGolfer && (rd === 1 || rd === 2)) return;
-
-            winners.push({
-              participantId: owner.id,
-              participantName: owner.name,
-              golferId,
-              golferName,
-              dailyScore: minScore!,
-              payout: 0,
-            });
-          });
-        }
+    if (candidates.length === 0) {
+      results.push({
+        round: rd,
+        lowScore: null,
+        winners: [],
+        totalPool: dayMoneyPool,
+        isCompleted: false,
       });
-
-      if (winners.length > 0) {
-        const splitPayout = Math.round((dayMoneyPool / winners.length) * 100) / 100;
-        winners.forEach((w) => (w.payout = splitPayout));
-      }
+      continue;
     }
+
+    // Find lowest daily score among all eligible candidates for round rd
+    const minScore = Math.min(...candidates.map((c) => c.score));
+    const leaders = candidates.filter((c) => c.score === minScore);
+
+    // Tie-breaker sort: most finished holes first (thruNum descending: 18 / F > 15 > 10)
+    leaders.sort((a, b) => b.thruNum - a.thruNum);
+
+    // Round is completed if all leaders (and active event) have completed round rd
+    const isRoundDone = leaders.every((l) => l.isCompleted || l.thruNum === 18) &&
+      (eventStatus?.type?.state === 'post' || (eventStatus?.period && eventStatus.period > rd) || leaders.every((l) => l.isCompleted));
+
+    const splitPayout = Math.round((dayMoneyPool / leaders.length) * 100) / 100;
+
+    const winners: DayMoneyWinner[] = leaders.map((l) => ({
+      participantId: l.owner.id,
+      participantName: l.owner.name,
+      golferId: l.golferId,
+      golferName: l.golferName,
+      dailyScore: minScore,
+      payout: isRoundDone ? splitPayout : 0,
+      thru: l.thruNum === 18 ? 'F' : l.thruNum > 0 ? `${l.thruNum}` : '-',
+      isCompleted: l.isCompleted,
+    }));
 
     results.push({
       round: rd,
       lowScore: minScore,
       winners,
       totalPool: dayMoneyPool,
+      isCompleted: isRoundDone,
     });
   }
 
