@@ -1,6 +1,6 @@
 import { useCallback, useEffect } from 'react';
 
-const LEADERBOARD_POLL_INTERVAL_MS = 5 * 60 * 1000;
+const LEADERBOARD_POLL_INTERVAL_MS = 45 * 1000;
 
 interface UseLeaderboardPollingOptions {
   /** The active ESPN event ID. Polling is a no-op when falsy. */

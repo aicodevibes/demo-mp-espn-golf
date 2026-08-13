@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatEventDates, getWinnerStatus, getTop10WithTies, formatScoreDisplay, getScoreMeta } from '../eventHelpers';
+import { formatEventDates, getWinnerStatus, getTop10WithTies, formatScoreDisplay, getScoreMeta, formatThruDisplay, getGolferCumulativeScoreToPar } from '../eventHelpers';
 
 describe('formatEventDates', () => {
   it('formats start and end dates into human readable range', () => {
@@ -56,7 +56,6 @@ describe('formatScoreDisplay & getScoreMeta', () => {
     expect(even.isOverPar).toBe(false);
   });
 });
-
 
 describe('getWinnerStatus', () => {
   const mockRegulationCompetitors = [
@@ -139,3 +138,72 @@ describe('getTop10WithTies', () => {
     expect(result.map((c) => c.id)).not.toContain('p-12');
   });
 });
+
+describe('formatThruDisplay', () => {
+  it('returns "-" for scheduled or unstarted players (thru 0 or STATUS_SCHEDULED)', () => {
+    const unstartedComp = {
+      status: { thru: 0, type: { name: 'STATUS_SCHEDULED', state: 'pre' } },
+    } as any;
+
+    expect(formatThruDisplay(unstartedComp)).toBe('-');
+  });
+
+  it('returns exact hole number for in-progress players (thru > 0)', () => {
+    const inProgressComp = {
+      status: { thru: 14, type: { name: 'STATUS_IN_PROGRESS', state: 'in' } },
+    } as any;
+
+    expect(formatThruDisplay(inProgressComp)).toBe('14');
+  });
+
+  it('returns "F" for finished 18-hole players (thru 18 or completed/post)', () => {
+    const finishedComp = {
+      status: { thru: 18, type: { name: 'STATUS_POST', state: 'post', completed: true } },
+    } as any;
+
+    expect(formatThruDisplay(finishedComp)).toBe('F');
+  });
+
+  it('returns status badge labels for CUT or WD players', () => {
+    const cutComp = {
+      status: { position: { displayName: 'CUT' }, type: { name: 'STATUS_CUT' } },
+    } as any;
+
+    const wdComp = {
+      status: { position: { displayName: 'WD' }, type: { name: 'STATUS_WITHDRAWN' } },
+    } as any;
+
+    expect(formatThruDisplay(cutComp)).toBe('CUT');
+    expect(formatThruDisplay(wdComp)).toBe('WD');
+  });
+});
+
+describe('getGolferCumulativeScoreToPar', () => {
+  it('extracts direct score string if available', () => {
+    const comp = { score: '-4', status: { thru: 14 } } as any;
+    const meta = getGolferCumulativeScoreToPar(comp);
+    expect(meta.formattedScore).toBe('-4');
+    expect(meta.isUnderPar).toBe(true);
+  });
+
+  it('calculates real-time cumulative score from round linescores when score object lacks displayValue', () => {
+    const comp = {
+      score: { value: 54 },
+      status: { thru: 14 },
+      linescores: [
+        { period: 1, displayValue: '-2' },
+        { period: 2, displayValue: '-1' },
+      ],
+    } as any;
+
+    const meta = getGolferCumulativeScoreToPar(comp);
+    expect(meta.formattedScore).toBe('-3');
+    expect(meta.isUnderPar).toBe(true);
+  });
+
+  it('returns CUT or WD when status indicates cut or withdrawn', () => {
+    const cutComp = { status: { position: { displayName: 'CUT' } } } as any;
+    expect(getGolferCumulativeScoreToPar(cutComp).formattedScore).toBe('CUT');
+  });
+});
+

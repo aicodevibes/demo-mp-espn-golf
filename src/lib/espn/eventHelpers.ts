@@ -23,8 +23,15 @@ export function formatEventDates(startDate?: string, endDate?: string): string {
 }
 
 export function formatScoreDisplay(score: ESPNCompetitorScore, eventStatus?: any): string {
-  const state = eventStatus?.type?.state;
-  const isPreEvent = state === 'pre' || (eventStatus?.type?.completed === false && eventStatus?.type?.description === 'Scheduled');
+  const state = eventStatus?.type?.state || eventStatus?.state;
+  const typeName = eventStatus?.type?.name || '';
+  const thru = eventStatus?.thru;
+
+  const isPreEvent =
+    state === 'pre' ||
+    typeName === 'STATUS_SCHEDULED' ||
+    (typeof thru === 'number' && thru === 0) ||
+    (eventStatus?.type?.completed === false && eventStatus?.type?.description === 'Scheduled');
 
   if (score === null || score === undefined || score === '') return isPreEvent ? '-' : 'E';
   if (typeof score === 'string') {
@@ -40,6 +47,7 @@ export function formatScoreDisplay(score: ESPNCompetitorScore, eventStatus?: any
   if (typeof score === 'object') {
     if (score.displayValue !== undefined && score.displayValue !== null) {
       const disp = String(score.displayValue).trim();
+      if (disp === '-' && isPreEvent) return '-';
       if (disp === '' || disp === '0' || disp === 'EVEN') return isPreEvent ? '-' : 'E';
       if (disp === 'E' && isPreEvent) return '-';
       return disp;
@@ -65,6 +73,108 @@ export function getScoreMeta(score: ESPNCompetitorScore, eventStatus?: any): Sco
   const isOverPar = formattedScore.startsWith('+');
   return { formattedScore, isUnderPar, isOverPar };
 }
+
+/**
+ * Formats a competitor's Thru display string ('-', '14', 'F', 'CUT', 'WD', 'DQ')
+ */
+export function formatThruDisplay(comp?: ESPNCompetitor | null, eventStatus?: any): string {
+  if (!comp) return '-';
+  const statusInfo = getPlayerStatusInfo(comp, eventStatus);
+  if (statusInfo.isCut) return 'CUT';
+  if (statusInfo.isWD) return 'WD';
+  if (statusInfo.isDQ) return 'DQ';
+
+  const thru = comp.status?.thru;
+  const compState = comp.status?.type?.state;
+  const compTypeName = comp.status?.type?.name;
+  const eventState = eventStatus?.type?.state;
+
+  const isScheduled =
+    compTypeName === 'STATUS_SCHEDULED' ||
+    compState === 'pre' ||
+    thru === 0 ||
+    thru === null ||
+    thru === undefined;
+
+  if (isScheduled && eventState !== 'post' && compState !== 'post') {
+    return '-';
+  }
+
+  if (thru === 18 || compState === 'post' || comp.status?.type?.completed === true) {
+    return 'F';
+  }
+
+  if (typeof thru === 'number' && thru > 0) {
+    return `${thru}`;
+  }
+
+  return '-';
+}
+
+/**
+ * Calculates a competitor's real-time cumulative score to par across all completed and in-progress rounds.
+ */
+export function getGolferCumulativeScoreToPar(comp: ESPNCompetitor, eventStatus?: any): ScoreMeta {
+  if (!comp) return getScoreMeta('-', eventStatus);
+
+  const statusInfo = getPlayerStatusInfo(comp, eventStatus);
+  if (statusInfo.isCut) return { formattedScore: 'CUT', isUnderPar: false, isOverPar: false };
+  if (statusInfo.isWD) return { formattedScore: 'WD', isUnderPar: false, isOverPar: false };
+
+  // 1. Check if comp.score has a direct displayValue (e.g. "-4", "+2", "E")
+  if (comp.score !== null && comp.score !== undefined) {
+    if (typeof comp.score === 'string') {
+      const trimmed = comp.score.trim();
+      if (trimmed.startsWith('-') || trimmed.startsWith('+')) {
+        return getScoreMeta(trimmed, comp.status || eventStatus);
+      }
+    } else if (typeof comp.score === 'object') {
+      const dv = comp.score.displayValue ? String(comp.score.displayValue).trim() : '';
+      if (dv.startsWith('-') || dv.startsWith('+')) {
+        return getScoreMeta(dv, comp.status || eventStatus);
+      }
+    }
+  }
+
+  // 2. Compute cumulative score to par by summing round relative scores from comp.linescores
+  if (comp.linescores && Array.isArray(comp.linescores) && comp.linescores.length > 0) {
+    let cumulative = 0;
+    let hasValidRound = false;
+
+    for (const ls of comp.linescores) {
+      if (!ls) continue;
+      // Check displayValue on round linescore (e.g. "-2", "+1", "E")
+      if (ls.displayValue) {
+        const dv = String(ls.displayValue).trim();
+        if (dv === 'E' || dv === 'EVEN' || dv === '0') {
+          hasValidRound = true;
+        } else if (dv.startsWith('+') || dv.startsWith('-')) {
+          const parsed = parseInt(dv.replace('+', ''), 10);
+          if (!isNaN(parsed) && Math.abs(parsed) <= 30) {
+            cumulative += parsed;
+            hasValidRound = true;
+          }
+        }
+      } else if (typeof ls.value === 'number' && ls.value > 0) {
+        const rd = ls.period || 1;
+        const res = evaluateGolferRoundScore(comp, rd, 72, comp.status || eventStatus);
+        if (res.scoreToPar !== null) {
+          cumulative += res.scoreToPar;
+          hasValidRound = true;
+        }
+      }
+    }
+
+    if (hasValidRound) {
+      const formattedScore = cumulative === 0 ? 'E' : cumulative > 0 ? `+${cumulative}` : `${cumulative}`;
+      return getScoreMeta(formattedScore, comp.status || eventStatus);
+    }
+  }
+
+  // 3. Fallback to default score meta formatting
+  return getScoreMeta(comp.score, comp.status || eventStatus);
+}
+
 
 
 export interface ESPNScoreboardPayload {
@@ -399,7 +509,7 @@ export function evaluateGolferRoundScore(
   }
 
   // If strokes is already relative (e.g. -5, +3, 0)
-  if (Math.abs(strokes) <= 25) {
+  if (derivedScoreToPar === null && Math.abs(strokes) <= 25) {
     derivedScoreToPar = strokes;
   }
 
@@ -501,6 +611,53 @@ export const DEFAULT_PLAYER_DIRECTORY_MAP: Record<
     },
   ])
 );
+
+/**
+ * Seam function to determine whether a competitor has fully completed a specified round.
+ */
+export function isRoundCompleted(
+  comp: ESPNCompetitor,
+  round: number,
+  eventStatus?: any
+): boolean {
+  if (!comp || !comp.linescores) return false;
+  const ls = comp.linescores.find((l) => l.period === round);
+  if (!ls || typeof ls.value !== 'number' || ls.value <= 0) return false;
+
+  const statusInfo = getPlayerStatusInfo(comp, eventStatus);
+  if (statusInfo.isCut || statusInfo.isWD || statusInfo.isDQ) {
+    if (round > 2 && statusInfo.isCut) return false;
+  }
+
+  const thru = comp.status?.thru;
+  const state = comp.status?.type?.state || eventStatus?.type?.state;
+  const completed = comp.status?.type?.completed || eventStatus?.type?.completed;
+
+  // 1. Explicit in-progress check: if status.thru is explicitly less than 18 (and >= 0), it's not completed.
+  if (typeof thru === 'number' && thru >= 0 && thru < 18) {
+    return false;
+  }
+
+  // 2. If status.type.completed is explicitly false or state is in/pre (and thru is not 18), it's not completed.
+  if (completed === false || state === 'in' || state === 'pre') {
+    if (thru !== 18) {
+      return false;
+    }
+  }
+
+  // 3. Check if explicit hole linescores exist and have fewer than 18 holes
+  if (ls.linescores && Array.isArray(ls.linescores) && ls.linescores.length < 18) {
+    return false;
+  }
+
+  // 4. A completed 18-hole round has full round strokes (>= 40)
+  if (ls.value >= 40) {
+    return true;
+  }
+
+  return false;
+}
+
 
 
 

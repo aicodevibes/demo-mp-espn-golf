@@ -1,6 +1,6 @@
 import { ESPNCompetitor } from '@/types/espn';
 import { Participant } from '@/types/contest';
-import { getPlayerStatusInfo } from '@/lib/espn';
+import { getPlayerStatusInfo, getGolferCumulativeScoreToPar } from '@/lib/espn';
 import { createPlayerDraftedByMap } from '@/lib/scoring';
 
 export interface FieldLeaderboardEvaluation {
@@ -42,23 +42,23 @@ export function parsePositionNumber(comp: ESPNCompetitor, defaultRank: number = 
  * Parses numeric score to par from ESPN competitor score.
  */
 export function parseCompetitorScoreToPar(comp: ESPNCompetitor): number {
-  if (!comp || comp.score === null || comp.score === undefined) return 0;
+  if (!comp) return 0;
+  const meta = getGolferCumulativeScoreToPar(comp);
+  const str = meta.formattedScore;
 
-  const scoreStr = typeof comp.score === 'object'
-    ? String(comp.score.displayValue || comp.score.value || 'E')
-    : String(comp.score);
-
-  const trimmed = scoreStr.trim();
-  if (trimmed === '' || trimmed === 'E' || trimmed === 'EVEN' || trimmed === '0') {
+  if (str === 'CUT' || str === 'WD' || str === 'DQ' || str === '-') {
+    return 999;
+  }
+  if (str === 'E' || str === 'EVEN' || str === '0') {
     return 0;
   }
 
-  if (trimmed.startsWith('+') || trimmed.startsWith('-')) {
-    const parsed = parseInt(trimmed.replace('+', ''), 10);
+  if (str.startsWith('+') || str.startsWith('-')) {
+    const parsed = parseInt(str.replace('+', ''), 10);
     if (!isNaN(parsed)) return parsed;
   }
 
-  const parsedDirect = parseInt(trimmed, 10);
+  const parsedDirect = parseInt(str, 10);
   if (!isNaN(parsedDirect)) return parsedDirect;
 
   return 0;

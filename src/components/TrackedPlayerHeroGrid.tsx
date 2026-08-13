@@ -4,7 +4,7 @@ import React from 'react';
 import { ESPNCompetitor } from '@/types/espn';
 import { Trophy, Activity, Award } from 'lucide-react';
 import { GolferHeadshot } from './GolferHeadshot';
-import { getWinnerStatus, getPlayerStatusInfo, getScoreMeta } from '@/lib/espn';
+import { getWinnerStatus, getPlayerStatusInfo, getScoreMeta, formatThruDisplay, getGolferCumulativeScoreToPar } from '@/lib/espn';
 
 interface TrackedPlayerHeroGridProps {
   trackedCompetitors: ESPNCompetitor[];
@@ -40,11 +40,14 @@ export function TrackedPlayerHeroGrid({
       {trackedCompetitors.map((comp, idx) => {
         const playerId = comp.athlete?.id || comp.id || `player-${idx}`;
         const isSelected = selectedPlayerId === playerId;
-        const { formattedScore: score, isUnderPar, isOverPar } = getScoreMeta(comp.score);
+        const { formattedScore: score, isUnderPar, isOverPar } = getGolferCumulativeScoreToPar(comp, eventStatus);
 
         const winnerInfo = getWinnerStatus(comp, eventStatus, allCompetitors.length > 0 ? allCompetitors : trackedCompetitors);
         const statusInfo = getPlayerStatusInfo(comp, eventStatus);
-        const computedRank = rankDisplayMap?.get(playerId) || comp.status?.position?.displayName || comp.order || '-';
+        const computedRank =
+          rankDisplayMap?.get(playerId) ||
+          (comp.status?.position?.displayName && comp.status.position.displayName !== 'E' ? comp.status.position.displayName : null) ||
+          (comp.order ? `${comp.order}` : '-');
 
         return (
           <div
@@ -115,7 +118,7 @@ export function TrackedPlayerHeroGrid({
                     {comp.athlete.displayName}
                   </h3>
                   <p className="text-[11px] text-on-surface-variant">
-                    Thru: <span className="font-semibold text-on-surface">{comp.status?.thru || 'F'}</span>
+                    Thru: <span className="font-semibold text-on-surface">{formatThruDisplay(comp, eventStatus)}</span>
                   </p>
                 </div>
               </div>

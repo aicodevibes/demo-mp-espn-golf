@@ -60,7 +60,7 @@ export default function DashboardPage() {
 
   const [isWatchlistCollapsed, setIsWatchlistCollapsed] = useState<boolean>(false);
 
-  // Synchronously hydrate events from client localStorage cache if available
+  // Safely hydrate scoreboard cache client-side after mount to prevent hydration mismatch
   useEffect(() => {
     const cachedEvents = readScoreboardCache();
     if (cachedEvents && cachedEvents.length > 0) {

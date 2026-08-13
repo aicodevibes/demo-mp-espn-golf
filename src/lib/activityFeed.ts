@@ -29,7 +29,8 @@ export function generateTournamentActivityEvents(
   competitors: ESPNCompetitor[] = [],
   contestConfig?: ContestConfig | null,
   eventStatus?: any,
-  eventId?: string | null
+  eventId?: string | null,
+  playerSummaries?: Map<string, any>
 ): ActivityEvent[] {
   const events: ActivityEvent[] = [];
   const safeParticipants = Array.isArray(participants) ? participants : [];
@@ -84,7 +85,7 @@ export function generateTournamentActivityEvents(
       if (pos === 1) {
         const golferName = comp.athlete?.displayName || comp.athlete?.shortName || `Golfer (${golferId})`;
         const scoreDisplay = typeof comp.score === 'object' ? (comp.score?.displayValue || 'E') : (comp.score || 'E');
-        const latestRound = comp.linescores?.length || 1;
+        const activeRound = eventStatus?.period || comp.status?.period || 1;
 
         events.push({
           id: `drafted_leader_${golferId}`,
@@ -92,7 +93,7 @@ export function generateTournamentActivityEvents(
           icon: 'Trophy',
           title: `Tournament Leader: ${golferName}`,
           subtitle: `Score: ${scoreDisplay} • Drafted by ${drafters.join(', ')}`,
-          timestamp: `Round ${latestRound}`,
+          timestamp: `Round ${activeRound}`,
         });
       }
     });
@@ -110,28 +111,38 @@ export function generateTournamentActivityEvents(
       const golferName = comp.athlete?.displayName || comp.athlete?.shortName || `Golfer (${golferId})`;
       const drafterStr = ` • Drafted by ${drafters.join(', ')}`;
 
-      if (comp.linescores && Array.isArray(comp.linescores)) {
-        comp.linescores.forEach((ls) => {
-          const round = ls.period || 1;
-          if (ls.linescores && Array.isArray(ls.linescores)) {
-            ls.linescores.forEach((holeLs: any, holeIdx: number) => {
+      const summary = playerSummaries?.get(golferId);
+      const roundSources: any[] = summary?.rounds || comp.linescores || [];
+
+      if (Array.isArray(roundSources)) {
+        roundSources.forEach((ls: any, rdIdx: number) => {
+          const round = ls.period || rdIdx + 1;
+          const holeList: any[] = ls.linescores || ls.holes || [];
+
+          if (Array.isArray(holeList)) {
+            holeList.forEach((holeLs: any, holeIdx: number) => {
               let isEagle = false;
-              const diffStr = holeLs.scoreType?.displayValue;
+              const holeNum = holeLs.period || holeLs.hole || holeIdx + 1;
+
+              const diffStr = holeLs.scoreType?.displayValue || holeLs.scoreType?.name;
               if (diffStr) {
                 const diff = parseInt(diffStr, 10);
                 if (!isNaN(diff) && diff <= -2) {
                   isEagle = true;
-                }
-              } else if (typeof holeLs.value === 'number' && typeof holeLs.par === 'number') {
-                if (holeLs.value <= holeLs.par - 2) {
+                } else if (String(diffStr).toLowerCase().includes('eagle') || String(diffStr).toLowerCase().includes('albatross')) {
                   isEagle = true;
                 }
-              } else if (holeLs.scoreType?.name?.toLowerCase().includes('eagle')) {
-                isEagle = true;
+              }
+
+              const strokes = holeLs.value || holeLs.strokes;
+              const par = holeLs.par;
+              if (typeof strokes === 'number' && typeof par === 'number' && par > 0) {
+                if (strokes > 0 && strokes <= par - 2) {
+                  isEagle = true;
+                }
               }
 
               if (isEagle) {
-                const holeNum = holeLs.period || holeIdx + 1;
                 events.push({
                   id: `eagle_${golferId}_r${round}_h${holeNum}`,
                   type: 'eagle',

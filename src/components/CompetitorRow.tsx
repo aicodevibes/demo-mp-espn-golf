@@ -4,7 +4,7 @@ import React from 'react';
 import { ESPNCompetitor } from '@/types/espn';
 import { User } from 'lucide-react';
 import { GolferHeadshot } from './GolferHeadshot';
-import { getPlayerStatusInfo, getScoreMeta } from '@/lib/espn';
+import { getPlayerStatusInfo, getScoreMeta, formatThruDisplay, getGolferCumulativeScoreToPar } from '@/lib/espn';
 
 export interface CompetitorRowProps {
   competitor: ESPNCompetitor;
@@ -32,7 +32,7 @@ export function CompetitorRow({
   const playerId = competitor.athlete?.id || competitor.id || '';
   const displayName = competitor.athlete?.displayName || 'Golfer';
   const headshotUrl = competitor.athlete?.headshot?.href;
-  const { formattedScore: score, isUnderPar, isOverPar } = getScoreMeta(competitor.score);
+  const { formattedScore: score, isUnderPar, isOverPar } = getGolferCumulativeScoreToPar(competitor, eventStatus);
 
   const isDrafted = draftedBy.length > 0;
   const statusInfo = getPlayerStatusInfo(competitor, eventStatus);
@@ -105,7 +105,7 @@ export function CompetitorRow({
           </div>
 
           <span className="text-[10px] text-on-surface-variant">
-            Thru: <strong className="text-on-surface">{competitor.status?.thru || 'F'}</strong>
+            Thru: <strong className="text-on-surface">{formatThruDisplay(competitor, eventStatus)}</strong>
           </span>
         </div>
       </div>

@@ -6,6 +6,7 @@ import {
   parsePositionNumber,
   parseCompetitorScoreToPar,
   sortCompetitorsByLeaderboard,
+  computeLeaderboardRankDisplays,
 } from '@/lib/fieldLeaderboard';
 import { getGolferProfile, GolferProfile, GolferDirectoryOptions } from './golferDirectory';
 
@@ -23,6 +24,7 @@ export interface FieldLeaderboardEvaluation {
   cutField: EnrichedCompetitor[];
   projectedCutIndex: number;
   playerDraftedByMap: Map<string, string[]>;
+  rankDisplayMap: Map<string, string>;
 }
 
 export interface FieldLeaderboardOptions extends GolferDirectoryOptions {
@@ -47,6 +49,9 @@ export function evaluateLeaderboard(
   // Build playerDraftedByMap via domain scoring helper
   const playerDraftedByMap = createPlayerDraftedByMap(participants);
 
+  // Compute dynamic leaderboard ranks for active competitors
+  const activeOnly = sorted.filter((c) => !getPlayerStatusInfo(c, eventStatus).isInactive);
+  const rankDisplayMap = computeLeaderboardRankDisplays(activeOnly);
 
   // Enrich competitors with GolferProfile, rank badge, and score to par
   const enriched: EnrichedCompetitor[] = sorted.map((comp) => {
@@ -54,12 +59,15 @@ export function evaluateLeaderboard(
     const statusInfo = getPlayerStatusInfo(comp, eventStatus);
     const scoreToPar = parseCompetitorScoreToPar(comp);
     const posNum = parsePositionNumber(comp);
+    const dynamicRank = rankDisplayMap.get(athleteId);
 
-    let formattedRank = 'E';
+    let formattedRank = '-';
     if (statusInfo.isCut) formattedRank = 'CUT';
     else if (statusInfo.isWD) formattedRank = 'WD';
     else if (statusInfo.isDQ) formattedRank = 'DQ';
-    else if (typeof comp.status?.position?.displayName === 'string' && comp.status.position.displayName) {
+    else if (dynamicRank) {
+      formattedRank = dynamicRank;
+    } else if (typeof comp.status?.position?.displayName === 'string' && comp.status.position.displayName && comp.status.position.displayName !== 'E') {
       formattedRank = comp.status.position.displayName;
     } else if (posNum < 999) {
       formattedRank = `${posNum}`;
@@ -125,5 +133,6 @@ export function evaluateLeaderboard(
     cutField: cutCompetitors,
     projectedCutIndex,
     playerDraftedByMap,
+    rankDisplayMap,
   };
 }

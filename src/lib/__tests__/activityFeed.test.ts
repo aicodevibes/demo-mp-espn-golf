@@ -106,6 +106,7 @@ describe('Activity Feed Generator (src/lib/activityFeed.ts)', () => {
     expect(leaderEvents[0].icon).toBe('Trophy');
     expect(leaderEvents[0].title).toContain('Tournament Leader: Justin Rose');
     expect(leaderEvents[0].subtitle).toContain('Drafted by Pat');
+    expect(leaderEvents[0].timestamp).toBe('Round 1');
 
     // Check Eagle events
     const eagleEvents = events.filter((e) => e.type === 'eagle');
@@ -116,5 +117,27 @@ describe('Activity Feed Generator (src/lib/activityFeed.ts)', () => {
     // Ensure legacy events (cut, top_10) are removed
     const cutEvents = events.filter((e) => e.type === ('cut' as any));
     expect(cutEvents.length).toBe(0);
+  });
+
+  it('does NOT generate Day Money events during in-progress rounds (thru < 18)', () => {
+    const inProgressComps: ESPNCompetitor[] = [
+      {
+        id: 'g1',
+        athlete: { id: 'g1', displayName: 'Justin Rose' },
+        status: { period: 1, thru: 14, type: { state: 'in', completed: false } },
+        linescores: [{ period: 1, value: 54 }],
+      },
+    ];
+
+    const events = generateTournamentActivityEvents(
+      sampleParticipants,
+      inProgressComps,
+      sampleConfig,
+      { period: 1, type: { state: 'in', completed: false } },
+      '401811961'
+    );
+
+    const dayMoney = events.filter((e) => e.type === 'day_money');
+    expect(dayMoney).toHaveLength(0);
   });
 });

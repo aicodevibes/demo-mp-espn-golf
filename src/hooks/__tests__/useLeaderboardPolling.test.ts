@@ -9,7 +9,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { useLeaderboardPolling } from '@/hooks/useLeaderboardPolling';
 
-const FIVE_MINUTES_MS = 5 * 60 * 1000;
+const POLL_INTERVAL_MS = 45 * 1000;
 
 describe('useLeaderboardPolling', () => {
   beforeEach(() => {
@@ -37,7 +37,7 @@ describe('useLeaderboardPolling', () => {
     const onPoll = vi.fn();
     renderHook(() => useLeaderboardPolling({ activeEventId: 'evt-1', onPoll }));
 
-    vi.advanceTimersByTime(FIVE_MINUTES_MS);
+    vi.advanceTimersByTime(POLL_INTERVAL_MS);
 
     expect(onPoll).toHaveBeenCalledTimes(1);
   });
@@ -47,7 +47,7 @@ describe('useLeaderboardPolling', () => {
     const onPoll = vi.fn();
     renderHook(() => useLeaderboardPolling({ activeEventId: 'evt-1', onPoll }));
 
-    vi.advanceTimersByTime(FIVE_MINUTES_MS);
+    vi.advanceTimersByTime(POLL_INTERVAL_MS);
 
     expect(onPoll).not.toHaveBeenCalled();
   });

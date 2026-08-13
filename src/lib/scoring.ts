@@ -1,5 +1,5 @@
 import { ESPNCompetitor, ESPNEventStatus } from '@/types/espn';
-import { getPlayerStatusInfo, formatScoreDisplay, evaluateGolferRoundScore, DEFAULT_PLAYER_DIRECTORY_MAP } from '@/lib/espn';
+import { getPlayerStatusInfo, formatScoreDisplay, evaluateGolferRoundScore, isRoundCompleted, DEFAULT_PLAYER_DIRECTORY_MAP } from '@/lib/espn';
 import {
   Participant,
   ParticipantStanding,
@@ -125,7 +125,7 @@ export function calculateParticipantStandings(
         name,
         isCut: statusInfo.isCut,
         isWD: statusInfo.isWD,
-        totalScoreToPar: formatScoreDisplay(comp?.score, eventStatus),
+        totalScoreToPar: comp ? formatScoreDisplay(comp.score, eventStatus) : '-',
 
         roundStrokes,
         roundScoresToPar,
@@ -242,6 +242,7 @@ export function calculateDayMoneyWinners(
     golferOwnerMap.forEach((entries, golferId) => {
       const comp = compMap.get(golferId);
       if (!comp) return;
+      if (!isRoundCompleted(comp, rd, eventStatus)) return;
       const statusInfo = getPlayerStatusInfo(comp, eventStatus);
       if ((rd === 3 || rd === 4) && (statusInfo.isCut || statusInfo.isWD)) return;
 
@@ -263,6 +264,7 @@ export function calculateDayMoneyWinners(
       golferOwnerMap.forEach((entries, golferId) => {
         const comp = compMap.get(golferId);
         if (!comp) return;
+        if (!isRoundCompleted(comp, rd, eventStatus)) return;
         const statusInfo = getPlayerStatusInfo(comp, eventStatus);
         if ((rd === 3 || rd === 4) && (statusInfo.isCut || statusInfo.isWD)) return;
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { ShieldCheck, LogIn, LogOut, Trophy, Calendar, Activity, Award } from 'lucide-react';
 import { ESPNEvent } from '@/types/espn';
@@ -23,6 +23,12 @@ export function Header({
   selectedEventId,
   onSelectEvent,
 }: HeaderProps) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   const { user, loading, isAdmin, signInWithGoogle, signOut } = useAuth();
 
   const formattedDates = formatEventDates(eventObj?.date, eventObj?.endDate);
@@ -57,7 +63,7 @@ export function Header({
                 </div>
               ) : (
                 <>
-                  {events && events.length > 0 && onSelectEvent ? (
+                  {mounted && events && events.length > 0 && onSelectEvent ? (
                     <select
                       data-testid="header-event-selector"
                       value={selectedEventId || ''}
