@@ -4,13 +4,15 @@ import React, { useMemo } from 'react';
 import { ESPNCompetitor, ESPNEvent } from '@/types/espn';
 import { Users } from 'lucide-react';
 import { Participant } from '@/types/contest';
-import { evaluateLeaderboard } from '@/lib/domain';
+import { evaluateLeaderboard, EnrichedCompetitor } from '@/lib/domain';
 import { CompetitorRow } from './CompetitorRow';
 
 interface DraftedPlayersLeaderboardProps {
   competitors: ESPNCompetitor[];
   participants: Participant[];
   eventObj?: ESPNEvent;
+  otherDrafted?: EnrichedCompetitor[];
+  playerDraftedByMap?: Map<string, string[]>;
   selectedPlayerId?: string;
   onSelectPlayer?: (playerId: string) => void;
 }
@@ -19,15 +21,26 @@ export function DraftedPlayersLeaderboard({
   competitors,
   participants,
   eventObj,
+  otherDrafted: propOtherDrafted,
+  playerDraftedByMap: propPlayerDraftedByMap,
   selectedPlayerId,
   onSelectPlayer,
 }: DraftedPlayersLeaderboardProps) {
-  const { otherDrafted, playerDraftedByMap } = useMemo(() => {
+  const evaluated = useMemo(() => {
+    if (propOtherDrafted) {
+      return {
+        otherDrafted: propOtherDrafted,
+        playerDraftedByMap: propPlayerDraftedByMap || new Map<string, string[]>(),
+      };
+    }
     return evaluateLeaderboard(competitors, {
       participants,
       eventStatus: eventObj?.status,
     });
-  }, [competitors, participants, eventObj]);
+  }, [competitors, participants, eventObj, propOtherDrafted, propPlayerDraftedByMap]);
+
+  const otherDrafted = evaluated.otherDrafted;
+  const playerDraftedByMap = evaluated.playerDraftedByMap;
 
   if (otherDrafted.length === 0) {
     return (

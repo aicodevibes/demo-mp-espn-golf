@@ -59,7 +59,7 @@ export default function GreedyPage() {
 
   const greedyStandings = contestEvaluation.greedyStandings;
 
-  const isEventFinalized = contestEvaluation.isFinalized || contestConfig?.isFinalized || false;
+  const isEventFinalized = contestEvaluation.wagerLedger.isFinalized || contestConfig?.isFinalized || false;
 
   const totalPool = greedyStandings.length * GREEDY_ENTRY_FEE;
 

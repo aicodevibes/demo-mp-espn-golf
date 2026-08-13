@@ -38,9 +38,10 @@ import {
   DEFAULT_PLAYER_DIRECTORY_MAP,
   readScoreboardCache,
   writeScoreboardCache,
+  EspnTournamentAdapter,
 } from '@/lib/espn';
 import { evaluateContest } from '@/lib/contestEngine';
-import { evaluateFieldLeaderboard } from '@/lib/fieldLeaderboard';
+import { evaluateFieldLeaderboard } from '@/lib/domain';
 import { useLeaderboardPolling } from '@/hooks/useLeaderboardPolling';
 import { usePlayerSummary } from '@/hooks/usePlayerSummary';
 
@@ -108,7 +109,17 @@ export default function DashboardPage() {
 
   // 2. Set Active Event ID & Viewer Override
   const [viewerEventIdOverride, setViewerEventIdOverride] = useState<string>('');
-  const effectiveActiveEventId = config?.activeEventId || events[0]?.id;
+  const defaultEventId = useMemo(() => {
+    const live = events.find(
+      (e) =>
+        e.status?.type?.state === 'in' ||
+        e.status?.type?.description?.toLowerCase().includes('in progress') ||
+        e.status?.type?.detail?.toLowerCase().includes('in progress')
+    );
+    return live?.id || events[0]?.id || '';
+  }, [events]);
+
+  const effectiveActiveEventId = config?.activeEventId || defaultEventId;
   const selectedViewerEventId = viewerEventIdOverride || effectiveActiveEventId;
   const isHistoricalView = Boolean(viewerEventIdOverride && viewerEventIdOverride !== config?.activeEventId);
 
@@ -172,6 +183,7 @@ export default function DashboardPage() {
   // Initial leaderboard fetch on active event change — clear competitors immediately so old event data never bleeds through
   useEffect(() => {
     setCompetitors([]);
+    setActiveEventObj(null);
     fetchLeaderboard();
   }, [selectedViewerEventId, fetchLeaderboard]);
 
@@ -209,13 +221,22 @@ export default function DashboardPage() {
     return participants.find((p) => p.id === selectedParticipantId) || null;
   }, [participants, selectedParticipantId, isTopView]);
 
+  const normalizedTournament = useMemo(() => {
+    return EspnTournamentAdapter.normalizeTournamentSnapshot(
+      { events },
+      activeEventObj,
+      { activeEventId: selectedViewerEventId }
+    );
+  }, [events, activeEventObj, selectedViewerEventId]);
+
   const fieldEvaluation = useMemo(() => {
     return evaluateFieldLeaderboard({
+      tournament: normalizedTournament,
       competitors,
       participants,
-      eventStatus: activeEvent?.status,
+      eventStatus: normalizedTournament.rawEvent?.status || activeEvent?.status,
     });
-  }, [competitors, participants, activeEvent]);
+  }, [normalizedTournament, competitors, participants, activeEvent]);
 
   // Vercel Performance Rule: rerender-memo & js-index-maps
   const displayCompetitors = useMemo(() => {
@@ -223,8 +244,8 @@ export default function DashboardPage() {
 
     // 1. Top View: 1st through 4th golfer in sorted tournament leaderboard
     if (isTopView) {
-      if (fieldEvaluation.top10Competitors.length > 0) {
-        return fieldEvaluation.top10Competitors.slice(0, 4);
+      if (fieldEvaluation.top10Leaders.length > 0) {
+        return fieldEvaluation.top10Leaders.slice(0, 4);
       }
       if (competitors.length > 0) {
         return competitors.slice(0, 4);
@@ -263,7 +284,7 @@ export default function DashboardPage() {
     }
 
     return competitors.slice(0, 4);
-  }, [competitors, activeParticipant, trackedPlayers, isTopView]);
+  }, [competitors, activeParticipant, trackedPlayers, isTopView, fieldEvaluation]);
 
   // Auto-select 1st golfer of newly displayed participant watchlist
   useEffect(() => {
@@ -447,6 +468,8 @@ export default function DashboardPage() {
             competitors={competitors}
             participants={participants}
             eventObj={activeEvent || undefined}
+            top10Leaders={fieldEvaluation.top10Leaders}
+            playerDraftedByMap={fieldEvaluation.playerDraftedByMap}
             selectedPlayerId={selectedPlayerId}
             onSelectPlayer={(id) => setSelectedPlayerId(id)}
           />
@@ -455,6 +478,8 @@ export default function DashboardPage() {
             competitors={competitors}
             participants={participants}
             eventObj={activeEvent || undefined}
+            otherDrafted={fieldEvaluation.draftedGolfers}
+            playerDraftedByMap={fieldEvaluation.playerDraftedByMap}
             selectedPlayerId={selectedPlayerId}
             onSelectPlayer={(id) => setSelectedPlayerId(id)}
           />
@@ -466,6 +491,9 @@ export default function DashboardPage() {
             competitors={competitors}
             participants={participants}
             eventObj={activeEvent || undefined}
+            activeField={fieldEvaluation.activeField}
+            cutField={fieldEvaluation.cutField}
+            playerDraftedByMap={fieldEvaluation.playerDraftedByMap}
             selectedPlayerId={selectedPlayerId}
             onSelectPlayer={(id) => setSelectedPlayerId(id)}
           />

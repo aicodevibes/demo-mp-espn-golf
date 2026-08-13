@@ -4,11 +4,12 @@ import React from 'react';
 import { ESPNCompetitor } from '@/types/espn';
 import { Trophy, Activity, Award } from 'lucide-react';
 import { GolferHeadshot } from './GolferHeadshot';
-import { getWinnerStatus, getPlayerStatusInfo, getScoreMeta, formatThruDisplay, getGolferCumulativeScoreToPar } from '@/lib/espn';
+import { NormalizedCompetitor } from '@/lib/espn';
+import { getWinnerStatus, getPlayerStatusInfo, formatThruDisplay, getGolferCumulativeScoreToPar } from '@/lib/espn';
 
 interface TrackedPlayerHeroGridProps {
-  trackedCompetitors: ESPNCompetitor[];
-  allCompetitors?: ESPNCompetitor[];
+  trackedCompetitors: (ESPNCompetitor | NormalizedCompetitor)[];
+  allCompetitors?: (ESPNCompetitor | NormalizedCompetitor)[];
   eventStatus?: any;
   rankDisplayMap?: Map<string, string>;
   selectedPlayerId?: string;
@@ -40,10 +41,27 @@ export function TrackedPlayerHeroGrid({
       {trackedCompetitors.map((comp, idx) => {
         const playerId = comp.athlete?.id || comp.id || `player-${idx}`;
         const isSelected = selectedPlayerId === playerId;
-        const { formattedScore: score, isUnderPar, isOverPar } = getGolferCumulativeScoreToPar(comp, eventStatus);
 
-        const winnerInfo = getWinnerStatus(comp, eventStatus, allCompetitors.length > 0 ? allCompetitors : trackedCompetitors);
-        const statusInfo = getPlayerStatusInfo(comp, eventStatus);
+        const isNormalized = 'statusInfo' in comp && 'scoreMeta' in comp;
+        const normComp = isNormalized ? (comp as NormalizedCompetitor) : null;
+
+        const score = normComp ? normComp.scoreDisplay : getGolferCumulativeScoreToPar(comp, eventStatus).formattedScore;
+        const isUnderPar = normComp ? normComp.scoreMeta.isUnderPar : getGolferCumulativeScoreToPar(comp, eventStatus).isUnderPar;
+        const isOverPar = normComp ? normComp.scoreMeta.isOverPar : getGolferCumulativeScoreToPar(comp, eventStatus).isOverPar;
+        const thru = normComp ? normComp.thruDisplay : formatThruDisplay(comp, eventStatus);
+
+        const statusInfo = normComp
+          ? normComp.statusInfo
+          : getPlayerStatusInfo(comp, eventStatus);
+
+        const winnerInfo = normComp
+          ? {
+              isWinner: normComp.statusInfo.isWinner,
+              isPlayoff: normComp.statusInfo.isPlayoff,
+              badgeLabel: normComp.statusInfo.badgeLabel,
+            }
+          : getWinnerStatus(comp, eventStatus, allCompetitors.length > 0 ? allCompetitors : trackedCompetitors);
+
         const computedRank =
           rankDisplayMap?.get(playerId) ||
           (comp.status?.position?.displayName && comp.status.position.displayName !== 'E' ? comp.status.position.displayName : null) ||

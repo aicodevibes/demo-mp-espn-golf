@@ -7,3 +7,5 @@ process.env.NEXT_PUBLIC_FIREBASE_APP_ID = 'mock-app-id';
 
 import '@testing-library/jest-dom';
 
+export {};
+

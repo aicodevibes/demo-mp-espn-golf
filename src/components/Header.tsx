@@ -31,9 +31,11 @@ export function Header({
 
   const { user, loading, isAdmin, signInWithGoogle, signOut } = useAuth();
 
-  const formattedDates = formatEventDates(eventObj?.date, eventObj?.endDate);
-  const eventState = eventObj?.status?.type?.state;
-  const statusDetail = eventObj?.status?.type?.detail || 'Scheduled';
+  const formattedDates =
+    (eventObj as any)?.datesFormatted || formatEventDates(eventObj?.date, eventObj?.endDate);
+  const eventState = (eventObj as any)?.statusState || eventObj?.status?.type?.state;
+  const statusDetail =
+    (eventObj as any)?.statusDetail || eventObj?.status?.type?.detail || 'Scheduled';
   const isEventUnpopulated = !eventName && !eventObj;
   const isLoadingEvent = eventLoading || isEventUnpopulated;
 

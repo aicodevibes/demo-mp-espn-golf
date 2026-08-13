@@ -12,6 +12,8 @@
 - **Full PGA Field**: Comprehensive tournament field leaderboard with player search and a project cut line divider.
 - **Golfer Profile Evaluator**: Pure domain evaluation seam that resolves golfer identity, name normalization, participant drafting ownership, and 2-stage headshot URL fallbacks into a synchronous Golfer Profile.
 - **Field Leaderboard Evaluator**: Pure domain evaluation seam that composes with the Golfer Profile Evaluator to categorize competitors into Top 10 leaders (including ties), other drafted golfers, active field, and cut field lists, while computing search query filtering and formatted rank badges in a single pass.
+- **ESPN Tournament Adapter**: Unified deep adapter that encapsulates raw ESPN scoreboard parsing, active event resolution, 36-hole cut detection (`linescores.length === 2`), 2-stage CDN headshot fallbacks, and pre-indexed O(1) competitor lookups into a single snapshot pipeline.
+- **Normalized Competitor Snapshot**: Pre-evaluated competitor model with embedded status metadata (`isCut`, `isWD`, `isDQ`, `isWinner`, `isPlayoff`, `statusBadge`), pre-computed scores to par, formatted thru displays, and resolved multi-stage headshots.
 - **Event State Context Provider**: Unified real-time subscriber and domain context provider that manages single-instance Firestore subscriptions for active event configuration, contest settings, and participant rosters.
 
 

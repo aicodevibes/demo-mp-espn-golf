@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+import '@testing-library/jest-dom/vitest';
 /**
  * Tests for the auto-refresh polling behavior.
  *

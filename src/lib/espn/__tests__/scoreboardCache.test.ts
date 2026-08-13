@@ -25,8 +25,26 @@ describe('scoreboardCache', () => {
     },
   ];
 
+  let mockStorage: Record<string, string> = {};
+
   beforeEach(() => {
-    localStorage.clear();
+    mockStorage = {};
+    const storageMock = {
+      getItem: (k: string) => mockStorage[k] ?? null,
+      setItem: (k: string, v: string) => {
+        mockStorage[k] = String(v);
+      },
+      removeItem: (k: string) => {
+        delete mockStorage[k];
+      },
+      clear: () => {
+        mockStorage = {};
+      },
+      length: 0,
+      key: () => null,
+    };
+    (global as any).window = { localStorage: storageMock };
+    (global as any).localStorage = storageMock;
     vi.restoreAllMocks();
   });
 

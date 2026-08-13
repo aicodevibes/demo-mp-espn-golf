@@ -256,7 +256,7 @@ export function calculateDayMoneyWinners(
       const statusInfo = getPlayerStatusInfo(comp, eventStatus);
       if ((rd === 3 || rd === 4) && (statusInfo.isCut || statusInfo.isWD)) return;
 
-      const roundScoreRes = evaluateGolferRoundScore(comp, rd, contestConfig?.coursePar, comp.status || eventStatus);
+      const roundScoreRes = evaluateGolferRoundScore(comp, rd, contestConfig?.coursePar);
       if (roundScoreRes.scoreToPar === null) return;
 
       const ls = comp.linescores?.find((l) => l.period === rd);
@@ -375,7 +375,7 @@ export function calculateGreedyStandings(
     let numericScoreToPar = 0;
     let rawScoreStr = 'E';
     if (comp) {
-      const cum = getGolferCumulativeScoreToPar(comp, eventStatus, coursePar || 72);
+      const cum = getGolferCumulativeScoreToPar(comp, eventStatus);
       rawScoreStr = cum.formattedScore;
       if (rawScoreStr === 'E' || rawScoreStr === 'EVEN' || rawScoreStr === '-') {
         numericScoreToPar = 0;

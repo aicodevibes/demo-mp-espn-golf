@@ -19,6 +19,7 @@ export interface ESPNCalendarItem {
 }
 
 export interface ESPNEventStatus {
+  period?: number;
   type?: {
     id?: string;
     name?: string;
@@ -67,11 +68,13 @@ export interface ESPNCompetitor {
     };
 
     type?: {
-      name: string;
-      description: string;
-      detail: string;
-      state: string;
+      id?: string;
+      name?: string;
+      description?: string;
+      detail?: string;
+      state?: string;
       shortDetail?: string;
+      completed?: boolean;
     };
   };
 
@@ -88,6 +91,7 @@ export interface ESPNCompetitor {
       };
     }>;
   }>;
+  rounds?: any[];
   athlete: {
     id: string;
     displayName: string;

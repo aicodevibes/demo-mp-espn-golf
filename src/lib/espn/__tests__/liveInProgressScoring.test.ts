@@ -21,7 +21,7 @@ describe('Live In-Progress Event Scoring Seams', () => {
           completed: false,
           description: 'In Progress',
         },
-        position: { id: '33', displayName: 'T33', isTie: true },
+        position: { id: '33', displayName: 'T33' },
       },
       score: { value: 54, displayValue: '+1' },
       linescores: [
@@ -29,8 +29,6 @@ describe('Live In-Progress Event Scoring Seams', () => {
           value: 54,
           displayValue: '+1',
           period: 1,
-          inScore: 18,
-          outScore: 36,
         },
       ],
     };
@@ -68,7 +66,7 @@ describe('Live In-Progress Event Scoring Seams', () => {
         thru: 18,
         type: { name: 'STATUS_POST', state: 'post', completed: true },
       },
-      linescores: [{ value: 68, displayValue: '-2', period: 1, inScore: 34, outScore: 34 }],
+      linescores: [{ value: 68, displayValue: '-2', period: 1 }],
     };
 
     expect(isRoundCompleted(finishedCompetitor, 1)).toBe(true);

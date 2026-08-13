@@ -24,20 +24,20 @@ export function formatEventDates(startDate?: string, endDate?: string): string {
 
 export function formatScoreDisplay(score: ESPNCompetitorScore, eventStatus?: any): string {
   const state = eventStatus?.type?.state || eventStatus?.state;
-  const typeName = eventStatus?.type?.name || '';
+  const typeName = eventStatus?.type?.name;
   const thru = eventStatus?.thru;
 
   const isPreEvent =
     state === 'pre' ||
     typeName === 'STATUS_SCHEDULED' ||
-    (typeof thru === 'number' && thru === 0) ||
-    (eventStatus?.type?.completed === false && eventStatus?.type?.description === 'Scheduled');
+    (thru === 0 && eventStatus?.type?.completed === false && eventStatus?.type?.description === 'Scheduled');
 
   if (score === null || score === undefined || score === '') return isPreEvent ? '-' : 'E';
   if (typeof score === 'string') {
     const trimmed = score.trim();
     if (trimmed === '' || trimmed === '0' || trimmed === 'EVEN') return isPreEvent ? '-' : 'E';
     if (trimmed === 'E' && isPreEvent) return '-';
+    if (trimmed === 'E' || trimmed === 'EVEN') return 'E';
     return trimmed;
   }
   if (typeof score === 'number') {
@@ -50,6 +50,7 @@ export function formatScoreDisplay(score: ESPNCompetitorScore, eventStatus?: any
       if (disp === '-' && isPreEvent) return '-';
       if (disp === '' || disp === '0' || disp === 'EVEN') return isPreEvent ? '-' : 'E';
       if (disp === 'E' && isPreEvent) return '-';
+      if (disp === 'E' || disp === 'EVEN') return 'E';
       return disp;
     }
     if (score.value !== undefined && score.value !== null) {
@@ -86,28 +87,30 @@ export function formatThruDisplay(comp?: ESPNCompetitor | null, eventStatus?: an
 
   const thru = comp.status?.thru;
   const compState = comp.status?.type?.state;
-  const compTypeName = comp.status?.type?.name;
   const eventState = eventStatus?.type?.state;
 
-  const isScheduled =
-    compTypeName === 'STATUS_SCHEDULED' ||
-    compState === 'pre' ||
-    thru === 0 ||
-    thru === null ||
-    thru === undefined;
+  // Check if competitor has completed any rounds (e.g. Round 1 complete with Round 2 scheduled)
+  const completedRounds = (comp.linescores || []).filter(
+    (ls: any) => typeof ls.value === 'number' && ls.value > 0
+  ).length;
 
-  if (isScheduled && eventState !== 'post' && compState !== 'post') {
-    return '-';
-  }
-
-  if (thru === 18 || compState === 'post' || comp.status?.type?.completed === true) {
-    return 'F';
-  }
-
-  if (typeof thru === 'number' && thru > 0) {
+  // 1. If currently playing a live round on the course
+  if (compState === 'in' && typeof thru === 'number' && thru > 0) {
+    if (thru === 18) return 'F';
     return `${thru}`;
   }
 
+  // 2. If finished 18 holes, post-round, or full tournament post
+  if (thru === 18 || compState === 'post' || comp.status?.type?.completed === true || eventState === 'post') {
+    return 'F';
+  }
+
+  // 3. If between rounds (completed previous round(s), but next round has not yet teed off)
+  if (completedRounds > 0 && (compState === 'pre' || thru === 0 || thru === null || thru === undefined)) {
+    return 'F';
+  }
+
+  // 4. Pre-tournament or unstarted player with no completed rounds
   return '-';
 }
 
@@ -125,13 +128,15 @@ export function getGolferCumulativeScoreToPar(comp: ESPNCompetitor, eventStatus?
   if (comp.score !== null && comp.score !== undefined) {
     if (typeof comp.score === 'string') {
       const trimmed = comp.score.trim();
-      if (trimmed.startsWith('-') || trimmed.startsWith('+')) {
-        return getScoreMeta(trimmed, comp.status || eventStatus);
+      if (trimmed.startsWith('-') || trimmed.startsWith('+') || trimmed === 'E' || trimmed === 'EVEN') {
+        const fmt = (trimmed === 'EVEN' || trimmed === 'E') ? 'E' : trimmed;
+        return { formattedScore: fmt, isUnderPar: fmt.startsWith('-'), isOverPar: fmt.startsWith('+') };
       }
     } else if (typeof comp.score === 'object') {
       const dv = comp.score.displayValue ? String(comp.score.displayValue).trim() : '';
-      if (dv.startsWith('-') || dv.startsWith('+')) {
-        return getScoreMeta(dv, comp.status || eventStatus);
+      if (dv.startsWith('-') || dv.startsWith('+') || dv === 'E' || dv === 'EVEN') {
+        const fmt = (dv === 'EVEN' || dv === 'E') ? 'E' : dv;
+        return { formattedScore: fmt, isUnderPar: fmt.startsWith('-'), isOverPar: fmt.startsWith('+') };
       }
     }
   }
@@ -157,7 +162,7 @@ export function getGolferCumulativeScoreToPar(comp: ESPNCompetitor, eventStatus?
         }
       } else if (typeof ls.value === 'number' && ls.value > 0) {
         const rd = ls.period || 1;
-        const res = evaluateGolferRoundScore(comp, rd, 72, comp.status || eventStatus);
+        const res = evaluateGolferRoundScore(comp, rd, 72);
         if (res.scoreToPar !== null) {
           cumulative += res.scoreToPar;
           hasValidRound = true;
@@ -167,7 +172,7 @@ export function getGolferCumulativeScoreToPar(comp: ESPNCompetitor, eventStatus?
 
     if (hasValidRound) {
       const formattedScore = cumulative === 0 ? 'E' : cumulative > 0 ? `+${cumulative}` : `${cumulative}`;
-      return getScoreMeta(formattedScore, comp.status || eventStatus);
+      return { formattedScore, isUnderPar: formattedScore.startsWith('-'), isOverPar: formattedScore.startsWith('+') };
     }
   }
 
@@ -224,13 +229,25 @@ export function resolveActiveEvent(
   activeEventObj: ESPNEvent | null = null,
   activeEventId?: string | null
 ): ESPNEvent | null {
-  if (activeEventObj) return activeEventObj;
-  if (events.length === 0) return null;
-  if (activeEventId) {
+  if (activeEventObj && (!activeEventId || activeEventObj.id === activeEventId)) {
+    return activeEventObj;
+  }
+  if (activeEventId && events.length > 0) {
     const found = events.find((e) => e.id === activeEventId);
     if (found) return found;
   }
-  return events[0] || null;
+  if (events.length > 0) {
+    // Look for live in-progress event
+    const liveEvent = events.find(
+      (e) =>
+        e.status?.type?.state === 'in' ||
+        e.status?.type?.description?.toLowerCase().includes('in progress') ||
+        e.status?.type?.detail?.toLowerCase().includes('in progress')
+    );
+    if (liveEvent) return liveEvent;
+    return events[0] || null;
+  }
+  return activeEventObj || null;
 }
 
 export interface WinnerStatusInfo {
@@ -369,40 +386,6 @@ export function getPlayerStatusInfo(comp: ESPNCompetitor, eventStatus?: any): Pl
   return { isCut: finalIsCut, isWD, isDQ, isMDF, isInactive, badgeLabel };
 }
 
-/**
- * Returns all competitors in the Top 10 positions, expanding beyond 10 items
- * to include any competitors tied for 10th place (T10).
- */
-export function getTop10WithTies(competitors: ESPNCompetitor[] = []): ESPNCompetitor[] {
-  if (!competitors || competitors.length <= 10) return competitors || [];
-
-  const initial10 = competitors.slice(0, 10);
-  const tenthPlaceCompetitor = initial10[9];
-  if (!tenthPlaceCompetitor) return initial10;
-
-  const tenthPos = tenthPlaceCompetitor.status?.position?.displayName;
-  const tenthScore = tenthPlaceCompetitor.score;
-
-  const additionalTies: ESPNCompetitor[] = [];
-  for (let i = 10; i < competitors.length; i++) {
-    const competitor = competitors[i];
-    const competitorPosition = competitor.status?.position?.displayName;
-    const competitorScore = competitor.score;
-
-    const isPosMatch = Boolean(
-      tenthPos && competitorPosition && (competitorPosition === tenthPos || competitorPosition === `T${tenthPos.replace('T', '')}`)
-    );
-    const isScoreMatch = tenthScore !== undefined && competitorScore !== undefined && competitorScore === tenthScore;
-
-    if (isPosMatch || isScoreMatch) {
-      additionalTies.push(competitor);
-    } else {
-      break;
-    }
-  }
-
-  return [...initial10, ...additionalTies];
-}
 
 export interface GolferRoundScoreResult {
   roundStrokes: number | null;

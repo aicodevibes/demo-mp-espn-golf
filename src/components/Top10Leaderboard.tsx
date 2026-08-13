@@ -4,13 +4,15 @@ import React, { useMemo } from 'react';
 import { ESPNCompetitor, ESPNEvent } from '@/types/espn';
 import { Trophy } from 'lucide-react';
 import { Participant } from '@/types/contest';
-import { evaluateLeaderboard } from '@/lib/domain';
+import { evaluateLeaderboard, EnrichedCompetitor } from '@/lib/domain';
 import { CompetitorRow } from './CompetitorRow';
 
 interface Top10LeaderboardProps {
   competitors: ESPNCompetitor[];
   participants: Participant[];
   eventObj?: ESPNEvent;
+  top10Leaders?: EnrichedCompetitor[];
+  playerDraftedByMap?: Map<string, string[]>;
   selectedPlayerId?: string;
   onSelectPlayer?: (playerId: string) => void;
 }
@@ -19,15 +21,26 @@ export function Top10Leaderboard({
   competitors,
   participants,
   eventObj,
+  top10Leaders: propTop10Leaders,
+  playerDraftedByMap: propPlayerDraftedByMap,
   selectedPlayerId,
   onSelectPlayer,
 }: Top10LeaderboardProps) {
-  const { top10Leaders, playerDraftedByMap } = useMemo(() => {
+  const evaluated = useMemo(() => {
+    if (propTop10Leaders) {
+      return {
+        top10Leaders: propTop10Leaders,
+        playerDraftedByMap: propPlayerDraftedByMap || new Map<string, string[]>(),
+      };
+    }
     return evaluateLeaderboard(competitors, {
       participants,
       eventStatus: eventObj?.status,
     });
-  }, [competitors, participants, eventObj]);
+  }, [competitors, participants, eventObj, propTop10Leaders, propPlayerDraftedByMap]);
+
+  const top10Leaders = evaluated.top10Leaders;
+  const playerDraftedByMap = evaluated.playerDraftedByMap;
 
 
   if (!competitors || competitors.length === 0) {

@@ -106,7 +106,7 @@ describe('Activity Feed Generator (src/lib/activityFeed.ts)', () => {
     expect(leaderEvents[0].icon).toBe('Trophy');
     expect(leaderEvents[0].title).toContain('Tournament Leader: Justin Rose');
     expect(leaderEvents[0].subtitle).toContain('Drafted by Pat');
-    expect(leaderEvents[0].timestamp).toBe('Round 1');
+    expect(leaderEvents[0].timestamp).toBe('Round 2');
 
     // Check Eagle events
     const eagleEvents = events.filter((e) => e.type === 'eagle');
@@ -139,5 +139,38 @@ describe('Activity Feed Generator (src/lib/activityFeed.ts)', () => {
 
     const dayMoney = events.filter((e) => e.type === 'day_money');
     expect(dayMoney).toHaveLength(0);
+  });
+
+  it('correctly labels drafted leader timestamp as Round 1 when status.period advanced to 2 overnight', () => {
+    const overnightLeader = [
+      {
+        id: 'g1',
+        athlete: { id: 'g1', displayName: 'Justin Rose' },
+        order: 1,
+        status: {
+          period: 2,
+          thru: 0,
+          type: { name: 'STATUS_SCHEDULED', state: 'pre' },
+          position: { id: '1', displayName: '1', isTie: false },
+        },
+        linescores: [
+          { period: 1, value: 65, displayValue: '-5' },
+          { period: 2, teeTime: '2026-08-14T14:25Z' },
+        ],
+        score: '-5',
+      },
+    ] as any;
+
+    const events = generateTournamentActivityEvents(
+      sampleParticipants,
+      overnightLeader,
+      sampleConfig,
+      undefined,
+      '401811961'
+    );
+
+    const leaderEvents = events.filter((e) => e.type === 'drafted_leader');
+    expect(leaderEvents).toHaveLength(1);
+    expect(leaderEvents[0].timestamp).toBe('Round 1');
   });
 });

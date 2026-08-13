@@ -1,13 +1,8 @@
 import { ESPNCompetitor, ESPNEventStatus } from '@/types/espn';
 import { Participant } from '@/types/contest';
-import { getPlayerStatusInfo } from '@/lib/espn';
+import { getPlayerStatusInfo, getGolferCumulativeScoreToPar } from '@/lib/espn/eventHelpers';
+import { NormalizedTournament, NormalizedCompetitor } from '@/lib/espn/adapter';
 import { createPlayerDraftedByMap } from '@/lib/scoring';
-import {
-  parsePositionNumber,
-  parseCompetitorScoreToPar,
-  sortCompetitorsByLeaderboard,
-  computeLeaderboardRankDisplays,
-} from '@/lib/fieldLeaderboard';
 import { getGolferProfile, GolferProfile, GolferDirectoryOptions } from './golferDirectory';
 
 export interface EnrichedCompetitor extends ESPNCompetitor {
@@ -19,44 +14,202 @@ export interface EnrichedCompetitor extends ESPNCompetitor {
 
 export interface FieldLeaderboardEvaluation {
   top10Leaders: EnrichedCompetitor[];
-  otherDrafted: EnrichedCompetitor[];
+  draftedGolfers: EnrichedCompetitor[];
   activeField: EnrichedCompetitor[];
   cutField: EnrichedCompetitor[];
   projectedCutIndex: number;
   playerDraftedByMap: Map<string, string[]>;
   rankDisplayMap: Map<string, string>;
+
+  // Backward-compatibility aliases during transition
+  top10Competitors: EnrichedCompetitor[];
+  otherDrafted: EnrichedCompetitor[];
+  otherDraftedCompetitors: EnrichedCompetitor[];
+  activeFieldCompetitors: EnrichedCompetitor[];
+  cutFieldCompetitors: EnrichedCompetitor[];
 }
 
 export interface FieldLeaderboardOptions extends GolferDirectoryOptions {
+  competitors?: ESPNCompetitor[] | NormalizedCompetitor[];
+  participants?: Participant[];
   eventStatus?: ESPNEventStatus | null | unknown;
   searchQuery?: string;
+  tournament?: NormalizedTournament | null;
 }
 
 /**
- * Pure domain evaluator that sorts, categorizes, formats ranks, and enriches PGA tournament competitors
+ * Parses numeric position from ESPN competitor (e.g., 10 for "10" or "T10").
+ */
+export function parsePositionNumber(comp: ESPNCompetitor | null | undefined, defaultRank: number = 999): number {
+  if (!comp) return defaultRank;
+
+  if (typeof comp.order === 'number' && comp.order > 0) return comp.order;
+
+  const rawPos = comp.status?.position?.id || comp.status?.position?.displayName;
+  if (typeof rawPos === 'number') return rawPos;
+  if (typeof rawPos === 'string') {
+    const cleaned = rawPos.replace(/[^\d]/g, '');
+    const parsed = parseInt(cleaned, 10);
+    if (!isNaN(parsed) && parsed > 0) return parsed;
+  }
+
+  return defaultRank;
+}
+
+/**
+ * Parses numeric score to par from ESPN competitor score.
+ */
+export function parseCompetitorScoreToPar(comp: ESPNCompetitor | null | undefined): number {
+  if (!comp) return 0;
+  if ('scoreToPar' in comp && typeof (comp as NormalizedCompetitor).scoreToPar === 'number') {
+    return (comp as NormalizedCompetitor).scoreToPar ?? 0;
+  }
+  const meta = getGolferCumulativeScoreToPar(comp);
+  const str = meta.formattedScore;
+
+  if (str === 'CUT' || str === 'WD' || str === 'DQ' || str === '-') {
+    return 999;
+  }
+  if (str === 'E' || str === 'EVEN' || str === '0') {
+    return 0;
+  }
+
+  if (str.startsWith('+') || str.startsWith('-')) {
+    const parsed = parseInt(str.replace('+', ''), 10);
+    if (!isNaN(parsed)) return parsed;
+  }
+
+  const parsedDirect = parseInt(str, 10);
+  if (!isNaN(parsedDirect)) return parsedDirect;
+
+  return 0;
+}
+
+/**
+ * Canonical sorting function for tournament competitors:
+ * 1. Active competitors first, sorted strictly by score-to-par ascending (e.g. -5, -2, -1, E, +1, +2).
+ * 2. Cut / Withdrawn / Disqualified competitors last.
+ */
+export function sortCompetitorsByLeaderboard(
+  competitors: (ESPNCompetitor | NormalizedCompetitor)[],
+  eventStatus?: any
+): (ESPNCompetitor | NormalizedCompetitor)[] {
+  const safe = Array.isArray(competitors) ? [...competitors] : [];
+
+  return safe.sort((a, b) => {
+    const isInactiveA =
+      'statusInfo' in a
+        ? (a as NormalizedCompetitor).statusInfo.isInactive
+        : getPlayerStatusInfo(a, eventStatus).isInactive;
+    const isInactiveB =
+      'statusInfo' in b
+        ? (b as NormalizedCompetitor).statusInfo.isInactive
+        : getPlayerStatusInfo(b, eventStatus).isInactive;
+
+    // Inactive (Cut/WD/DQ) go to bottom
+    if (isInactiveA && !isInactiveB) return 1;
+    if (!isInactiveA && isInactiveB) return -1;
+
+    // Primary: Compare numeric score to par (lower is better: -5 < -2 < -1 < 0 < +1 < +2)
+    const scoreA = parseCompetitorScoreToPar(a);
+    const scoreB = parseCompetitorScoreToPar(b);
+    if (scoreA !== scoreB) {
+      return scoreA - scoreB;
+    }
+
+    // Secondary: Compare parsed position numbers
+    const posA = parsePositionNumber(a);
+    const posB = parsePositionNumber(b);
+    if (posA !== posB) {
+      return posA - posB;
+    }
+
+    // Tertiary: Compare ESPN order if available
+    if (typeof a.order === 'number' && typeof b.order === 'number' && a.order !== b.order) {
+      return a.order - b.order;
+    }
+
+    return (a.athlete?.displayName || '').localeCompare(b.athlete?.displayName || '');
+  });
+}
+
+/**
+ * Calculates dynamic leaderboard rank display (e.g. "1", "T2", "T94") for a sorted array of active competitors.
+ */
+export function computeLeaderboardRankDisplays(competitors: (ESPNCompetitor | NormalizedCompetitor)[]): Map<string, string> {
+  const map = new Map<string, string>();
+  let i = 0;
+  while (i < competitors.length) {
+    const score = parseCompetitorScoreToPar(competitors[i]);
+    let j = i;
+    while (j < competitors.length && parseCompetitorScoreToPar(competitors[j]) === score) {
+      j++;
+    }
+    const tieCount = j - i;
+    const rankStr = tieCount > 1 ? `T${i + 1}` : `${i + 1}`;
+
+    for (let k = i; k < j; k++) {
+      const pid = competitors[k].athlete?.id || competitors[k].id;
+      if (pid) map.set(pid, rankStr);
+    }
+    i = j;
+  }
+  return map;
+}
+
+/**
+ * Core Pure Domain Evaluator: Sorts, categorizes, formats ranks, and enriches PGA tournament competitors
  * with GolferProfiles and draftedBy participant ownerships in a single pass.
  */
-export function evaluateLeaderboard(
-  competitors: ESPNCompetitor[] = [],
-  options: FieldLeaderboardOptions = {}
+export function evaluateFieldLeaderboard(
+  input: (ESPNCompetitor | NormalizedCompetitor)[] | FieldLeaderboardOptions,
+  secondaryOptions: FieldLeaderboardOptions = {}
 ): FieldLeaderboardEvaluation {
-  const { competitors: optComps, participants = [], eventStatus, searchQuery } = options;
-  const rawCompetitors = competitors.length > 0 ? competitors : optComps || [];
+  let competitors: (ESPNCompetitor | NormalizedCompetitor)[] = [];
+  let options: FieldLeaderboardOptions = {};
 
-  // Sort competitors canonically (active first by score, cut/wd last)
-  const sorted = sortCompetitorsByLeaderboard(rawCompetitors, eventStatus);
+  if (Array.isArray(input)) {
+    competitors = input;
+    options = secondaryOptions;
+  } else if (input && typeof input === 'object') {
+    options = input;
+    if (options.tournament) {
+      competitors = options.tournament.competitors || [];
+    } else {
+      competitors = options.competitors || [];
+    }
+  }
 
-  // Build playerDraftedByMap via domain scoring helper
+  const { participants = [], eventStatus, searchQuery, playerDirectoryMap } = options;
+
+  // Canonical sorting
+  const sorted = sortCompetitorsByLeaderboard(competitors, eventStatus);
+
+  // Participant draft map
   const playerDraftedByMap = createPlayerDraftedByMap(participants);
 
-  // Compute dynamic leaderboard ranks for active competitors
-  const activeOnly = sorted.filter((c) => !getPlayerStatusInfo(c, eventStatus).isInactive);
-  const rankDisplayMap = computeLeaderboardRankDisplays(activeOnly);
+  // Set of all drafted player IDs
+  const allDraftedPlayerIdsSet = new Set<string>();
+  participants.forEach((p) => {
+    p.draftedPlayerIds?.forEach((pid) => allDraftedPlayerIdsSet.add(pid));
+  });
 
-  // Enrich competitors with GolferProfile, rank badge, and score to par
+  // Dynamic ranks for active competitors
+  const activeUnfiltered = sorted.filter((c) => {
+    if ('statusInfo' in c) {
+      return !(c as NormalizedCompetitor).statusInfo.isInactive;
+    }
+    return !getPlayerStatusInfo(c, eventStatus).isInactive;
+  });
+  const rankDisplayMap = computeLeaderboardRankDisplays(activeUnfiltered);
+
+  // Enrich competitors in single pass
   const enriched: EnrichedCompetitor[] = sorted.map((comp) => {
     const athleteId = comp.athlete?.id || comp.id || '';
-    const statusInfo = getPlayerStatusInfo(comp, eventStatus);
+    const statusInfo =
+      'statusInfo' in comp
+        ? (comp as NormalizedCompetitor).statusInfo
+        : getPlayerStatusInfo(comp, eventStatus);
     const scoreToPar = parseCompetitorScoreToPar(comp);
     const posNum = parsePositionNumber(comp);
     const dynamicRank = rankDisplayMap.get(athleteId);
@@ -74,9 +227,9 @@ export function evaluateLeaderboard(
     }
 
     const profile = getGolferProfile(athleteId, {
-      competitors: rawCompetitors,
+      competitors,
       participants,
-      playerDirectoryMap: options.playerDirectoryMap,
+      playerDirectoryMap,
     });
 
     return {
@@ -88,51 +241,71 @@ export function evaluateLeaderboard(
     };
   });
 
-  // Filter by search query if provided
-  let filtered = enriched;
-  if (searchQuery && searchQuery.trim()) {
-    const q = searchQuery.trim().toLowerCase();
-    filtered = enriched.filter((c) => {
+  // Calculate Top 10 (including ties) from active competitors
+  const top10Leaders: EnrichedCompetitor[] = [];
+  const top10IdsSet = new Set<string>();
+
+  const activeEnriched = enriched.filter((c) => !c.isInactive);
+  const cutEnriched = enriched.filter((c) => c.isInactive);
+
+  if (activeEnriched.length > 0) {
+    const limit = Math.min(10, activeEnriched.length);
+    const tenthComp = activeEnriched[limit - 1];
+    const tenthScore = tenthComp.parsedScoreToPar;
+
+    activeEnriched.forEach((comp, idx) => {
+      const pid = comp.athlete?.id || comp.id;
+      const isInsideFirst10 = idx < 10;
+      const isTiedWithTenth = comp.parsedScoreToPar === tenthScore;
+
+      if (isInsideFirst10 || isTiedWithTenth) {
+        top10Leaders.push(comp);
+        if (pid) top10IdsSet.add(pid);
+      }
+    });
+  }
+
+  // Filter other drafted golfers (drafted, but outside top 10)
+  const draftedGolfers = enriched.filter((comp) => {
+    const pid = comp.athlete?.id || comp.id;
+    return pid && allDraftedPlayerIdsSet.has(pid) && !top10IdsSet.has(pid);
+  });
+
+  // Search filtering for Full Field lists
+  const q = searchQuery ? searchQuery.trim().toLowerCase() : '';
+  const filterBySearch = (list: EnrichedCompetitor[]) => {
+    if (!q) return list;
+    return list.filter((c) => {
       const name = c.profile.name.toLowerCase();
       const short = (c.profile.shortName || '').toLowerCase();
       const id = c.profile.id.toLowerCase();
       return name.includes(q) || short.includes(q) || id === q;
     });
-  }
+  };
 
-  // Active vs Cut split
-  const activeCompetitors = filtered.filter((c) => !c.isInactive);
-  const cutCompetitors = filtered.filter((c) => c.isInactive);
-
-  // Top 10 Leaders (includes all ties at T10 or higher)
-  let top10CutoffScore: number | null = null;
-  if (activeCompetitors.length >= 10) {
-    top10CutoffScore = activeCompetitors[9].parsedScoreToPar;
-  } else if (activeCompetitors.length > 0) {
-    top10CutoffScore = activeCompetitors[activeCompetitors.length - 1].parsedScoreToPar;
-  }
-
-  const top10Leaders: EnrichedCompetitor[] = [];
-  const otherDrafted: EnrichedCompetitor[] = [];
-
-  activeCompetitors.forEach((c) => {
-    const isTop10Leader = top10CutoffScore !== null && c.parsedScoreToPar <= top10CutoffScore;
-    if (isTop10Leader) {
-      top10Leaders.push(c);
-    } else if (c.profile.draftedBy.length > 0) {
-      otherDrafted.push(c);
-    }
-  });
-
-  const projectedCutIndex = activeCompetitors.length;
+  const activeField = filterBySearch(activeEnriched);
+  const cutField = filterBySearch(cutEnriched);
+  const projectedCutIndex = activeEnriched.length;
 
   return {
     top10Leaders,
-    otherDrafted,
-    activeField: activeCompetitors,
-    cutField: cutCompetitors,
+    draftedGolfers,
+    activeField,
+    cutField,
     projectedCutIndex,
     playerDraftedByMap,
     rankDisplayMap,
+
+    // Aliases
+    top10Competitors: top10Leaders,
+    otherDrafted: draftedGolfers,
+    otherDraftedCompetitors: draftedGolfers,
+    activeFieldCompetitors: activeField,
+    cutFieldCompetitors: cutField,
   };
 }
+
+/**
+ * Alias export to match domain naming.
+ */
+export const evaluateLeaderboard = evaluateFieldLeaderboard;

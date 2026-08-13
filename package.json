@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint src/",
+    "check": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "firebase": "^12.17.0",

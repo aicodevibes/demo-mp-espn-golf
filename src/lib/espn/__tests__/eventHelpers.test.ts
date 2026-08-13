@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatEventDates, getWinnerStatus, getTop10WithTies, formatScoreDisplay, getScoreMeta, formatThruDisplay, getGolferCumulativeScoreToPar } from '../eventHelpers';
+import { formatEventDates, getWinnerStatus, formatScoreDisplay, getScoreMeta, formatThruDisplay, getGolferCumulativeScoreToPar } from '../eventHelpers';
 
 describe('formatEventDates', () => {
   it('formats start and end dates into human readable range', () => {
@@ -116,28 +116,6 @@ describe('getWinnerStatus', () => {
   });
 });
 
-describe('getTop10WithTies', () => {
-  it('returns all competitors when list has 10 or fewer items', () => {
-    const list = Array.from({ length: 8 }, (_, i) => ({ id: `p-${i}`, score: `-${i}` })) as any[];
-    expect(getTop10WithTies(list)).toHaveLength(8);
-  });
-
-  it('includes competitors tied for 10th place beyond index 9', () => {
-    const list = [
-      ...Array.from({ length: 9 }, (_, i) => ({ id: `p-${i}`, score: `-${20 - i}`, status: { position: { displayName: `${i + 1}` } } })),
-      { id: 'p-9', score: '-10', status: { position: { displayName: 'T10' } } },
-      { id: 'p-10', score: '-10', status: { position: { displayName: 'T10' } } },
-      { id: 'p-11', score: '-10', status: { position: { displayName: 'T10' } } },
-      { id: 'p-12', score: '-9', status: { position: { displayName: 'T13' } } },
-    ] as any[];
-
-    const result = getTop10WithTies(list);
-    expect(result).toHaveLength(12);
-    expect(result.map((c) => c.id)).toContain('p-10');
-    expect(result.map((c) => c.id)).toContain('p-11');
-    expect(result.map((c) => c.id)).not.toContain('p-12');
-  });
-});
 
 describe('formatThruDisplay', () => {
   it('returns "-" for scheduled or unstarted players (thru 0 or STATUS_SCHEDULED)', () => {
@@ -164,6 +142,23 @@ describe('formatThruDisplay', () => {
     expect(formatThruDisplay(finishedComp)).toBe('F');
   });
 
+  it('returns "F" for players between rounds (scheduled for next round with completed previous round linescores)', () => {
+    const betweenRoundsComp = {
+      status: {
+        period: 2,
+        thru: 0,
+        type: { name: 'STATUS_SCHEDULED', state: 'pre' },
+        todayDetail: '-3(F)',
+      },
+      linescores: [
+        { period: 1, value: 67, displayValue: '-3' },
+        { period: 2, teeTime: '2026-08-14T14:25Z' },
+      ],
+    } as any;
+
+    expect(formatThruDisplay(betweenRoundsComp)).toBe('F');
+  });
+
   it('returns status badge labels for CUT or WD players', () => {
     const cutComp = {
       status: { position: { displayName: 'CUT' }, type: { name: 'STATUS_CUT' } },
@@ -184,6 +179,27 @@ describe('getGolferCumulativeScoreToPar', () => {
     const meta = getGolferCumulativeScoreToPar(comp);
     expect(meta.formattedScore).toBe('-4');
     expect(meta.isUnderPar).toBe(true);
+  });
+
+  it('correctly returns "E" for competitors who shot even par on round 1 when overnight between rounds', () => {
+    const evenComp = {
+      score: { value: 70, displayValue: 'E' },
+      status: {
+        period: 2,
+        thru: 0,
+        type: { name: 'STATUS_SCHEDULED', state: 'pre' },
+        todayDetail: 'E(F)',
+      },
+      linescores: [
+        { period: 1, value: 70, displayValue: 'E' },
+        { period: 2, teeTime: '2026-08-14T17:55Z' },
+      ],
+    } as any;
+
+    const meta = getGolferCumulativeScoreToPar(evenComp);
+    expect(meta.formattedScore).toBe('E');
+    expect(meta.isUnderPar).toBe(false);
+    expect(meta.isOverPar).toBe(false);
   });
 
   it('calculates real-time cumulative score from round linescores when score object lacks displayValue', () => {

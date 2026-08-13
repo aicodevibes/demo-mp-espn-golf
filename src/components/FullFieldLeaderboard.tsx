@@ -4,13 +4,16 @@ import React, { useState, useMemo } from 'react';
 import { ESPNCompetitor, ESPNEvent } from '@/types/espn';
 import { Search, Scissors } from 'lucide-react';
 import { Participant } from '@/types/contest';
-import { evaluateLeaderboard } from '@/lib/domain';
+import { evaluateLeaderboard, EnrichedCompetitor } from '@/lib/domain';
 import { CompetitorRow } from './CompetitorRow';
 
 interface FullFieldLeaderboardProps {
   competitors: ESPNCompetitor[];
   participants: Participant[];
   eventObj?: ESPNEvent;
+  activeField?: EnrichedCompetitor[];
+  cutField?: EnrichedCompetitor[];
+  playerDraftedByMap?: Map<string, string[]>;
   selectedPlayerId?: string;
   onSelectPlayer?: (playerId: string) => void;
 }
@@ -19,18 +22,29 @@ export function FullFieldLeaderboard({
   competitors,
   participants,
   eventObj,
+  activeField: propActiveField,
+  cutField: propCutField,
+  playerDraftedByMap: propPlayerDraftedByMap,
   selectedPlayerId,
   onSelectPlayer,
 }: FullFieldLeaderboardProps) {
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   const { activeField, cutField, playerDraftedByMap } = useMemo(() => {
+    // If no search query and pre-evaluated lists are provided, return them directly
+    if (!searchQuery && propActiveField && propCutField) {
+      return {
+        activeField: propActiveField,
+        cutField: propCutField,
+        playerDraftedByMap: propPlayerDraftedByMap || new Map<string, string[]>(),
+      };
+    }
     return evaluateLeaderboard(competitors, {
       participants,
       eventStatus: eventObj?.status,
       searchQuery,
     });
-  }, [competitors, participants, eventObj, searchQuery]);
+  }, [competitors, participants, eventObj, searchQuery, propActiveField, propCutField, propPlayerDraftedByMap]);
 
   return (
     <div className="bg-surface-container-low border border-outline-variant rounded-xl p-4 sm:p-5 space-y-4 shadow-xs">
