@@ -240,7 +240,9 @@ export function calculateDayMoneyWinners(
       owner: Participant;
       golferId: string;
       golferName: string;
-      score: number;
+      scoreToPar: number;
+      roundStrokes: number | null;
+      formattedScore: string;
       thruNum: number;
       isCompleted: boolean;
     }
@@ -254,10 +256,9 @@ export function calculateDayMoneyWinners(
       const statusInfo = getPlayerStatusInfo(comp, eventStatus);
       if ((rd === 3 || rd === 4) && (statusInfo.isCut || statusInfo.isWD)) return;
 
-      const score = getGolferRoundStrokes(comp, rd);
-      if (score === null || score === undefined || score === 0) return;
+      const roundScoreRes = evaluateGolferRoundScore(comp, rd, contestConfig?.coursePar, comp.status || eventStatus);
+      if (roundScoreRes.scoreToPar === null) return;
 
-      // Ensure golfer has actually started or finished round rd
       const ls = comp.linescores?.find((l) => l.period === rd);
       const isRoundDone = isRoundCompleted(comp, rd, eventStatus);
       const thru = comp.status?.thru;
@@ -282,7 +283,9 @@ export function calculateDayMoneyWinners(
           owner,
           golferId,
           golferName,
-          score,
+          scoreToPar: roundScoreRes.scoreToPar!,
+          roundStrokes: roundScoreRes.roundStrokes,
+          formattedScore: roundScoreRes.formattedScore,
           thruNum,
           isCompleted: isRoundDone,
         });
@@ -300,11 +303,11 @@ export function calculateDayMoneyWinners(
       continue;
     }
 
-    // Find lowest daily score among all eligible candidates for round rd
-    const minScore = Math.min(...candidates.map((c) => c.score));
-    const leaders = candidates.filter((c) => c.score === minScore);
+    // Find lowest relative score to par for round rd (e.g. -5 < -2 < E < +1)
+    const minScoreToPar = Math.min(...candidates.map((c) => c.scoreToPar));
+    const leaders = candidates.filter((c) => c.scoreToPar === minScoreToPar);
 
-    // Tie-breaker sort: most finished holes first (thruNum descending: 18 / F > 15 > 10)
+    // Tie-breaker sort: most finished holes first (thruNum descending: 18 / F > 15 > 2)
     leaders.sort((a, b) => b.thruNum - a.thruNum);
 
     // Round is completed if all leaders (and active event) have completed round rd
@@ -313,12 +316,16 @@ export function calculateDayMoneyWinners(
 
     const splitPayout = Math.round((dayMoneyPool / leaders.length) * 100) / 100;
 
+    const lowScoreDisplay = isRoundDone && leaders[0]?.roundStrokes
+      ? leaders[0].roundStrokes
+      : leaders[0]?.formattedScore || 'E';
+
     const winners: DayMoneyWinner[] = leaders.map((l) => ({
       participantId: l.owner.id,
       participantName: l.owner.name,
       golferId: l.golferId,
       golferName: l.golferName,
-      dailyScore: minScore,
+      dailyScore: l.roundStrokes && l.thruNum === 18 ? l.roundStrokes : l.formattedScore,
       payout: isRoundDone ? splitPayout : 0,
       thru: l.thruNum === 18 ? 'F' : l.thruNum > 0 ? `${l.thruNum}` : '-',
       isCompleted: l.isCompleted,
@@ -326,7 +333,7 @@ export function calculateDayMoneyWinners(
 
     results.push({
       round: rd,
-      lowScore: minScore,
+      lowScore: lowScoreDisplay,
       winners,
       totalPool: dayMoneyPool,
       isCompleted: isRoundDone,

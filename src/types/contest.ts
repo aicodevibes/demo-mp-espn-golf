@@ -37,7 +37,7 @@ export interface DayMoneyWinner {
   participantName: string;
   golferId: string;
   golferName: string;
-  dailyScore: number;
+  dailyScore: number | string;
   payout: number;
   thru?: string;
   isCompleted?: boolean;
@@ -45,7 +45,7 @@ export interface DayMoneyWinner {
 
 export interface DayMoneyRoundResult {
   round: number;
-  lowScore: number | null;
+  lowScore: number | string | null;
   winners: DayMoneyWinner[];
   totalPool: number;
   isCompleted?: boolean;
