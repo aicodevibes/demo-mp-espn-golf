@@ -156,4 +156,62 @@ describe('ScorecardMatrix Component', () => {
 
     expect(screen.getByText('Missed 36-Hole Cut')).toBeInTheDocument();
   });
+
+  it('renders in-progress round with relative score in round tab', () => {
+    const inProgressSummary: NormalizedPlayerSummary = {
+      player: {
+        id: '8906',
+        displayName: 'Keith Mitchell',
+        shortName: 'K. Mitchell',
+        initials: 'KM',
+        headshotUrls: [],
+      },
+      rounds: [
+        {
+          period: 1,
+          displayValue: '69',
+          scoreToPar: -1,
+          formattedScore: '-1',
+          frontPar: 35,
+          frontStrokes: 34,
+          backPar: 35,
+          backStrokes: 35,
+          totalPar: 70,
+          totalStrokes: 69,
+          holes: [],
+        },
+        {
+          period: 2,
+          displayValue: '-3',
+          scoreToPar: -3,
+          formattedScore: '-3',
+          frontPar: 35,
+          frontStrokes: 10,
+          backPar: 35,
+          backStrokes: 0,
+          totalPar: 70,
+          totalStrokes: 10,
+          holes: [
+            { hole: 1, par: 4, strokes: 3, diff: -1, scoreType: 'birdie', badgeClass: 'bg-tertiary/15 text-tertiary', isPlayed: true },
+            { hole: 2, par: 4, strokes: 3, diff: -1, scoreType: 'birdie', badgeClass: 'bg-tertiary/15 text-tertiary', isPlayed: true },
+            { hole: 3, par: 5, strokes: 4, diff: -1, scoreType: 'birdie', badgeClass: 'bg-tertiary/15 text-tertiary', isPlayed: true },
+          ],
+        },
+      ],
+    };
+
+    render(
+      <ScorecardMatrix
+        playerSummary={inProgressSummary}
+        competitor={{
+          id: '8906',
+          statusInfo: { isCut: false, isWD: false, isWinner: false, isPlayoff: false, badgeLabel: '', statusBadge: '' },
+          athlete: { id: '8906', displayName: 'Keith Mitchell' },
+        } as any}
+        playerName="Keith Mitchell"
+      />
+    );
+
+    expect(screen.getByText('R2 (-3)')).toBeInTheDocument();
+  });
 });

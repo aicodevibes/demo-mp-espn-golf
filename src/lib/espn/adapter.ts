@@ -499,6 +499,8 @@ export function normalizePlayerSummary(
     let frontStrokes = 0;
     let backPar = 0;
     let backStrokes = 0;
+    let playedHolesCount = 0;
+    let playedDiffSum = 0;
 
     const rawHolesMap = new Map<number, any>();
     (rd.linescores || []).forEach((h: any, hIdx: number) => {
@@ -523,6 +525,9 @@ export function normalizePlayerSummary(
 
       if (isPlayed) {
         diff = strokes - par;
+        playedHolesCount++;
+        playedDiffSum += diff;
+
         if (diff <= -2) {
           scoreType = 'eagle';
           badgeClass = 'bg-amber-500 text-amber-950 border border-amber-400 font-black';
@@ -562,7 +567,22 @@ export function normalizePlayerSummary(
 
     const totalPar = frontPar + backPar;
     const totalStrokes = frontStrokes + backStrokes;
-    const scoreToPar = totalStrokes > 0 ? totalStrokes - totalPar : null;
+
+    let scoreToPar: number | null = null;
+    if (playedHolesCount > 0) {
+      scoreToPar = playedDiffSum;
+    } else if (typeof rd.displayValue === 'string') {
+      const dv = rd.displayValue.trim();
+      if (dv === 'E' || dv === 'EVEN') {
+        scoreToPar = 0;
+      } else if (dv.startsWith('+') || dv.startsWith('-')) {
+        const parsed = parseInt(dv.replace('+', ''), 10);
+        if (!isNaN(parsed) && Math.abs(parsed) <= 30) {
+          scoreToPar = parsed;
+        }
+      }
+    }
+
     const formattedScore = scoreToPar === null ? '-' : scoreToPar === 0 ? 'E' : scoreToPar > 0 ? `+${scoreToPar}` : `${scoreToPar}`;
 
     return {
