@@ -124,20 +124,19 @@ export function getGolferCumulativeScoreToPar(comp: ESPNCompetitor, eventStatus?
   if (statusInfo.isCut) return { formattedScore: 'CUT', isUnderPar: false, isOverPar: false };
   if (statusInfo.isWD) return { formattedScore: 'WD', isUnderPar: false, isOverPar: false };
 
-  // 1. Check if comp.score has a direct displayValue (e.g. "-4", "+2", "E")
-  if (comp.score !== null && comp.score !== undefined) {
-    if (typeof comp.score === 'string') {
-      const trimmed = comp.score.trim();
-      if (trimmed.startsWith('-') || trimmed.startsWith('+') || trimmed === 'E' || trimmed === 'EVEN') {
-        const fmt = (trimmed === 'EVEN' || trimmed === 'E') ? 'E' : trimmed;
-        return { formattedScore: fmt, isUnderPar: fmt.startsWith('-'), isOverPar: fmt.startsWith('+') };
-      }
-    } else if (typeof comp.score === 'object') {
-      const dv = comp.score.displayValue ? String(comp.score.displayValue).trim() : '';
-      if (dv.startsWith('-') || dv.startsWith('+') || dv === 'E' || dv === 'EVEN') {
+  // 1. Check explicit statistics array for 'scoreToPar' (authoritative cumulative score in ESPN leaderboard API)
+  if (comp.statistics && Array.isArray(comp.statistics)) {
+    const statScore = comp.statistics.find((s: any) => s?.name === 'scoreToPar');
+    if (statScore?.displayValue) {
+      const dv = String(statScore.displayValue).trim();
+      if (dv === 'E' || dv === 'EVEN' || dv.startsWith('+') || dv.startsWith('-')) {
         const fmt = (dv === 'EVEN' || dv === 'E') ? 'E' : dv;
         return { formattedScore: fmt, isUnderPar: fmt.startsWith('-'), isOverPar: fmt.startsWith('+') };
       }
+    } else if (typeof statScore?.value === 'number') {
+      const val = statScore.value;
+      const fmt = val === 0 ? 'E' : val > 0 ? `+${val}` : `${val}`;
+      return { formattedScore: fmt, isUnderPar: fmt.startsWith('-'), isOverPar: fmt.startsWith('+') };
     }
   }
 
@@ -176,7 +175,24 @@ export function getGolferCumulativeScoreToPar(comp: ESPNCompetitor, eventStatus?
     }
   }
 
-  // 3. Fallback to default score meta formatting
+  // 3. Check if comp.score is a simple top-level string (e.g. "-4", "+2", "E") or object fallback
+  if (comp.score !== null && comp.score !== undefined) {
+    if (typeof comp.score === 'string') {
+      const trimmed = comp.score.trim();
+      if (trimmed.startsWith('-') || trimmed.startsWith('+') || trimmed === 'E' || trimmed === 'EVEN') {
+        const fmt = (trimmed === 'EVEN' || trimmed === 'E') ? 'E' : trimmed;
+        return { formattedScore: fmt, isUnderPar: fmt.startsWith('-'), isOverPar: fmt.startsWith('+') };
+      }
+    } else if (typeof comp.score === 'object') {
+      const dv = comp.score.displayValue ? String(comp.score.displayValue).trim() : '';
+      if (dv.startsWith('-') || dv.startsWith('+') || dv === 'E' || dv === 'EVEN') {
+        const fmt = (dv === 'EVEN' || dv === 'E') ? 'E' : dv;
+        return { formattedScore: fmt, isUnderPar: fmt.startsWith('-'), isOverPar: fmt.startsWith('+') };
+      }
+    }
+  }
+
+  // 4. Fallback to default score meta formatting
   return getScoreMeta(comp.score, comp.status || eventStatus);
 }
 

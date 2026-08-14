@@ -61,10 +61,12 @@ export interface ESPNCompetitor {
   status?: {
     period?: number;
     thru?: number | string;
+    hole?: number;
     displayValue?: string;
     position?: {
       id?: string;
       displayName?: string;
+      isTie?: boolean;
     };
 
     type?: {
@@ -115,6 +117,7 @@ export interface ESPNCompetitor {
   statistics?: Array<{
     name: string;
     displayValue: string;
+    value?: number;
   }>;
 }
 
