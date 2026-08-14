@@ -1,15 +1,14 @@
-'use client';
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { ESPNCompetitor, ESPNPlayerSummary, ESPNRoundLinescore } from '@/types/espn';
-import { Circle, Square, Award, ChevronDown, ChevronUp } from 'lucide-react';
-import { getPlayerStatusInfo, formatScoreDisplay } from '@/lib/espn';
+import { NormalizedCompetitor, NormalizedPlayerSummary, NormalizedRoundLinescore } from '@/lib/espn';
+import { Award, ChevronDown, ChevronUp } from 'lucide-react';
+import { getPlayerStatusInfo } from '@/lib/espn';
 import { getGolferRoundScoreToPar } from '@/lib/scoring';
 
 interface ScorecardMatrixProps {
-  playerSummary: ESPNPlayerSummary | null;
+  playerSummary: NormalizedPlayerSummary | ESPNPlayerSummary | null;
   /** The full competitor object from the leaderboard (has linescores for CUT detection). */
-  competitor?: ESPNCompetitor | null;
+  competitor?: NormalizedCompetitor | ESPNCompetitor | null;
   eventStatus?: any;
   loading?: boolean;
   isFetching?: boolean;
@@ -68,7 +67,12 @@ export function ScorecardMatrix({
   }, [startedRounds, activeRound]);
 
   // Use the leaderboard competitor (has linescores) for CUT detection
-  const statusInfo = competitor ? getPlayerStatusInfo(competitor, eventStatus) : null;
+  const isNormComp = competitor && 'statusInfo' in competitor;
+  const statusInfo = isNormComp
+    ? (competitor as NormalizedCompetitor).statusInfo
+    : competitor
+    ? getPlayerStatusInfo(competitor as ESPNCompetitor, eventStatus)
+    : null;
 
   if (loading && !playerSummary) {
     return (
@@ -91,26 +95,39 @@ export function ScorecardMatrix({
     );
   }
 
-  const currentRoundData: ESPNRoundLinescore | undefined = startedRounds.find(
+  const currentRoundData = startedRounds.find(
     (r) => r.period === activeRound
   ) || startedRounds[0];
 
+  const normRound = currentRoundData as NormalizedRoundLinescore | undefined;
   const holes = currentRoundData?.holes || [];
   const frontNine = holes.filter((h) => h.hole >= 1 && h.hole <= 9);
   const backNine = holes.filter((h) => h.hole >= 10 && h.hole <= 18);
 
-  const frontParTotal = frontNine.reduce((acc, h) => acc + (h.par || 0), 0);
-  const frontScoreTotal = frontNine.filter((h) => (h.strokes || 0) > 0).reduce((acc, h) => acc + h.strokes, 0);
+  const frontParTotal = normRound?.frontPar ?? frontNine.reduce((acc, h) => acc + (h.par || 0), 0);
+  const frontScoreTotal = normRound?.frontStrokes ?? frontNine.filter((h) => (h.strokes || 0) > 0).reduce((acc, h) => acc + h.strokes, 0);
 
-  const backParTotal = backNine.reduce((acc, h) => acc + (h.par || 0), 0);
-  const backScoreTotal = backNine.filter((h) => (h.strokes || 0) > 0).reduce((acc, h) => acc + h.strokes, 0);
+  const backParTotal = normRound?.backPar ?? backNine.reduce((acc, h) => acc + (h.par || 0), 0);
+  const backScoreTotal = normRound?.backStrokes ?? backNine.filter((h) => (h.strokes || 0) > 0).reduce((acc, h) => acc + h.strokes, 0);
 
-  const grandParTotal = frontParTotal + backParTotal;
-  const grandScoreTotal = frontScoreTotal + backScoreTotal;
+  const grandParTotal = normRound?.totalPar ?? (frontParTotal + backParTotal);
+  const grandScoreTotal = normRound?.totalStrokes ?? (frontScoreTotal + backScoreTotal);
 
-  const renderScoreBadge = (scoreType: string, strokes: number, par: number) => {
+  const renderScoreBadge = (hole: any) => {
+    const strokes = hole.strokes || 0;
+    const par = hole.par || 4;
+    const scoreType = hole.scoreType || '';
+
     if (!strokes || strokes === 0) {
       return <span className="font-semibold text-on-surface-variant text-xs">-</span>;
+    }
+
+    if (hole.badgeClass) {
+      return (
+        <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-xs ${hole.badgeClass}`}>
+          {strokes}
+        </span>
+      );
     }
 
     const diff = strokes - par;
@@ -165,14 +182,17 @@ export function ScorecardMatrix({
           {(() => {
             const rd = currentRoundData;
             if (!rd) return null;
-            const roundParTotal = rd.holes ? rd.holes.reduce((sum, h) => sum + (h.par || 0), 0) : null;
-            const rawScoreToPar = competitor 
-              ? getGolferRoundScoreToPar(competitor, rd.period, roundParTotal && roundParTotal > 50 ? roundParTotal : null)
-              : null;
-            const formattedScore = rawScoreToPar !== null 
-              ? (rawScoreToPar === 0 ? 'E' : rawScoreToPar > 0 ? `+${rawScoreToPar}` : `${rawScoreToPar}`)
-              : null;
-            const labelSuffix = formattedScore ? ` (${formattedScore})` : '';
+            const normRd = rd as NormalizedRoundLinescore;
+            const formattedScore = normRd?.formattedScore ?? (() => {
+              const roundParTotal = rd.holes ? rd.holes.reduce((sum, h) => sum + (h.par || 0), 0) : null;
+              const rawScoreToPar = competitor 
+                ? getGolferRoundScoreToPar(competitor as any, rd.period, roundParTotal && roundParTotal > 50 ? roundParTotal : null)
+                : null;
+              return rawScoreToPar !== null 
+                ? (rawScoreToPar === 0 ? 'E' : rawScoreToPar > 0 ? `+${rawScoreToPar}` : `${rawScoreToPar}`)
+                : null;
+            })();
+            const labelSuffix = formattedScore && formattedScore !== '-' ? ` (${formattedScore})` : '';
 
             return (
               <span className="text-[10px] font-extrabold text-on-surface-variant bg-surface-container-high px-2 py-0.5 rounded-full border border-outline-variant/60">
@@ -222,19 +242,18 @@ export function ScorecardMatrix({
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1.5 bg-surface-container-lowest p-1 rounded-lg border border-outline-variant">
             {startedRounds.map((rd) => {
-              // Extract course par if available in current holes par total
-              const roundParTotal = rd.holes ? rd.holes.reduce((sum, h) => sum + (h.par || 0), 0) : null;
-              
-              // Use getGolferRoundScoreToPar to resolve score relative to par
-              const rawScoreToPar = competitor 
-                ? getGolferRoundScoreToPar(competitor, rd.period, roundParTotal && roundParTotal > 50 ? roundParTotal : null)
-                : null;
-              
-              const formattedScore = rawScoreToPar !== null 
-                ? (rawScoreToPar === 0 ? 'E' : rawScoreToPar > 0 ? `+${rawScoreToPar}` : `${rawScoreToPar}`)
-                : null;
+              const normRd = rd as NormalizedRoundLinescore;
+              const formattedScore = normRd?.formattedScore ?? (() => {
+                const roundParTotal = rd.holes ? rd.holes.reduce((sum, h) => sum + (h.par || 0), 0) : null;
+                const rawScoreToPar = competitor 
+                  ? getGolferRoundScoreToPar(competitor as any, rd.period, roundParTotal && roundParTotal > 50 ? roundParTotal : null)
+                  : null;
+                return rawScoreToPar !== null 
+                  ? (rawScoreToPar === 0 ? 'E' : rawScoreToPar > 0 ? `+${rawScoreToPar}` : `${rawScoreToPar}`)
+                  : null;
+              })();
 
-              const labelSuffix = formattedScore ? ` (${formattedScore})` : '';
+              const labelSuffix = formattedScore && formattedScore !== '-' ? ` (${formattedScore})` : '';
 
               return (
                 <button
@@ -299,13 +318,13 @@ export function ScorecardMatrix({
               <td className="py-3 px-2 text-left font-bold text-on-surface">SCORE</td>
               {frontNine.map((h) => (
                 <td key={h.hole} className="py-2.5">
-                  {renderScoreBadge(h.scoreType, h.strokes, h.par)}
+                  {renderScoreBadge(h)}
                 </td>
               ))}
               <td className="py-2.5 font-bold bg-surface-container-high text-tertiary text-sm">{frontScoreTotal || '-'}</td>
               {backNine.map((h) => (
                 <td key={h.hole} className="py-2.5">
-                  {renderScoreBadge(h.scoreType, h.strokes, h.par)}
+                  {renderScoreBadge(h)}
                 </td>
               ))}
               <td className="py-2.5 font-bold bg-surface-container-high text-tertiary text-sm">{backScoreTotal || '-'}</td>

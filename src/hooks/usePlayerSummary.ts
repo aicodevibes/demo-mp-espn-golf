@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { ESPNCompetitor, ESPNPlayerSummary } from '@/types/espn';
-import { formatPlayerSummaryFromCompetitor, formatPlayerSummaryFromESPNData } from '@/lib/espn';
+import { EspnTournamentAdapter, NormalizedPlayerSummary } from '@/lib/espn';
 
 // Global in-memory cache for player summaries during the browser session
-const playerSummaryCache = new Map<string, ESPNPlayerSummary>();
+const playerSummaryCache = new Map<string, NormalizedPlayerSummary | ESPNPlayerSummary>();
 
 export function clearPlayerSummaryCache() {
   playerSummaryCache.clear();
@@ -15,7 +15,7 @@ export interface UsePlayerSummaryOptions {
 }
 
 export interface UsePlayerSummaryResult {
-  summary: ESPNPlayerSummary | null;
+  summary: NormalizedPlayerSummary | ESPNPlayerSummary | null;
   /** True ONLY during initial cold-start before any player summary or fallback exists. */
   isLoading: boolean;
   /** True during background network requests to fetch detailed hole-by-hole linescores. */
@@ -33,10 +33,10 @@ export function usePlayerSummary({ eventId, competitor }: UsePlayerSummaryOption
   // Synchronously compute cached summary or fallback summary during render to prevent 1-frame stale state tearing
   const currentSummary = useMemo(() => {
     if (!cacheKey || !competitor) return null;
-    return playerSummaryCache.get(cacheKey) || formatPlayerSummaryFromCompetitor(competitor);
+    return playerSummaryCache.get(cacheKey) || EspnTournamentAdapter.normalizePlayerSummary(null, competitor);
   }, [cacheKey, competitor]);
 
-  const [fetchedSummary, setFetchedSummary] = useState<ESPNPlayerSummary | null>(null);
+  const [fetchedSummary, setFetchedSummary] = useState<NormalizedPlayerSummary | null>(null);
   const [fetchedCacheKey, setFetchedCacheKey] = useState<string>('');
   const [isFetching, setIsFetching] = useState<boolean>(false);
 
@@ -68,7 +68,7 @@ export function usePlayerSummary({ eventId, competitor }: UsePlayerSummaryOption
         if (res.ok) {
           const data = await res.json();
           if (isMounted) {
-            const formatted = formatPlayerSummaryFromESPNData(data, competitor);
+            const formatted = EspnTournamentAdapter.normalizePlayerSummary(data, competitor);
             playerSummaryCache.set(cacheKey, formatted);
             setFetchedCacheKey(cacheKey);
             setFetchedSummary(formatted);
