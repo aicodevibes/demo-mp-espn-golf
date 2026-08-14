@@ -32,7 +32,6 @@ import {
 } from '@/lib/firebase/firestore';
 import { ESPNEvent, ESPNCompetitor } from '@/types/espn';
 import {
-  createSyntheticCompetitor,
   resolveActiveEvent,
   resolveEventCompetitorsWithFallback,
   DEFAULT_PLAYER_DIRECTORY_MAP,

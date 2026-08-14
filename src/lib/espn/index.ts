@@ -19,8 +19,6 @@ export {
   type GolferCardViewModel,
   type NormalizeTournamentOptions,
 } from './adapter';
-
-export { formatPlayerSummaryFromCompetitor, formatPlayerSummaryFromESPNData, createSyntheticCompetitor } from './summary';
 export {
   formatEventDates,
   formatScoreDisplay,
