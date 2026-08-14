@@ -4,6 +4,7 @@
 export {
   EspnTournamentAdapter,
   normalizeTournamentSnapshot,
+  normalizePlayerSummary,
   getGolferCardViewModel,
   normalizeCompetitor,
   resolveGolferHeadshotUrls,
@@ -11,6 +12,10 @@ export {
   type NormalizedTournament,
   type NormalizedCompetitor,
   type NormalizedStatusInfo,
+  type NormalizedPlayerSummary,
+  type NormalizedRoundLinescore,
+  type NormalizedHoleScore,
+  type NormalizedPlayerProfile,
   type GolferCardViewModel,
   type NormalizeTournamentOptions,
 } from './adapter';

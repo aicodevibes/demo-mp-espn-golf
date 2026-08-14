@@ -78,6 +78,44 @@ export interface GolferCardViewModel {
   draftedBy: string[];
 }
 
+export interface NormalizedHoleScore {
+  hole: number;
+  par: number;
+  strokes: number;
+  diff: number | null;
+  scoreType: string;
+  badgeClass: string;
+  isPlayed: boolean;
+}
+
+export interface NormalizedRoundLinescore {
+  period: number;
+  displayValue: string;
+  scoreToPar: number | null;
+  formattedScore: string;
+  frontPar: number;
+  frontStrokes: number;
+  backPar: number;
+  backStrokes: number;
+  totalPar: number;
+  totalStrokes: number;
+  holes: NormalizedHoleScore[];
+}
+
+export interface NormalizedPlayerProfile {
+  id: string;
+  displayName: string;
+  shortName: string;
+  initials: string;
+  headshotUrls: string[];
+  countryFlagUrl?: string;
+}
+
+export interface NormalizedPlayerSummary {
+  player: NormalizedPlayerProfile;
+  rounds: NormalizedRoundLinescore[];
+}
+
 export interface NormalizeTournamentOptions {
   activeEventId?: string | null;
   playerDirectoryMap?: Record<string, { id: string; name: string; headshotUrl?: string }>;
@@ -212,9 +250,27 @@ export function normalizeTournamentSnapshot(
   const events = parseESPNScoreboardResponse(rawScoreboard);
   const activeEvent = resolveActiveEvent(events, detailedEvent, options.activeEventId);
 
+  const customFallback = options.playerDirectoryMap
+    ? Object.values(options.playerDirectoryMap).map((dirPlayer) => ({
+        id: dirPlayer.id,
+        order: 99,
+        score: '-',
+        status: {
+          thru: 0,
+          position: { displayName: '-' },
+          type: { state: 'pre', completed: false, description: 'Scheduled' },
+        },
+        athlete: {
+          id: dirPlayer.id,
+          displayName: dirPlayer.name,
+          headshot: { href: dirPlayer.headshotUrl || '' },
+        },
+      } as ESPNCompetitor))
+    : null;
+
   const rawComps = resolveEventCompetitorsWithFallback(
     detailedEvent?.competitions?.[0]?.competitors || activeEvent?.competitions?.[0]?.competitors,
-    null
+    customFallback
   );
 
   const eventStatus: ESPNEventStatus =
@@ -248,9 +304,29 @@ export function normalizeTournamentSnapshot(
   const datesFormatted = formatEventDates(activeEvent?.date, activeEvent?.endDate);
   const dirMap = options.playerDirectoryMap || DEFAULT_PLAYER_DIRECTORY_MAP;
 
+  let compsToNormalize = rawComps;
+  // If scheduled/pre-event has empty competitors list, automatically synthesize from player directory
+  if (compsToNormalize.length === 0 && Object.keys(dirMap).length > 0) {
+    compsToNormalize = Object.values(dirMap).map((dirPlayer) => ({
+      id: dirPlayer.id,
+      order: 99,
+      score: '-',
+      status: {
+        thru: 0,
+        position: { displayName: '-' },
+        type: { state: 'pre', completed: false, description: 'Scheduled' },
+      },
+      athlete: {
+        id: dirPlayer.id,
+        displayName: dirPlayer.name,
+        headshot: { href: dirPlayer.headshotUrl || '' },
+      },
+    } as ESPNCompetitor));
+  }
+
   // Normalize all competitors
-  const normalizedCompetitors: NormalizedCompetitor[] = rawComps.map((c) =>
-    normalizeCompetitor(c, eventStatus, rawComps, dirMap)
+  const normalizedCompetitors: NormalizedCompetitor[] = compsToNormalize.map((c) =>
+    normalizeCompetitor(c, eventStatus, compsToNormalize, dirMap)
   );
 
   // Build pre-indexed O(1) competitor map
@@ -350,11 +426,175 @@ export function getGolferCardViewModel(
 }
 
 /**
+ * Deep Module Seam: Normalizes raw ESPN hole-by-hole linescores into structured 18-hole scorecard view models.
+ */
+export function normalizePlayerSummary(
+  rawSummary: any,
+  fallbackComp?: ESPNCompetitor | null,
+  eventCourseHoles?: number[],
+  playerDirectoryMap: Record<string, { id: string; name: string; headshotUrl?: string }> = DEFAULT_PLAYER_DIRECTORY_MAP
+): NormalizedPlayerSummary {
+  const sourceData = rawSummary || fallbackComp;
+  const profile = sourceData?.profile || sourceData?.athlete || fallbackComp?.athlete;
+  const rawRounds: any[] = sourceData?.rounds || sourceData?.linescores || fallbackComp?.linescores || [];
+  const athleteId = profile?.id || fallbackComp?.athlete?.id || fallbackComp?.id || '';
+  const dirPlayer = playerDirectoryMap[athleteId];
+
+  const displayName = profile?.displayName || dirPlayer?.name || fallbackComp?.athlete?.displayName || (athleteId ? `Golfer (${athleteId})` : 'Golfer');
+  const firstName = profile?.firstName || getGolferNameTokens(displayName)[0] || '';
+  const lastName = profile?.lastName || (fallbackComp ? getGolferLastName(fallbackComp) : displayName.split(' ').slice(1).join(' '));
+  const shortName = profile?.shortName || `${firstName ? firstName.charAt(0) + '.' : ''} ${lastName}`.trim() || displayName;
+  const initials = getGolferInitials(displayName);
+
+  const rawHeadshot = typeof profile?.headshot === 'string' ? profile.headshot : profile?.headshot?.href || fallbackComp?.athlete?.headshot?.href;
+  const headshotUrls = resolveGolferHeadshotUrls(athleteId, rawHeadshot, dirPlayer?.headshotUrl);
+  const countryFlagUrl = profile?.flag?.href || fallbackComp?.athlete?.flag?.href;
+
+  const playerProfile: NormalizedPlayerProfile = {
+    id: athleteId,
+    displayName,
+    shortName,
+    initials,
+    headshotUrls,
+    countryFlagUrl,
+  };
+
+  // Known hole pars map across rounds
+  const knownHoleParsMap = new Map<number, number>();
+  const courseHolesList: number[] = rawSummary?.courseHoles || eventCourseHoles || [];
+  courseHolesList.forEach((parVal, hIdx) => {
+    if (typeof parVal === 'number' && parVal > 0 && hIdx < 18) {
+      knownHoleParsMap.set(hIdx + 1, parVal);
+    }
+  });
+
+  // Pass 1: Extract pars from all available linescores
+  rawRounds.forEach((rd: any) => {
+    (rd.linescores || []).forEach((h: any, hIdx: number) => {
+      const holeNum = h.period || hIdx + 1;
+      const strokes = h.value || 0;
+      const diffStr = h.scoreType?.displayValue || '0';
+      const diff = parseInt(diffStr, 10) || 0;
+
+      let extractedPar: number | undefined;
+      if (typeof h.par === 'number' && h.par > 0) {
+        extractedPar = h.par;
+      } else if (strokes > 0 && diff !== undefined && !isNaN(diff)) {
+        const derived = strokes - diff;
+        if (derived > 0) extractedPar = derived;
+      }
+
+      if (extractedPar && holeNum >= 1 && holeNum <= 18) {
+        knownHoleParsMap.set(holeNum, extractedPar);
+      }
+    });
+  });
+
+  // Pass 2: Format each round
+  const rounds: NormalizedRoundLinescore[] = rawRounds.map((rd: any, idx: number) => {
+    const roundPeriod = rd.period || idx + 1;
+    const roundDisplayValue = rd.value !== undefined && rd.value !== 0 ? `${rd.value}` : rd.displayValue || '-';
+
+    let frontPar = 0;
+    let frontStrokes = 0;
+    let backPar = 0;
+    let backStrokes = 0;
+
+    const rawHolesMap = new Map<number, any>();
+    (rd.linescores || []).forEach((h: any, hIdx: number) => {
+      const holeNum = h.period || hIdx + 1;
+      rawHolesMap.set(holeNum, h);
+    });
+
+    const holes: NormalizedHoleScore[] = Array.from({ length: 18 }, (_, i) => {
+      const holeNum = i + 1;
+      const rawHole = rawHolesMap.get(holeNum);
+      const strokes = rawHole?.value || 0;
+      const isPlayed = strokes > 0;
+
+      let par = knownHoleParsMap.get(holeNum) || 4;
+      if (typeof rawHole?.par === 'number' && rawHole.par > 0) {
+        par = rawHole.par;
+      }
+
+      let diff: number | null = null;
+      let scoreType = 'unplayed';
+      let badgeClass = 'text-on-surface-variant';
+
+      if (isPlayed) {
+        diff = strokes - par;
+        if (diff <= -2) {
+          scoreType = 'eagle';
+          badgeClass = 'bg-amber-500 text-amber-950 border border-amber-400 font-black';
+        } else if (diff === -1) {
+          scoreType = 'birdie';
+          badgeClass = 'bg-tertiary/15 text-tertiary border border-tertiary font-bold';
+        } else if (diff === 0) {
+          scoreType = 'par';
+          badgeClass = 'text-on-surface font-semibold';
+        } else if (diff === 1) {
+          scoreType = 'bogey';
+          badgeClass = 'bg-error/10 text-error border border-error/30 font-semibold';
+        } else if (diff >= 2) {
+          scoreType = 'double';
+          badgeClass = 'bg-error text-on-error border border-error font-bold';
+        }
+      }
+
+      if (holeNum <= 9) {
+        frontPar += par;
+        if (isPlayed) frontStrokes += strokes;
+      } else {
+        backPar += par;
+        if (isPlayed) backStrokes += strokes;
+      }
+
+      return {
+        hole: holeNum,
+        par,
+        strokes,
+        diff,
+        scoreType,
+        badgeClass,
+        isPlayed,
+      };
+    });
+
+    const totalPar = frontPar + backPar;
+    const totalStrokes = frontStrokes + backStrokes;
+    const scoreToPar = totalStrokes > 0 ? totalStrokes - totalPar : null;
+    const formattedScore = scoreToPar === null ? '-' : scoreToPar === 0 ? 'E' : scoreToPar > 0 ? `+${scoreToPar}` : `${scoreToPar}`;
+
+    return {
+      period: roundPeriod,
+      displayValue: roundDisplayValue,
+      scoreToPar,
+      formattedScore,
+      frontPar,
+      frontStrokes,
+      backPar,
+      backStrokes,
+      totalPar,
+      totalStrokes,
+      holes,
+    };
+  });
+
+  return {
+    player: playerProfile,
+    rounds,
+  };
+}
+
+/**
  * Deep Module Object aggregating the adapter pipeline.
  */
 export const EspnTournamentAdapter = {
   normalizeTournamentSnapshot,
+  normalizePlayerSummary,
+  normalizeCompetitor,
   getGolferCardViewModel,
+  resolveGolferHeadshotUrls,
   getCachedScoreboard: readScoreboardCache,
   cacheScoreboard: writeScoreboardCache,
 };

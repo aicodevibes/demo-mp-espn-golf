@@ -82,6 +82,49 @@ describe('EspnTournamentAdapter', () => {
       expect(comp.headshotUrls[0]).toContain('4604625');
     });
 
+    it('automatically hydrates synthetic competitors from player directory when scheduled event has no competitors', () => {
+      const scheduledEventWithoutCompetitors = {
+        events: [
+          {
+            id: '401580340',
+            name: 'Future PGA Championship',
+            status: {
+              type: {
+                name: 'STATUS_SCHEDULED',
+                description: 'Scheduled',
+                state: 'pre',
+                completed: false,
+              },
+              period: 0,
+            },
+            competitions: [
+              {
+                id: '401580340',
+                competitors: [],
+              },
+            ],
+          },
+        ],
+      };
+
+      const customDir = {
+        '4604625': { id: '4604625', name: 'Scottie Scheffler', headshotUrl: 'https://example.com/scottie.png' },
+        '3448': { id: '3448', name: 'Rory McIlroy', headshotUrl: 'https://example.com/rory.png' },
+      };
+
+      const snapshot = normalizeTournamentSnapshot(scheduledEventWithoutCompetitors, null, {
+        playerDirectoryMap: customDir,
+      });
+
+      expect(snapshot.competitors.length).toBe(2);
+      const scheffler = snapshot.competitorMap.get('4604625');
+      expect(scheffler).toBeDefined();
+      expect(scheffler?.athlete.displayName).toBe('Scottie Scheffler');
+      expect(scheffler?.scoreDisplay).toBe('-');
+      expect(scheffler?.thruDisplay).toBe('-');
+      expect(scheffler?.headshotUrls).toContain('https://example.com/scottie.png');
+    });
+
     it('correctly normalizes a live round 2 in-progress tournament', () => {
       const liveRound2Payload = {
         events: [
@@ -411,9 +454,74 @@ describe('EspnTournamentAdapter', () => {
     });
   });
 
+  describe('normalizePlayerSummary', () => {
+    it('transforms raw hole-by-hole linescores into structured 18-hole scorecards with pars, totals, and badge types', () => {
+      const mockRawSummary = {
+        athlete: {
+          id: '4604625',
+          displayName: 'Scottie Scheffler',
+          headshot: { href: 'https://a.espncdn.com/i/headshots/golf/players/full/4604625.png' },
+        },
+        rounds: [
+          {
+            period: 1,
+            value: 68,
+            displayValue: '-4',
+            linescores: [
+              { period: 1, value: 4, par: 4, scoreType: { displayValue: '0' } }, // par
+              { period: 2, value: 4, par: 5, scoreType: { displayValue: '-1' } }, // birdie
+              { period: 3, value: 3, par: 5, scoreType: { displayValue: '-2' } }, // eagle
+              { period: 4, value: 5, par: 4, scoreType: { displayValue: '1' } }, // bogey
+              { period: 5, value: 6, par: 4, scoreType: { displayValue: '2' } }, // double
+              { period: 6, value: 4, par: 4, scoreType: { displayValue: '0' } },
+              { period: 7, value: 3, par: 3, scoreType: { displayValue: '0' } },
+              { period: 8, value: 4, par: 4, scoreType: { displayValue: '0' } },
+              { period: 9, value: 4, par: 4, scoreType: { displayValue: '0' } },
+              // Back nine
+              { period: 10, value: 4, par: 4, scoreType: { displayValue: '0' } },
+              { period: 11, value: 3, par: 3, scoreType: { displayValue: '0' } },
+              { period: 12, value: 4, par: 4, scoreType: { displayValue: '0' } },
+              { period: 13, value: 4, par: 5, scoreType: { displayValue: '-1' } },
+              { period: 14, value: 4, par: 4, scoreType: { displayValue: '0' } },
+              { period: 15, value: 4, par: 4, scoreType: { displayValue: '0' } },
+              { period: 16, value: 3, par: 3, scoreType: { displayValue: '0' } },
+              { period: 17, value: 4, par: 4, scoreType: { displayValue: '0' } },
+              { period: 18, value: 4, par: 4, scoreType: { displayValue: '0' } },
+            ],
+          },
+        ],
+      };
+
+      const summary = EspnTournamentAdapter.normalizePlayerSummary(mockRawSummary);
+      expect(summary).toBeDefined();
+      expect(summary.player.id).toBe('4604625');
+      expect(summary.player.displayName).toBe('Scottie Scheffler');
+      expect(summary.player.headshotUrls.length).toBeGreaterThan(0);
+      expect(summary.player.initials).toBe('SS');
+
+      expect(summary.rounds.length).toBe(1);
+      const r1 = summary.rounds[0];
+      expect(r1.period).toBe(1);
+      expect(r1.frontPar).toBe(37);
+      expect(r1.frontStrokes).toBe(37);
+      expect(r1.backPar).toBe(35);
+      expect(r1.backStrokes).toBe(34);
+      expect(r1.totalPar).toBe(72);
+      expect(r1.totalStrokes).toBe(71);
+      expect(r1.holes.length).toBe(18);
+
+      expect(r1.holes[0].scoreType).toBe('par');
+      expect(r1.holes[1].scoreType).toBe('birdie');
+      expect(r1.holes[2].scoreType).toBe('eagle');
+      expect(r1.holes[3].scoreType).toBe('bogey');
+      expect(r1.holes[4].scoreType).toBe('double');
+    });
+  });
+
   describe('EspnTournamentAdapter static methods', () => {
-    it('exposes normalizeTournamentSnapshot and getGolferCardViewModel directly', () => {
+    it('exposes normalizeTournamentSnapshot, normalizePlayerSummary, and getGolferCardViewModel directly', () => {
       expect(typeof EspnTournamentAdapter.normalizeTournamentSnapshot).toBe('function');
+      expect(typeof EspnTournamentAdapter.normalizePlayerSummary).toBe('function');
       expect(typeof EspnTournamentAdapter.getGolferCardViewModel).toBe('function');
       expect(typeof EspnTournamentAdapter.getCachedScoreboard).toBe('function');
       expect(typeof EspnTournamentAdapter.cacheScoreboard).toBe('function');
