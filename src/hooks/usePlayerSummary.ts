@@ -3,7 +3,7 @@ import { ESPNCompetitor, ESPNPlayerSummary } from '@/types/espn';
 import { EspnTournamentAdapter, NormalizedPlayerSummary } from '@/lib/espn';
 
 // Global in-memory cache for player summaries during the browser session
-const playerSummaryCache = new Map<string, NormalizedPlayerSummary | ESPNPlayerSummary>();
+const playerSummaryCache = new Map<string, NormalizedPlayerSummary>();
 
 export function clearPlayerSummaryCache() {
   playerSummaryCache.clear();
@@ -15,7 +15,7 @@ export interface UsePlayerSummaryOptions {
 }
 
 export interface UsePlayerSummaryResult {
-  summary: NormalizedPlayerSummary | ESPNPlayerSummary | null;
+  summary: NormalizedPlayerSummary | null;
   /** True ONLY during initial cold-start before any player summary or fallback exists. */
   isLoading: boolean;
   /** True during background network requests to fetch detailed hole-by-hole linescores. */

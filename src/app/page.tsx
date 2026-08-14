@@ -297,9 +297,8 @@ export default function DashboardPage() {
   }, [displayCompetitors, selectedPlayerId]);
 
   const selectedCompetitor = useMemo(() => {
-    const compMap = new Map(competitors.map((c) => [c.athlete?.id || c.id, c]));
-    return compMap.get(selectedPlayerId) || displayCompetitors[0];
-  }, [competitors, selectedPlayerId, displayCompetitors]);
+    return normalizedTournament.competitorMap.get(selectedPlayerId) || displayCompetitors[0] || null;
+  }, [normalizedTournament, selectedPlayerId, displayCompetitors]);
 
   const selectedCompetitorId = selectedCompetitor?.athlete?.id || selectedCompetitor?.id;
 
@@ -427,7 +426,7 @@ export default function DashboardPage() {
           {!isWatchlistCollapsed && (
             <TrackedPlayerHeroGrid
               trackedCompetitors={displayCompetitors}
-              allCompetitors={competitors}
+              allCompetitors={normalizedTournament.competitors}
               eventStatus={activeEvent?.status}
               rankDisplayMap={fieldEvaluation.rankDisplayMap}
               selectedPlayerId={selectedPlayerId || selectedCompetitor?.athlete?.id || selectedCompetitor?.id}

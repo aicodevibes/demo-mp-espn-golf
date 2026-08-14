@@ -1,11 +1,10 @@
 import { ESPNCompetitor, ESPNEventStatus } from '@/types/espn';
 import { Participant } from '@/types/contest';
-import { getPlayerStatusInfo, getGolferCumulativeScoreToPar } from '@/lib/espn/eventHelpers';
-import { NormalizedTournament, NormalizedCompetitor } from '@/lib/espn/adapter';
+import { NormalizedTournament, NormalizedCompetitor, normalizeCompetitor } from '@/lib/espn';
 import { createPlayerDraftedByMap } from '@/lib/scoring';
 import { getGolferProfile, GolferProfile, GolferDirectoryOptions } from './golferDirectory';
 
-export interface EnrichedCompetitor extends ESPNCompetitor {
+export interface EnrichedCompetitor extends NormalizedCompetitor {
   profile: GolferProfile;
   formattedRank: string;
   parsedScoreToPar: number;
@@ -64,25 +63,22 @@ export function parseCompetitorScoreToPar(comp: ESPNCompetitor | null | undefine
   if ('scoreToPar' in comp && typeof (comp as NormalizedCompetitor).scoreToPar === 'number') {
     return (comp as NormalizedCompetitor).scoreToPar ?? 0;
   }
-  const meta = getGolferCumulativeScoreToPar(comp);
-  const str = meta.formattedScore;
-
+  const str = typeof comp.score === 'string' ? comp.score.trim() : '';
   if (str === 'CUT' || str === 'WD' || str === 'DQ' || str === '-') {
     return 999;
   }
   if (str === 'E' || str === 'EVEN' || str === '0') {
     return 0;
   }
-
   if (str.startsWith('+') || str.startsWith('-')) {
     const parsed = parseInt(str.replace('+', ''), 10);
     if (!isNaN(parsed)) return parsed;
   }
-
   const parsedDirect = parseInt(str, 10);
   if (!isNaN(parsedDirect)) return parsedDirect;
 
-  return 0;
+  const norm = normalizeCompetitor(comp);
+  return norm.scoreToPar ?? 0;
 }
 
 /**
@@ -97,22 +93,19 @@ export function sortCompetitorsByLeaderboard(
   const safe = Array.isArray(competitors) ? [...competitors] : [];
 
   return safe.sort((a, b) => {
-    const isInactiveA =
-      'statusInfo' in a
-        ? (a as NormalizedCompetitor).statusInfo.isInactive
-        : getPlayerStatusInfo(a, eventStatus).isInactive;
-    const isInactiveB =
-      'statusInfo' in b
-        ? (b as NormalizedCompetitor).statusInfo.isInactive
-        : getPlayerStatusInfo(b, eventStatus).isInactive;
+    const normA = 'statusInfo' in a ? (a as NormalizedCompetitor) : normalizeCompetitor(a, eventStatus);
+    const normB = 'statusInfo' in b ? (b as NormalizedCompetitor) : normalizeCompetitor(b, eventStatus);
+
+    const isInactiveA = normA.statusInfo.isInactive;
+    const isInactiveB = normB.statusInfo.isInactive;
 
     // Inactive (Cut/WD/DQ) go to bottom
     if (isInactiveA && !isInactiveB) return 1;
     if (!isInactiveA && isInactiveB) return -1;
 
     // Primary: Compare numeric score to par (lower is better: -5 < -2 < -1 < 0 < +1 < +2)
-    const scoreA = parseCompetitorScoreToPar(a);
-    const scoreB = parseCompetitorScoreToPar(b);
+    const scoreA = normA.scoreToPar ?? parseCompetitorScoreToPar(a);
+    const scoreB = normB.scoreToPar ?? parseCompetitorScoreToPar(b);
     if (scoreA !== scoreB) {
       return scoreA - scoreB;
     }
@@ -181,9 +174,10 @@ export function evaluateFieldLeaderboard(
   }
 
   const { participants = [], eventStatus, searchQuery, playerDirectoryMap } = options;
+  const statusObj = (eventStatus && typeof eventStatus === 'object') ? (eventStatus as ESPNEventStatus) : undefined;
 
   // Canonical sorting
-  const sorted = sortCompetitorsByLeaderboard(competitors, eventStatus);
+  const sorted = sortCompetitorsByLeaderboard(competitors, statusObj);
 
   // Participant draft map
   const playerDraftedByMap = createPlayerDraftedByMap(participants);
@@ -196,20 +190,16 @@ export function evaluateFieldLeaderboard(
 
   // Dynamic ranks for active competitors
   const activeUnfiltered = sorted.filter((c) => {
-    if ('statusInfo' in c) {
-      return !(c as NormalizedCompetitor).statusInfo.isInactive;
-    }
-    return !getPlayerStatusInfo(c, eventStatus).isInactive;
+    const norm = 'statusInfo' in c ? (c as NormalizedCompetitor) : normalizeCompetitor(c, statusObj);
+    return !norm.statusInfo.isInactive;
   });
   const rankDisplayMap = computeLeaderboardRankDisplays(activeUnfiltered);
 
   // Enrich competitors in single pass
   const enriched: EnrichedCompetitor[] = sorted.map((comp) => {
     const athleteId = comp.athlete?.id || comp.id || '';
-    const statusInfo =
-      'statusInfo' in comp
-        ? (comp as NormalizedCompetitor).statusInfo
-        : getPlayerStatusInfo(comp, eventStatus);
+    const norm = 'statusInfo' in comp ? (comp as NormalizedCompetitor) : normalizeCompetitor(comp, statusObj);
+    const statusInfo = norm.statusInfo;
     const scoreToPar = parseCompetitorScoreToPar(comp);
     const posNum = parsePositionNumber(comp);
     const dynamicRank = rankDisplayMap.get(athleteId);
@@ -233,7 +223,7 @@ export function evaluateFieldLeaderboard(
     });
 
     return {
-      ...comp,
+      ...norm,
       profile,
       formattedRank,
       parsedScoreToPar: scoreToPar,

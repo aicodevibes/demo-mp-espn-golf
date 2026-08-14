@@ -1,11 +1,9 @@
 import React from 'react';
-import { ESPNCompetitor } from '@/types/espn';
 import { NormalizedCompetitor } from '@/lib/espn';
 import { GolferHeadshot } from './GolferHeadshot';
-import { getPlayerStatusInfo, formatThruDisplay, getGolferCumulativeScoreToPar } from '@/lib/espn';
 
 export interface CompetitorRowProps {
-  competitor: ESPNCompetitor | NormalizedCompetitor;
+  competitor: NormalizedCompetitor;
   draftedBy?: string[];
   rankDisplay?: string | number;
   isSelected?: boolean;
@@ -20,27 +18,32 @@ export function CompetitorRow({
   draftedBy = [],
   rankDisplay,
   isSelected = false,
-  eventStatus,
   priorityHeadshot = false,
   isFourthGolfer = false,
   onSelectPlayer,
 }: CompetitorRowProps) {
   if (!competitor) return null;
 
-  const isNormalized = 'statusInfo' in competitor && 'scoreMeta' in competitor;
-  const normComp = isNormalized ? (competitor as NormalizedCompetitor) : null;
-
   const playerId = competitor.athlete?.id || competitor.id || '';
   const displayName = competitor.athlete?.displayName || 'Golfer';
-  const headshotUrl = competitor.athlete?.headshot?.href || normComp?.headshotUrls?.[0];
+  const headshotUrl = competitor.headshotUrls?.[0] || competitor.athlete?.headshot?.href;
 
-  const score = normComp?.scoreDisplay || getGolferCumulativeScoreToPar(competitor, eventStatus).formattedScore;
-  const isUnderPar = normComp?.scoreMeta?.isUnderPar ?? getGolferCumulativeScoreToPar(competitor, eventStatus).isUnderPar;
-  const isOverPar = normComp?.scoreMeta?.isOverPar ?? getGolferCumulativeScoreToPar(competitor, eventStatus).isOverPar;
-  const thru = normComp?.thruDisplay || formatThruDisplay(competitor, eventStatus);
+  const score = competitor.scoreDisplay ?? '-';
+  const isUnderPar = Boolean(competitor.scoreMeta?.isUnderPar);
+  const isOverPar = Boolean(competitor.scoreMeta?.isOverPar);
+  const thru = competitor.thruDisplay ?? '-';
 
   const isDrafted = draftedBy.length > 0;
-  const statusInfo = normComp?.statusInfo || getPlayerStatusInfo(competitor, eventStatus);
+  const statusInfo = competitor.statusInfo || {
+    isCut: false,
+    isWD: false,
+    isDQ: false,
+    isInactive: false,
+    isWinner: false,
+    isPlayoff: false,
+    badgeLabel: '',
+    statusBadge: '',
+  };
 
   const displayRank = rankDisplay !== undefined
     ? rankDisplay

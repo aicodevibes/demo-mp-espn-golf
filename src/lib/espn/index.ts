@@ -21,23 +21,14 @@ export {
 } from './adapter';
 export {
   formatEventDates,
-  formatScoreDisplay,
-  getScoreMeta,
-  formatThruDisplay,
-  getGolferCumulativeScoreToPar,
   parseESPNScoreboardResponse,
   resolveActiveEvent,
-  getWinnerStatus,
-  getPlayerStatusInfo,
-  evaluateGolferRoundScore,
-  isRoundCompleted,
   resolveEventCompetitorsWithFallback,
   SYNTHETIC_PGA_FIELD,
   DEFAULT_PLAYER_DIRECTORY_MAP,
   type WinnerStatusInfo,
   type PlayerStatusInfo,
   type ScoreMeta,
-  type GolferRoundScoreResult,
 } from './eventHelpers';
 export {
   normalizeGolferName,

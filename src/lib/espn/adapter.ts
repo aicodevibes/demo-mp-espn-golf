@@ -118,7 +118,7 @@ export interface NormalizedPlayerSummary {
 
 export interface NormalizeTournamentOptions {
   activeEventId?: string | null;
-  playerDirectoryMap?: Record<string, { id: string; name: string; headshotUrl?: string }>;
+  playerDirectoryMap?: Record<string, { id: string; name: string; headshotUrl?: string; countryFlagUrl?: string }>;
 }
 
 /**
@@ -169,7 +169,7 @@ export function normalizeCompetitor(
   comp: ESPNCompetitor,
   eventStatus?: ESPNEventStatus,
   allCompetitors: ESPNCompetitor[] = [],
-  playerDirectoryMap: Record<string, { id: string; name: string; headshotUrl?: string }> = DEFAULT_PLAYER_DIRECTORY_MAP
+  playerDirectoryMap: Record<string, { id: string; name: string; headshotUrl?: string; countryFlagUrl?: string }> = DEFAULT_PLAYER_DIRECTORY_MAP
 ): NormalizedCompetitor {
   const athleteId = comp.athlete?.id || comp.id || '';
   const dirPlayer = playerDirectoryMap[athleteId];
@@ -219,8 +219,8 @@ export function normalizeCompetitor(
   const dirHeadshot = dirPlayer?.headshotUrl;
   const headshotUrls = resolveGolferHeadshotUrls(athleteId, rawHeadshot, dirHeadshot);
 
-  // Country flag
-  const countryFlagUrl = comp.athlete?.flag?.href;
+  // Country flag (from live payload or player directory fallback)
+  const countryFlagUrl = comp.athlete?.flag?.href || dirPlayer?.countryFlagUrl;
 
   const displayName = comp.athlete?.displayName || dirPlayer?.name || (athleteId ? `Golfer (${athleteId})` : 'Unknown');
   const initials = getGolferInitials(displayName);
@@ -264,6 +264,7 @@ export function normalizeTournamentSnapshot(
           id: dirPlayer.id,
           displayName: dirPlayer.name,
           headshot: { href: dirPlayer.headshotUrl || '' },
+          flag: dirPlayer.countryFlagUrl ? { href: dirPlayer.countryFlagUrl } : undefined,
         },
       } as ESPNCompetitor))
     : null;
@@ -320,6 +321,7 @@ export function normalizeTournamentSnapshot(
         id: dirPlayer.id,
         displayName: dirPlayer.name,
         headshot: { href: dirPlayer.headshotUrl || '' },
+        flag: (dirPlayer as any).countryFlagUrl ? { href: (dirPlayer as any).countryFlagUrl } : undefined,
       },
     } as ESPNCompetitor));
   }

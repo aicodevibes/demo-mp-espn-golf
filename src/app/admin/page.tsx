@@ -49,7 +49,7 @@ import { getGolferRoundScoreToPar } from '@/lib/scoring';
 import { doc, deleteDoc, collection, getDocs, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
 import { parseCommaDelimitedGolfers, matchGolferInputToId } from '@/lib/espn/golferMatcher';
-import { formatScoreDisplay, getPlayerStatusInfo, resolveEventCompetitorsWithFallback } from '@/lib/espn';
+import { normalizeCompetitor, resolveEventCompetitorsWithFallback } from '@/lib/espn';
 
 const ADMIN_EMAILS = ['aicodevibes@gmail.com'];
 
@@ -1458,7 +1458,7 @@ export default function AdminPage() {
                   const cutCount = p.draftedPlayerIds.slice(0, 3).filter((id) => {
                     const comp = compMap.get(id);
                     if (!comp) return false;
-                    const status = getPlayerStatusInfo(comp);
+                    const status = normalizeCompetitor(comp).statusInfo;
                     return status.isCut || status.isWD;
                   }).length;
                   return cutCount >= 2;
@@ -1501,7 +1501,7 @@ export default function AdminPage() {
                         const cutCount = originalPicks.filter((id) => {
                           const comp = compMap.get(id);
                           if (!comp) return false;
-                          const status = getPlayerStatusInfo(comp);
+                          const status = normalizeCompetitor(comp).statusInfo;
                           return status.isCut || status.isWD;
                         }).length;
 
@@ -1548,7 +1548,7 @@ export default function AdminPage() {
                                 <div className="flex flex-wrap gap-1">
                                   {originalPicks.map((id) => {
                                     const comp = compMap.get(id);
-                                    const status = comp ? getPlayerStatusInfo(comp) : { isCut: false, isWD: false };
+                                    const status = comp ? normalizeCompetitor(comp).statusInfo : { isCut: false, isWD: false };
                                     const name = getGolferNameById(id);
                                     const isLost = status.isCut || status.isWD;
                                     return (
@@ -1740,7 +1740,7 @@ export default function AdminPage() {
                             {formatParVal(r4)}
                           </td>
                           <td className="py-2.5 px-4 text-center font-bold text-tertiary">
-                            {formatScoreDisplay(c.score)}
+                            {(c as any).scoreDisplay || (typeof c.score === 'string' ? c.score : '-')}
                           </td>
                         </tr>
                       );

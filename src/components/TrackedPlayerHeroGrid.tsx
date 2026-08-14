@@ -2,11 +2,10 @@ import React from 'react';
 import { Trophy } from 'lucide-react';
 import { GolferHeadshot } from './GolferHeadshot';
 import { NormalizedCompetitor } from '@/lib/espn';
-import { ESPNCompetitor } from '@/types/espn';
 
 interface TrackedPlayerHeroGridProps {
-  trackedCompetitors: (NormalizedCompetitor | ESPNCompetitor)[];
-  allCompetitors?: (NormalizedCompetitor | ESPNCompetitor)[];
+  trackedCompetitors: NormalizedCompetitor[];
+  allCompetitors?: NormalizedCompetitor[];
   eventStatus?: any;
   rankDisplayMap?: Map<string, string>;
   selectedPlayerId?: string;
@@ -15,8 +14,6 @@ interface TrackedPlayerHeroGridProps {
 
 export function TrackedPlayerHeroGrid({
   trackedCompetitors,
-  allCompetitors = [],
-  eventStatus,
   rankDisplayMap,
   selectedPlayerId,
   onSelectPlayer,
@@ -39,17 +36,15 @@ export function TrackedPlayerHeroGrid({
         const playerId = comp.athlete?.id || comp.id || `player-${idx}`;
         const isSelected = selectedPlayerId === playerId;
 
-        const isNormalized = 'statusInfo' in comp && 'scoreMeta' in comp;
-        const normComp = isNormalized ? (comp as NormalizedCompetitor) : null;
+        const score = comp.scoreDisplay ?? '-';
+        const isUnderPar = Boolean(comp.scoreMeta?.isUnderPar);
+        const isOverPar = Boolean(comp.scoreMeta?.isOverPar);
+        const thru = comp.thruDisplay ?? '-';
 
-        const score = normComp?.scoreDisplay || (typeof comp.score === 'string' ? comp.score : '-');
-        const isUnderPar = normComp?.scoreMeta?.isUnderPar ?? (score.startsWith('-'));
-        const isOverPar = normComp?.scoreMeta?.isOverPar ?? (score.startsWith('+'));
-        const thru = normComp?.thruDisplay || (comp.status?.thru ? `${comp.status.thru}` : '-');
-
-        const statusInfo = normComp?.statusInfo || {
-          isCut: Boolean(comp.status?.position?.displayName === 'CUT'),
-          isWD: Boolean(comp.status?.position?.displayName === 'WD'),
+        const statusInfo = comp.statusInfo || {
+          isCut: false,
+          isWD: false,
+          isDQ: false,
           isWinner: false,
           badgeLabel: '',
           statusBadge: '',

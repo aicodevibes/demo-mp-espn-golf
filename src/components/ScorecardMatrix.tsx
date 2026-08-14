@@ -1,14 +1,11 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { ESPNCompetitor, ESPNPlayerSummary, ESPNRoundLinescore } from '@/types/espn';
 import { NormalizedCompetitor, NormalizedPlayerSummary, NormalizedRoundLinescore } from '@/lib/espn';
 import { Award, ChevronDown, ChevronUp } from 'lucide-react';
-import { getPlayerStatusInfo } from '@/lib/espn';
-import { getGolferRoundScoreToPar } from '@/lib/scoring';
 
 interface ScorecardMatrixProps {
-  playerSummary: NormalizedPlayerSummary | ESPNPlayerSummary | null;
+  playerSummary: NormalizedPlayerSummary | null;
   /** The full competitor object from the leaderboard (has linescores for CUT detection). */
-  competitor?: NormalizedCompetitor | ESPNCompetitor | null;
+  competitor?: NormalizedCompetitor | null;
   eventStatus?: any;
   loading?: boolean;
   isFetching?: boolean;
@@ -18,7 +15,6 @@ interface ScorecardMatrixProps {
 export function ScorecardMatrix({
   playerSummary,
   competitor,
-  eventStatus,
   loading,
   isFetching,
   playerName = 'Selected Golfer',
@@ -66,13 +62,8 @@ export function ScorecardMatrix({
     }
   }, [startedRounds, activeRound]);
 
-  // Use the leaderboard competitor (has linescores) for CUT detection
-  const isNormComp = competitor && 'statusInfo' in competitor;
-  const statusInfo = isNormComp
-    ? (competitor as NormalizedCompetitor).statusInfo
-    : competitor
-    ? getPlayerStatusInfo(competitor as ESPNCompetitor, eventStatus)
-    : null;
+  // Use the pre-evaluated status info on NormalizedCompetitor
+  const statusInfo = competitor?.statusInfo || null;
 
   if (loading && !playerSummary) {
     return (
@@ -139,32 +130,36 @@ export function ScorecardMatrix({
 
     if (type.includes('eagle') || diff <= -2) {
       return (
-        <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-amber-500 text-amber-950 border border-amber-400 font-black text-xs shadow-xs">
+        <span className="inline-flex items-center justify-center w-7 h-7 rounded-full text-xs bg-amber-400 text-amber-950 font-black ring-2 ring-amber-300 shadow-xs">
           {strokes}
         </span>
       );
     }
+
     if (type.includes('birdie') || diff === -1) {
       return (
-        <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-tertiary/15 text-tertiary border border-tertiary font-bold text-xs">
+        <span className="inline-flex items-center justify-center w-7 h-7 rounded-full text-xs bg-error/15 text-error font-extrabold ring-1 ring-error/40 shadow-xs">
           {strokes}
         </span>
       );
     }
-    if (type.includes('double') || diff >= 2) {
-      return (
-        <span className="inline-flex items-center justify-center w-7 h-7 rounded bg-error text-on-error border border-error font-bold text-xs">
-          {strokes}
-        </span>
-      );
-    }
+
     if (type.includes('bogey') || diff === 1) {
       return (
-        <span className="inline-flex items-center justify-center w-7 h-7 rounded bg-error/10 text-error border border-error/30 font-semibold text-xs">
+        <span className="inline-flex items-center justify-center w-7 h-7 rounded-sm text-xs bg-primary-container text-on-primary-container font-semibold">
           {strokes}
         </span>
       );
     }
+
+    if (type.includes('double') || diff >= 2) {
+      return (
+        <span className="inline-flex items-center justify-center w-7 h-7 rounded-sm text-xs bg-secondary-container text-on-secondary-container font-bold ring-1 ring-outline-variant">
+          {strokes}
+        </span>
+      );
+    }
+
     return <span className="font-semibold text-on-surface text-xs">{strokes}</span>;
   };
 
@@ -183,15 +178,7 @@ export function ScorecardMatrix({
             const rd = currentRoundData;
             if (!rd) return null;
             const normRd = rd as NormalizedRoundLinescore;
-            const formattedScore = normRd?.formattedScore ?? (() => {
-              const roundParTotal = rd.holes ? rd.holes.reduce((sum, h) => sum + (h.par || 0), 0) : null;
-              const rawScoreToPar = competitor 
-                ? getGolferRoundScoreToPar(competitor as any, rd.period, roundParTotal && roundParTotal > 50 ? roundParTotal : null)
-                : null;
-              return rawScoreToPar !== null 
-                ? (rawScoreToPar === 0 ? 'E' : rawScoreToPar > 0 ? `+${rawScoreToPar}` : `${rawScoreToPar}`)
-                : null;
-            })();
+            const formattedScore = normRd?.formattedScore;
             const labelSuffix = formattedScore && formattedScore !== '-' ? ` (${formattedScore})` : '';
 
             return (
@@ -243,16 +230,7 @@ export function ScorecardMatrix({
           <div className="flex items-center gap-1.5 bg-surface-container-lowest p-1 rounded-lg border border-outline-variant">
             {startedRounds.map((rd) => {
               const normRd = rd as NormalizedRoundLinescore;
-              const formattedScore = normRd?.formattedScore ?? (() => {
-                const roundParTotal = rd.holes ? rd.holes.reduce((sum, h) => sum + (h.par || 0), 0) : null;
-                const rawScoreToPar = competitor 
-                  ? getGolferRoundScoreToPar(competitor as any, rd.period, roundParTotal && roundParTotal > 50 ? roundParTotal : null)
-                  : null;
-                return rawScoreToPar !== null 
-                  ? (rawScoreToPar === 0 ? 'E' : rawScoreToPar > 0 ? `+${rawScoreToPar}` : `${rawScoreToPar}`)
-                  : null;
-              })();
-
+              const formattedScore = normRd?.formattedScore;
               const labelSuffix = formattedScore && formattedScore !== '-' ? ` (${formattedScore})` : '';
 
               return (

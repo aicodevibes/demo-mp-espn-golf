@@ -1,5 +1,5 @@
 import { ESPNCompetitor, ESPNEventStatus } from '@/types/espn';
-import { getPlayerStatusInfo, formatScoreDisplay, evaluateGolferRoundScore, isRoundCompleted, getGolferCumulativeScoreToPar, DEFAULT_PLAYER_DIRECTORY_MAP } from '@/lib/espn';
+import { getPlayerStatusInfo, formatScoreDisplay, evaluateGolferRoundScore, isRoundCompleted, getGolferCumulativeScoreToPar, DEFAULT_PLAYER_DIRECTORY_MAP } from './espn/eventHelpers';
 import {
   Participant,
   ParticipantStanding,

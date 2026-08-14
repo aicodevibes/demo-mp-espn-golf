@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { getGolferCumulativeScoreToPar, normalizeCompetitor } from '@/lib/espn';
+import { getGolferCumulativeScoreToPar } from '../eventHelpers';
+import { normalizeCompetitor } from '../adapter';
 import { ESPNCompetitor } from '@/types/espn';
 
 describe('Keith Mitchell Active Round Score Bug (Phase 1 & 2 Repro)', () => {
