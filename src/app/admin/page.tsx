@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import {
   useActiveConfig,
@@ -19,51 +18,42 @@ import {
   clearAllPlayersInFirestore,
   importAuthenticPgaCatalogToFirestore,
   saveSinglePlayerToFirestore,
+  deleteEventSubtree,
 } from '@/lib/firebase/firestore';
 import {
   ArrowLeft,
-  Save,
-  Trash2,
   Settings,
-  UserPlus,
-  RefreshCw,
-  Search,
-  Award,
-  Trophy,
-  Check,
-  Plus,
-  X,
-  Star,
-  Users,
-  Copy,
   ShieldCheck,
-  Edit2,
-  Eye,
   ShieldAlert,
   LogIn,
   LogOut,
 } from 'lucide-react';
-import { Participant, ContestConfig } from '@/types/contest';
+import { Participant } from '@/types/contest';
 import { ESPNEvent, ESPNCompetitor } from '@/types/espn';
-import { getGolferRoundScoreToPar } from '@/lib/scoring';
-import { doc, deleteDoc, collection, getDocs, writeBatch } from 'firebase/firestore';
-import { db } from '@/lib/firebase/config';
 import { parseCommaDelimitedGolfers, matchGolferInputToId } from '@/lib/espn/golferMatcher';
-import { normalizeCompetitor, resolveEventCompetitorsWithFallback } from '@/lib/espn';
-
-const ADMIN_EMAILS = ['aicodevibes@gmail.com'];
+import { resolveEventCompetitorsWithFallback } from '@/lib/espn';
+import {
+  AdminEventConfigSection,
+  AdminRosterSyncOperations,
+  AdminParticipantRosterTable,
+  AdminFourthGolferManager,
+  AdminGreedyManager,
+  AdminPlayerDirectoryTools,
+  AdminLeaderboardInspector,
+  AdminCalendarSidebar,
+  AdminBatchRosterModal,
+  AdminCopyRosterModal,
+} from '@/components/admin';
 
 export default function AdminPage() {
   const { user, loading: authLoading, isAdmin, signInWithGoogle, signOut } = useAuth();
-  const router = useRouter();
-
   const { config: appConfig, loading: appConfigLoading } = useActiveConfig();
 
   // Scoreboard Events List from ESPN
   const [events, setEvents] = useState<ESPNEvent[]>([]);
   const [loadingEvents, setLoadingEvents] = useState<boolean>(true);
 
-  // Selected Event ID for admin editing (defaults to activeEventId or first event in scoreboard)
+  // Selected Event ID for admin editing
   const [selectedEventId, setSelectedEventId] = useState<string>('');
 
   // Roster Sync states
@@ -74,30 +64,37 @@ export default function AdminPage() {
   const [sourceCopyEventId, setSourceCopyEventId] = useState<string>('');
   const [showCopyModal, setShowCopyModal] = useState<boolean>(false);
 
-  const handleCopyRosterFromEvent = async () => {
-    if (!sourceCopyEventId || !selectedEventId) return;
-    if (isEventFinalized) {
-      alert('This tournament event is finalized and locked in read-only mode.');
-      return;
-    }
-    if (sourceCopyEventId === selectedEventId) {
+  // Batch Roster Import State
+  const [showBatchModal, setShowBatchModal] = useState<boolean>(false);
+  const [batchRosterText, setBatchRosterText] = useState<string>('');
 
-      alert('Please select a different source event to copy from.');
-      return;
-    }
-    setSyncing(true);
-    try {
-      await copyRosterFromEvent(sourceCopyEventId, selectedEventId);
-      setShowCopyModal(false);
-      alert('Participant names copied cleanly with reset picks and payments!');
-    } catch (err) {
-      console.error('Failed to copy roster from event:', err);
-      alert('Failed to copy roster from selected event.');
-    } finally {
-      setSyncing(false);
-    }
-  };
+  // Custom Golfer Inputs
+  const [customGolferId, setCustomGolferId] = useState<string>('');
+  const [customGolferName, setCustomGolferName] = useState<string>('');
+  const [customGolferHeadshot, setCustomGolferHeadshot] = useState<string>('');
 
+  // Form States for Event Config & Wager Pot Settings
+  const [formDataName, setFormDataName] = useState('');
+  const [formDataCoursePar, setFormDataCoursePar] = useState<number | ''>('');
+  const [formDataEntryFee, setFormDataEntryFee] = useState<number | ''>(50);
+  const [formDataMainPayoutsStr, setFormDataMainPayoutsStr] = useState('600, 320, 180, 100');
+  const [formDataDayMoneyPool, setFormDataDayMoneyPool] = useState<number | ''>(75);
+  const [formDataIsFinalized, setFormDataIsFinalized] = useState(false);
+
+  // Participant Form States
+  const [editingParticipant, setEditingParticipant] = useState<Participant | null>(null);
+  const [partName, setPartName] = useState('');
+  const [partGolfersInput, setPartGolfersInput] = useState('');
+  const [partGolfer1, setPartGolfer1] = useState('');
+  const [partGolfer2, setPartGolfer2] = useState('');
+  const [partGolfer3, setPartGolfer3] = useState('');
+  const [partIsGreedy, setPartIsGreedy] = useState(false);
+  const [partGreedyPlayer, setPartGreedyPlayer] = useState('');
+
+  // Live Competitors Field
+  const [competitors, setCompetitors] = useState<ESPNCompetitor[]>([]);
+  const [loadingCompetitors, setLoadingCompetitors] = useState<boolean>(false);
+  const [liveSearchQuery, setLiveSearchQuery] = useState('');
 
   // Load PGA Calendar/Events
   useEffect(() => {
@@ -126,18 +123,14 @@ export default function AdminPage() {
     } else if (events.length > 0 && !selectedEventId) {
       setSelectedEventId(events[0].id);
     }
-  }, [activeEventId, events]);
+  }, [activeEventId, events, selectedEventId]);
 
   // Load selected event details from Firestore
-  const { config: selectedContestConfig, loading: configLoading } = useContestConfig(selectedEventId);
+  const { config: selectedContestConfig } = useContestConfig(selectedEventId);
   const { participants: selectedParticipants, loading: participantsLoading } = useParticipants(selectedEventId);
   const isEventFinalized = Boolean(selectedContestConfig?.isFinalized);
 
-
   // ESPN field details for the selected event
-  const [competitors, setCompetitors] = useState<ESPNCompetitor[]>([]);
-  const [loadingCompetitors, setLoadingCompetitors] = useState<boolean>(false);
-
   useEffect(() => {
     if (!selectedEventId) return;
 
@@ -160,16 +153,6 @@ export default function AdminPage() {
     fetchEventCompetitors();
   }, [selectedEventId]);
 
-  // Form States for Event Config & Wager Pot Settings
-  const [formDataName, setFormDataName] = useState('');
-  const [formDataStartDate, setFormDataStartDate] = useState('');
-  const [formDataEndDate, setFormDataEndDate] = useState('');
-  const [formDataCoursePar, setFormDataCoursePar] = useState<number | ''>('');
-  const [formDataEntryFee, setFormDataEntryFee] = useState<number | ''>(50);
-  const [formDataMainPayoutsStr, setFormDataMainPayoutsStr] = useState('600, 320, 180, 100');
-  const [formDataDayMoneyPool, setFormDataDayMoneyPool] = useState<number | ''>(75);
-  const [formDataIsFinalized, setFormDataIsFinalized] = useState(false);
-
   // Sync form states with selected config
   useEffect(() => {
     if (selectedContestConfig) {
@@ -181,17 +164,9 @@ export default function AdminPage() {
         selectedContestConfig.mainPayouts ? selectedContestConfig.mainPayouts.join(', ') : '600, 320, 180, 100'
       );
       setFormDataDayMoneyPool(selectedContestConfig.dayMoneyPool ?? 75);
-      // Try to find the event in scoreboard to prepopulate dates if empty
-      const matchedEvent = events.find((e) => e.id === selectedEventId);
-      if (matchedEvent) {
-        setFormDataStartDate(matchedEvent.date?.split('T')[0] || '');
-        setFormDataEndDate(matchedEvent.date?.split('T')[0] || '');
-      }
     } else {
       const matchedEvent = events.find((e) => e.id === selectedEventId);
       setFormDataName(matchedEvent?.name || '');
-      setFormDataStartDate(matchedEvent?.date?.split('T')[0] || '');
-      setFormDataEndDate(matchedEvent?.date?.split('T')[0] || '');
       setFormDataCoursePar('');
       setFormDataEntryFee(50);
       setFormDataMainPayoutsStr('600, 320, 180, 100');
@@ -200,19 +175,6 @@ export default function AdminPage() {
     }
   }, [selectedContestConfig, selectedEventId, events]);
 
-  // Add / Edit Participant Form States
-  const [editingParticipant, setEditingParticipant] = useState<Participant | null>(null);
-  const [partName, setPartName] = useState('');
-  const [partGolfersInput, setPartGolfersInput] = useState('');
-  const [partGolfer1, setPartGolfer1] = useState('');
-  const [partGolfer2, setPartGolfer2] = useState('');
-  const [partGolfer3, setPartGolfer3] = useState('');
-  const [partIsGreedy, setPartIsGreedy] = useState(false);
-  const [partGreedyPlayer, setPartGreedyPlayer] = useState('');
-
-  // Search filter for golfer picks
-  const [golferSearch, setGolferSearch] = useState('');
-
   const fieldGolfers = useMemo(() => {
     return competitors.map((c) => ({
       id: c.athlete?.id || c.id,
@@ -220,13 +182,20 @@ export default function AdminPage() {
     }));
   }, [competitors]);
 
-  const filteredFieldGolfers = useMemo(() => {
-    const q = golferSearch.toLowerCase().trim();
-    if (!q) return fieldGolfers;
-    return fieldGolfers.filter((g) => g.name.toLowerCase().includes(q));
-  }, [fieldGolfers, golferSearch]);
+  const filteredLiveCompetitors = useMemo(() => {
+    const q = liveSearchQuery.toLowerCase().trim();
+    if (!q) return competitors;
+    return competitors.filter((c) =>
+      c.athlete?.displayName?.toLowerCase().includes(q)
+    );
+  }, [competitors, liveSearchQuery]);
 
-  // Handle Event Config Save
+  const getGolferNameById = (id: string) => {
+    const comp = competitors.find((c) => (c.athlete?.id || c.id) === id);
+    return comp?.athlete?.displayName || `Golfer (${id})`;
+  };
+
+  // Event Configuration Handlers
   const handleSaveConfig = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedEventId) return;
@@ -259,26 +228,6 @@ export default function AdminPage() {
     }
   };
 
-  // Toggle Participant Payment Checkmark
-  const handleTogglePayment = async (p: Participant) => {
-    if (!selectedEventId) return;
-    if (isEventFinalized) {
-      alert('This tournament event is finalized and locked in read-only mode.');
-      return;
-    }
-    try {
-      const updated = {
-        ...p,
-        hasPaidEntry: !p.hasPaidEntry,
-      };
-      await addParticipantToEvent(selectedEventId, updated);
-    } catch (err) {
-      console.error(err);
-      alert('Failed to update payment status.');
-    }
-  };
-
-  // Set Event as Active
   const handleSetActive = async () => {
     if (!selectedEventId) return;
     setSavingConfig(true);
@@ -297,7 +246,6 @@ export default function AdminPage() {
     }
   };
 
-  // Delete Event Subtree
   const handleDeleteEvent = async () => {
     if (!selectedEventId) return;
     if (isEventFinalized) {
@@ -309,20 +257,8 @@ export default function AdminPage() {
     }
     setSavingConfig(true);
     try {
-      const batch = writeBatch(db);
-      // delete contestConfig
-      const configRef = doc(db, 'events', selectedEventId, 'contestConfig', 'default');
-      batch.delete(configRef);
-      // delete participants
-      const participantsRef = collection(db, 'events', selectedEventId, 'participants');
-      const snap = await getDocs(participantsRef);
-      snap.forEach((docSnap) => {
-        batch.delete(docSnap.ref);
-      });
-      await batch.commit();
-
+      await deleteEventSubtree(selectedEventId);
       alert('Event deleted successfully.');
-      // Reload page or select first available event
       if (events.length > 0) {
         setSelectedEventId(events[0].id);
       }
@@ -334,7 +270,30 @@ export default function AdminPage() {
     }
   };
 
-  // Seeding: Seed 12 standard names
+  // Roster & Sync Handlers
+  const handleCopyRosterFromEvent = async () => {
+    if (!sourceCopyEventId || !selectedEventId) return;
+    if (isEventFinalized) {
+      alert('This tournament event is finalized and locked in read-only mode.');
+      return;
+    }
+    if (sourceCopyEventId === selectedEventId) {
+      alert('Please select a different source event to copy from.');
+      return;
+    }
+    setSyncing(true);
+    try {
+      await copyRosterFromEvent(sourceCopyEventId, selectedEventId);
+      setShowCopyModal(false);
+      alert('Participant names copied cleanly with reset picks and payments!');
+    } catch (err) {
+      console.error('Failed to copy roster from event:', err);
+      alert('Failed to copy roster from selected event.');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const handleSeedDefaultNames = async () => {
     if (!selectedEventId) return;
     if (isEventFinalized) {
@@ -345,28 +304,19 @@ export default function AdminPage() {
     setSyncing(true);
     try {
       const defaultNames = [
-        'Pat',
-        'Greg',
-        'Dereck',
-        'Robbie',
-        'Clay',
-        'Billy Fred',
-        'Roby',
-        'Garis',
-        'Bruce',
-        'Jim',
-        'Cole',
-        'Scott',
+        'Pat', 'Greg', 'Dereck', 'Robbie', 'Clay', 'Billy Fred',
+        'Roby', 'Garis', 'Bruce', 'Jim', 'Cole', 'Scott',
       ];
-      const participants: Participant[] = defaultNames.map((name) => ({
+      const initialParticipants: Participant[] = defaultNames.map((name) => ({
         id: `p-${name.toLowerCase().replace(/\s+/g, '-')}`,
         name,
         draftedPlayerIds: [],
         isGreedyParticipant: false,
         greedyPlayerId: '',
       }));
-      await setParticipantsForEvent(selectedEventId, participants);
-      alert('Seeded 12 participants successfully!');
+
+      await setParticipantsForEvent(selectedEventId, initialParticipants);
+      alert('12 default participants seeded successfully!');
     } catch (err) {
       console.error(err);
       alert('Failed to seed participants.');
@@ -375,68 +325,69 @@ export default function AdminPage() {
     }
   };
 
-  // Reset rosters
+  const handleAutoAssignRosters = async () => {
+    if (!selectedEventId || selectedParticipants.length === 0) return;
+    if (isEventFinalized) {
+      alert('This tournament event is finalized and locked in read-only mode.');
+      return;
+    }
+    if (!confirm('This will auto-assign 3 unique golfers from the field to every participant. Continue?')) {
+      return;
+    }
+
+    setSyncing(true);
+    try {
+      const availableIds = [...fieldGolfers.map((g) => g.id)];
+      const shuffled = availableIds.sort(() => 0.5 - Math.random());
+
+      let idx = 0;
+      const updatedParticipants: Participant[] = selectedParticipants.map((p) => {
+        const picks: string[] = [];
+        for (let i = 0; i < 3; i++) {
+          if (idx < shuffled.length) {
+            picks.push(shuffled[idx]);
+            idx++;
+          }
+        }
+        return {
+          ...p,
+          draftedPlayerIds: picks,
+        };
+      });
+
+      await setParticipantsForEvent(selectedEventId, updatedParticipants);
+      alert('Auto-assigned field golfers to all participants!');
+    } catch (err) {
+      console.error(err);
+      alert('Failed to auto-assign rosters.');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const handleResetRosters = async () => {
     if (!selectedEventId) return;
     if (isEventFinalized) {
       alert('This tournament event is finalized and locked in read-only mode.');
       return;
     }
-    if (!confirm('Reset all rosters? This clears all participants for this event.')) return;
+    if (!confirm('Are you sure you want to CLEAR all drafted golfer picks for all participants?')) return;
     setSyncing(true);
     try {
-      await setParticipantsForEvent(selectedEventId, []);
-      alert('Rosters reset completed.');
-    } catch (err) {
-      console.error(err);
-      alert('Reset failed.');
-    } finally {
-      setSyncing(false);
-    }
-  };
-
-  // Mock auto-assign rosters
-  const handleAutoAssignRosters = async () => {
-    if (!selectedEventId) return;
-    if (isEventFinalized) {
-      alert('This tournament event is finalized and locked in read-only mode.');
-      return;
-    }
-
-    const effectiveCompetitors = resolveEventCompetitorsWithFallback(competitors, []);
-    if (effectiveCompetitors.length < 36) {
-      alert('Not enough competitors in the tournament field to assign 3 unique players to 12 participants.');
-      return;
-    }
-    if (!confirm('This will auto-assign 3 unique golfers from the current ESPN field to each of the 12 participants. Continue?')) {
-      return;
-    }
-    setSyncing(true);
-    try {
-      const effectiveFieldGolfers = effectiveCompetitors.map((c) => ({
-        id: c.athlete?.id || c.id,
-        name: c.athlete?.displayName || `Golfer ${c.id}`,
+      const resetParticipants = selectedParticipants.map((p) => ({
+        ...p,
+        draftedPlayerIds: [],
       }));
-      const shuffledGolfers = [...effectiveFieldGolfers].sort(() => 0.5 - Math.random());
-      const updatedParticipants = selectedParticipants.map((p, idx) => {
-        const startIndex = idx * 3;
-        const draftedPlayerIds = shuffledGolfers.slice(startIndex, startIndex + 3).map((g) => g.id);
-        return {
-          ...p,
-          draftedPlayerIds,
-        };
-      });
-      await setParticipantsForEvent(selectedEventId, updatedParticipants);
-      alert('Auto-assigned 3 unique field golfers to all participants!');
+      await setParticipantsForEvent(selectedEventId, resetParticipants);
+      alert('All rosters cleared!');
     } catch (err) {
       console.error(err);
-      alert('Auto-assignment failed.');
+      alert('Failed to reset rosters.');
     } finally {
       setSyncing(false);
     }
   };
 
-  // Fetch Scores manual sync
   const handleFetchLatestScores = async () => {
     if (!selectedEventId) return;
     setSyncing(true);
@@ -444,8 +395,8 @@ export default function AdminPage() {
       const res = await fetch(`/api/espn/leaderboard?event=${selectedEventId}`);
       if (res.ok) {
         const data = await res.json();
-        const comps = data.events?.[0]?.competitions?.[0]?.competitors || [];
-        const resolvedComps = resolveEventCompetitorsWithFallback(comps, []);
+        const rawComps = data.events?.[0]?.competitions?.[0]?.competitors || [];
+        const resolvedComps = resolveEventCompetitorsWithFallback(rawComps, []);
         await syncPlayersToFirestore(resolvedComps);
         setCompetitors(resolvedComps);
         alert('Scores synced to Firestore successfully!');
@@ -460,18 +411,16 @@ export default function AdminPage() {
     }
   };
 
-  const [customGolferId, setCustomGolferId] = useState<string>('');
-  const [customGolferName, setCustomGolferName] = useState<string>('');
-  const [customGolferHeadshot, setCustomGolferHeadshot] = useState<string>('');
-
+  // Directory Database Tools Handlers
   const handleRepairPlayerDirectory = async () => {
     try {
       setSyncing(true);
       const { cleanedCount, seededCount } = await repairAndSeedPlayerDirectory();
       alert(`Player Directory & Headshots repaired successfully! Cleaned ${cleanedCount} legacy records and updated ${seededCount} authentic PGA player entries.`);
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
       console.error('Failed to repair player directory:', err);
-      alert(`Failed to repair player directory: ${err?.message || 'Unknown error'}`);
+      alert(`Failed to repair player directory: ${msg}`);
     } finally {
       setSyncing(false);
     }
@@ -485,9 +434,10 @@ export default function AdminPage() {
       setSyncing(true);
       const count = await clearAllPlayersInFirestore();
       alert(`Successfully cleared ${count} player document(s) from the Firestore database.`);
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
       console.error('Failed to clear players database:', err);
-      alert(`Error clearing players database: ${err?.message || 'Unknown error'}`);
+      alert(`Error clearing players database: ${msg}`);
     } finally {
       setSyncing(false);
     }
@@ -498,9 +448,10 @@ export default function AdminPage() {
       setSyncing(true);
       const count = await importAuthenticPgaCatalogToFirestore();
       alert(`Successfully loaded fresh authentic catalog with ${count} PGA Tour player entries into the database.`);
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
       console.error('Failed to import PGA player catalog:', err);
-      alert(`Error loading PGA player catalog: ${err?.message || 'Unknown error'}`);
+      alert(`Error loading PGA player catalog: ${msg}`);
     } finally {
       setSyncing(false);
     }
@@ -523,15 +474,16 @@ export default function AdminPage() {
       setCustomGolferId('');
       setCustomGolferName('');
       setCustomGolferHeadshot('');
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Unknown error';
       console.error('Failed to save custom golfer:', err);
-      alert(`Error saving golfer: ${err?.message || 'Unknown error'}`);
+      alert(`Error saving golfer: ${msg}`);
     } finally {
       setSyncing(false);
     }
   };
 
-  // Save Add/Edit Participant Form
+  // Participant Form Handlers
   const handleSaveParticipant = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedEventId) return;
@@ -578,10 +530,6 @@ export default function AdminPage() {
     }
   };
 
-  // Batch Roster Import State & Function
-  const [showBatchModal, setShowBatchModal] = useState(false);
-  const [batchRosterText, setBatchRosterText] = useState('');
-
   const handleProcessBatchRosters = async () => {
     if (!selectedEventId || !batchRosterText.trim()) return;
     if (isEventFinalized) {
@@ -626,7 +574,6 @@ export default function AdminPage() {
     }
   };
 
-  // Trigger Edit Mode
   const startEditParticipant = (p: Participant) => {
     setEditingParticipant(p);
     setPartName(p.name);
@@ -639,7 +586,17 @@ export default function AdminPage() {
     setPartGreedyPlayer(p.greedyPlayerId || '');
   };
 
-  // Delete Participant
+  const handleCancelEditParticipant = () => {
+    setEditingParticipant(null);
+    setPartName('');
+    setPartGolfersInput('');
+    setPartGolfer1('');
+    setPartGolfer2('');
+    setPartGolfer3('');
+    setPartIsGreedy(false);
+    setPartGreedyPlayer('');
+  };
+
   const handleDeleteParticipant = async (pId: string) => {
     if (!selectedEventId) return;
     if (isEventFinalized) {
@@ -656,7 +613,42 @@ export default function AdminPage() {
     }
   };
 
-  // Auto-Save Greedy Pick on Dropdown Change
+  const handleTogglePayment = async (p: Participant) => {
+    if (!selectedEventId) return;
+    if (isEventFinalized) {
+      alert('This tournament event is finalized and locked in read-only mode.');
+      return;
+    }
+    try {
+      const updated = {
+        ...p,
+        hasPaidEntry: !p.hasPaidEntry,
+      };
+      await addParticipantToEvent(selectedEventId, updated);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to update payment status.');
+    }
+  };
+
+  const handleFourthGolferSelect = async (p: Participant, playerId: string) => {
+    if (!selectedEventId) return;
+    try {
+      const newDrafted = [...p.draftedPlayerIds.slice(0, 3)];
+      if (playerId) {
+        newDrafted[3] = playerId;
+      }
+      const updated: Participant = {
+        ...p,
+        draftedPlayerIds: newDrafted,
+      };
+      await addParticipantToEvent(selectedEventId, updated);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to update 4th golfer assignment.');
+    }
+  };
+
   const handleGreedySelect = async (p: Participant, playerId: string) => {
     if (!selectedEventId) return;
     try {
@@ -671,22 +663,6 @@ export default function AdminPage() {
       alert('Failed to update greedy assignment.');
     }
   };
-
-  // Lookup Golfer Name
-  const getGolferNameById = (id: string) => {
-    const comp = competitors.find((c) => (c.athlete?.id || c.id) === id);
-    return comp?.athlete?.displayName || `Golfer (${id})`;
-  };
-
-  // Filter Live competitor rows
-  const [liveSearchQuery, setLiveSearchQuery] = useState('');
-  const filteredLiveCompetitors = useMemo(() => {
-    const q = liveSearchQuery.toLowerCase().trim();
-    if (!q) return competitors;
-    return competitors.filter((c) =>
-      c.athlete?.displayName?.toLowerCase().includes(q)
-    );
-  }, [competitors, liveSearchQuery]);
 
   // Loading Check
   if (authLoading || appConfigLoading) {
@@ -813,1097 +789,156 @@ export default function AdminPage() {
             <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 flex items-center justify-between gap-3 shadow-xs">
               <div className="flex items-center gap-2 text-xs font-bold">
                 <ShieldAlert className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0" />
-                <span>This tournament event is finalized and locked in read-only mode. Uncheck 'Finalize Standings' below to enable editing.</span>
+                <span>This tournament event is finalized and locked in read-only mode. Uncheck &apos;Finalize Standings&apos; below to enable editing.</span>
               </div>
             </div>
           )}
 
           {/* SECTION 1: EVENT CONFIGURATION */}
-          <section className="bg-surface-container-low border border-outline-variant rounded-xl p-6 space-y-6 shadow-xs">
+          <AdminEventConfigSection
+            events={events}
+            loadingEvents={loadingEvents}
+            selectedEventId={selectedEventId}
+            activeEventId={activeEventId || ''}
+            isEventFinalized={isEventFinalized}
+            savingConfig={savingConfig}
+            formDataName={formDataName}
+            formDataCoursePar={formDataCoursePar}
+            formDataEntryFee={formDataEntryFee}
+            formDataDayMoneyPool={formDataDayMoneyPool}
+            formDataMainPayoutsStr={formDataMainPayoutsStr}
+            formDataIsFinalized={formDataIsFinalized}
+            onSelectEvent={(id) => setSelectedEventId(id)}
+            onChangeName={(name) => setFormDataName(name)}
+            onChangeCoursePar={(par) => setFormDataCoursePar(par)}
+            onChangeEntryFee={(fee) => setFormDataEntryFee(fee)}
+            onChangeDayMoneyPool={(pool) => setFormDataDayMoneyPool(pool)}
+            onChangeMainPayoutsStr={(payouts) => setFormDataMainPayoutsStr(payouts)}
+            onChangeIsFinalized={(fin) => setFormDataIsFinalized(fin)}
+            onSaveConfig={handleSaveConfig}
+            onSetActive={handleSetActive}
+            onDeleteEvent={handleDeleteEvent}
+            onOpenCopyModal={() => setShowCopyModal(true)}
+          />
 
-            <div className="flex justify-between items-center border-b border-outline-variant/60 pb-3">
-              <h2 className="text-sm font-black uppercase tracking-widest text-on-surface flex items-center gap-2">
-                Event Selection & Config
-              </h2>
-              {selectedEventId === activeEventId && (
-                <span className="flex items-center gap-1 text-[10px] font-black uppercase bg-tertiary/10 border border-tertiary/30 px-2 py-0.5 rounded text-tertiary">
-                  <Star className="w-3 h-3 fill-tertiary" /> Active Event
-                </span>
-              )}
-            </div>
+          {/* SECTION 2: ROSTER SEEDING & SCORE SYNC */}
+          <AdminRosterSyncOperations
+            selectedEventId={selectedEventId}
+            isEventFinalized={isEventFinalized}
+            syncing={syncing}
+            eventsCount={events.length}
+            participantsCount={selectedParticipants.length}
+            onOpenBatchModal={() => setShowBatchModal(true)}
+            onOpenCopyModal={() => setShowCopyModal(true)}
+            onSeedDefaultNames={handleSeedDefaultNames}
+            onAutoAssignRosters={handleAutoAssignRosters}
+            onResetRosters={handleResetRosters}
+            onFetchLatestScores={handleFetchLatestScores}
+            onRepairPlayerDirectory={handleRepairPlayerDirectory}
+          />
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-on-surface-variant">Select Calendar Event</label>
-                <select
-                  value={selectedEventId}
-                  onChange={(e) => setSelectedEventId(e.target.value)}
-                  className="w-full bg-surface-container border border-outline-variant rounded-lg px-3 py-2 text-sm font-medium text-on-surface outline-none focus:border-outline"
-                >
-                  {loadingEvents ? (
-                    <option>Loading PGA Calendar...</option>
-                  ) : (
-                    events.map((e) => (
-                      <option key={e.id} value={e.id}>
-                        {e.name} ({e.date ? new Date(e.date).toLocaleDateString() : 'N/A'})
-                      </option>
-                    ))
-                  )}
-                </select>
-              </div>
-
-              <form onSubmit={handleSaveConfig} className="space-y-4 col-span-1 md:col-span-2">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-on-surface-variant">Event Name Override</label>
-                    <input
-                      type="text"
-                      value={formDataName}
-                      onChange={(e) => setFormDataName(e.target.value)}
-                      className="w-full bg-surface-container border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface outline-none focus:border-outline"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-on-surface-variant">Course Par (Optional)</label>
-                    <input
-                      type="number"
-                      placeholder="e.g. 70, 71, 72"
-                      value={formDataCoursePar}
-                      onChange={(e) =>
-                        setFormDataCoursePar(e.target.value === '' ? '' : Number(e.target.value))
-                      }
-                      className="w-full bg-surface-container border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface outline-none focus:border-outline"
-                    />
-                  </div>
-                  
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-on-surface-variant">Entry Fee per Participant ($)</label>
-                    <input
-                      type="number"
-                      placeholder="e.g. 50, 100"
-                      value={formDataEntryFee}
-                      onChange={(e) =>
-                        setFormDataEntryFee(e.target.value === '' ? '' : Number(e.target.value))
-                      }
-                      className="w-full bg-surface-container border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface outline-none focus:border-outline"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-on-surface-variant">Day Money Pool per Round ($)</label>
-                    <input
-                      type="number"
-                      placeholder="e.g. 75, 100"
-                      value={formDataDayMoneyPool}
-                      onChange={(e) =>
-                        setFormDataDayMoneyPool(e.target.value === '' ? '' : Number(e.target.value))
-                      }
-                      className="w-full bg-surface-container border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface outline-none focus:border-outline"
-                    />
-                  </div>
-                  <div className="space-y-1.5 md:col-span-2">
-                    <label className="text-xs font-bold text-on-surface-variant">Main Payout Breakdown (Comma-Delimited for 1st, 2nd, 3rd...)</label>
-                    <input
-                      type="text"
-                      placeholder="e.g. 600, 320, 180, 100"
-                      value={formDataMainPayoutsStr}
-                      onChange={(e) => setFormDataMainPayoutsStr(e.target.value)}
-                      className="w-full bg-surface-container border border-outline-variant rounded-lg px-3 py-2 text-sm font-mono text-on-surface outline-none focus:border-outline"
-                    />
-                  </div>
-
-                  {/* Finalize Checkbox */}
-                  <div className="flex items-center gap-2 md:col-span-2 pt-2">
-                    <input
-                      type="checkbox"
-                      id="isFinalizedCheckbox"
-                      checked={formDataIsFinalized}
-                      onChange={(e) => setFormDataIsFinalized(e.target.checked)}
-                      className="rounded border-outline-variant bg-surface text-primary focus:ring-primary w-4 h-4"
-                    />
-                    <label htmlFor="isFinalizedCheckbox" className="text-xs font-bold text-on-surface cursor-pointer select-none">
-                      Finalize Standings & Payouts (Hides overall payouts on dashboard until checked)
-                    </label>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3 pt-2">
-                  <button
-                    type="submit"
-                    disabled={savingConfig}
-                    className="inline-flex items-center gap-1.5 bg-primary text-on-primary hover:bg-primary/95 text-xs font-bold px-4 py-2 rounded-lg transition disabled:opacity-50"
-                  >
-                    <Save className="w-4 h-4" /> Save Configuration
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleSetActive}
-                    disabled={savingConfig || selectedEventId === activeEventId}
-                    className="inline-flex items-center gap-1.5 bg-tertiary text-on-tertiary hover:bg-tertiary/95 text-xs font-bold px-4 py-2 rounded-lg transition disabled:opacity-50"
-                  >
-                    <Star className="w-4 h-4" /> Set as Active Event
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleDeleteEvent}
-                    disabled={savingConfig}
-                    className="inline-flex items-center gap-1.5 bg-red-600/10 text-red-600 hover:bg-red-600/15 border border-red-500/20 text-xs font-bold px-4 py-2 rounded-lg transition disabled:opacity-50 ml-auto"
-                  >
-                    <Trash2 className="w-4 h-4" /> Delete Event
-                  </button>
-                </div>
-              </form>
-            </div>
-          </section>
-
-          {/* SECTION 2 & 3: ROSTER SEEDING & SCORE SYNC */}
-          <section className="bg-surface-container-low border border-outline-variant rounded-xl p-6 space-y-5 shadow-xs">
-            <h2 className="text-sm font-black uppercase tracking-widest text-on-surface border-b border-outline-variant/60 pb-3">
-              Roster & Sync Operations
-            </h2>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Seeding & Reset Column */}
-              <div className="p-4 rounded-lg bg-surface-container border border-outline-variant/60 space-y-4">
-                <div>
-                  <h3 className="text-xs font-bold text-on-surface">Participant Seeding</h3>
-                  <p className="text-[11px] text-on-surface-variant">Initialize names or clear rosters</p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => setShowBatchModal(true)}
-                    disabled={syncing || isEventFinalized}
-                    className="inline-flex items-center gap-1 bg-surface-container-high hover:bg-surface-container-highest text-on-surface border border-outline-variant text-[11px] font-bold px-3 py-2 rounded transition disabled:opacity-50"
-                  >
-                    📋 Batch Paste Rosters
-                  </button>
-
-                  <button
-                    onClick={() => setShowCopyModal(true)}
-                    disabled={syncing || events.length < 2 || isEventFinalized}
-                    className="inline-flex items-center gap-1 bg-surface-container-high hover:bg-surface-container-highest text-on-surface border border-outline-variant text-[11px] font-bold px-3 py-2 rounded transition disabled:opacity-50"
-                  >
-                    <Copy className="w-3.5 h-3.5" /> Copy Roster from Event
-                  </button>
-
-                  <button
-                    onClick={handleSeedDefaultNames}
-                    disabled={syncing || isEventFinalized}
-                    className="inline-flex items-center gap-1 bg-secondary text-on-secondary hover:bg-secondary/95 text-[11px] font-bold px-3 py-2 rounded transition disabled:opacity-50"
-                  >
-                    <Users className="w-3.5 h-3.5" /> Seed Default Names
-                  </button>
-
-
-                  <button
-                    onClick={handleAutoAssignRosters}
-                    disabled={syncing || selectedParticipants.length === 0 || isEventFinalized}
-                    className="inline-flex items-center gap-1 bg-tertiary text-on-tertiary hover:bg-tertiary/95 text-[11px] font-bold px-3 py-2 rounded transition disabled:opacity-50"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5" /> Auto-Assign Field Golfers
-                  </button>
-
-                  <button
-                    onClick={handleResetRosters}
-                    disabled={syncing || isEventFinalized}
-                    className="inline-flex items-center gap-1 bg-red-600/10 text-red-600 border border-red-500/20 hover:bg-red-600/15 text-[11px] font-bold px-3 py-2 rounded transition disabled:opacity-50"
-                  >
-
-                    <X className="w-3.5 h-3.5" /> Reset Rosters
-                  </button>
-                </div>
-              </div>
-
-              {/* Sync Column */}
-              <div className="p-4 rounded-lg bg-surface-container border border-outline-variant/60 space-y-4">
-                <div>
-                  <h3 className="text-xs font-bold text-on-surface">ESPN Scores Sync</h3>
-                  <p className="text-[11px] text-on-surface-variant">
-                    Syncs scores for ESPN tournament ID: <code className="font-mono bg-surface-container-high px-1 rounded">{selectedEventId}</code>
-                  </p>
-                </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <button
-                    onClick={handleFetchLatestScores}
-                    disabled={syncing}
-                    className="inline-flex items-center gap-1 bg-tertiary text-on-tertiary hover:bg-tertiary/95 text-[11px] font-bold px-4 py-2 rounded transition disabled:opacity-50"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
-                    {syncing ? 'Syncing...' : 'Fetch Latest Scores'}
-                  </button>
-                  <button
-                    onClick={handleRepairPlayerDirectory}
-                    disabled={syncing}
-                    className="inline-flex items-center gap-1 bg-surface-container-high text-on-surface hover:bg-surface-container-highest text-[11px] font-bold px-3 py-2 rounded border border-outline-variant transition disabled:opacity-50"
-                    title="Purges any corrupt legacy records in Firestore and writes authentic PGA player headshot mappings"
-                  >
-                    <ShieldCheck className="w-3.5 h-3.5 text-tertiary" />
-                    Repair Player Directory
-                  </button>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          {/* SECTION 3B: PLAYER DIRECTORY & HEADSHOT DATABASE CONTROL */}
-          <section className="bg-surface-container-low border border-outline-variant rounded-xl p-6 space-y-4 shadow-xs">
-            <h2 className="text-sm font-black uppercase tracking-widest text-on-surface border-b border-outline-variant/60 pb-3 flex justify-between items-center">
-              <span>Player Directory & Headshots Database</span>
-              <span className="text-xs text-tertiary font-bold normal-case">
-                Database Control
-              </span>
-            </h2>
-
-            <div className="p-4 rounded-lg bg-surface-container-lowest border border-outline-variant/60 space-y-4">
-              <p className="text-xs text-on-surface-variant leading-relaxed">
-                Clear out stored golfer records from Firestore and reload fresh authentic ESPN PGA player catalog entries with headshot URLs.
-              </p>
-
-              <div className="flex items-center gap-2 flex-wrap">
-                <button
-                  onClick={handleClearPlayersDatabase}
-                  disabled={syncing}
-                  className="inline-flex items-center gap-1.5 bg-red-500/10 text-red-400 hover:bg-red-500/20 border border-red-500/30 text-[11px] font-bold px-3.5 py-2 rounded transition disabled:opacity-50"
-                  title="Deletes all stored player documents in the Firestore players collection"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  Clear Players Database
-                </button>
-
-                <button
-                  onClick={handleImportPgaCatalog}
-                  disabled={syncing}
-                  className="inline-flex items-center gap-1.5 bg-tertiary text-on-tertiary hover:bg-tertiary/95 text-[11px] font-bold px-3.5 py-2 rounded transition disabled:opacity-50"
-                  title="Populates fresh authentic PGA Tour players catalog with correct ESPN athlete IDs and headshots"
-                >
-                  <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
-                  Load Fresh PGA Player Catalog
-                </button>
-
-                <button
-                  onClick={handleRepairPlayerDirectory}
-                  disabled={syncing}
-                  className="inline-flex items-center gap-1.5 bg-surface-container-high text-on-surface hover:bg-surface-container-highest text-[11px] font-bold px-3 py-2 rounded border border-outline-variant transition disabled:opacity-50"
-                  title="Purges any corrupt legacy records in Firestore and updates canonical entries"
-                >
-                  <ShieldCheck className="w-3.5 h-3.5 text-tertiary" />
-                  Repair Player Directory
-                </button>
-
-                <Link
-                  href="/admin/gallery"
-                  className="inline-flex items-center gap-1.5 bg-tertiary/10 text-tertiary hover:bg-tertiary/20 text-[11px] font-bold px-3.5 py-2 rounded border border-tertiary/30 transition"
-                  title="Open reference gallery displaying all player headshots and IDs side-by-side"
-                >
-                  <Eye className="w-3.5 h-3.5" />
-                  View Player Gallery
-                </Link>
-              </div>
-
-              {/* Add / Update Single Custom Golfer Form */}
-              <form onSubmit={handleSaveCustomGolfer} className="pt-3 border-t border-outline-variant/40 space-y-3">
-                <h3 className="text-xs font-bold text-on-surface flex items-center gap-1">
-                  <UserPlus className="w-3.5 h-3.5 text-tertiary" />
-                  Add or Edit Specific Golfer Document
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-[10px] uppercase font-bold text-on-surface-variant mb-1">
-                      Player ESPN ID (e.g. 3470)
-                    </label>
-                    <input
-                      type="text"
-                      value={customGolferId}
-                      onChange={(e) => setCustomGolferId(e.target.value)}
-                      placeholder="e.g. 3470"
-                      className="w-full bg-surface-container-high text-on-surface text-xs px-3 py-2 rounded border border-outline-variant focus:outline-hidden focus:border-tertiary"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] uppercase font-bold text-on-surface-variant mb-1">
-                      Player Name
-                    </label>
-                    <input
-                      type="text"
-                      value={customGolferName}
-                      onChange={(e) => setCustomGolferName(e.target.value)}
-                      placeholder="e.g. Scottie Scheffler"
-                      className="w-full bg-surface-container-high text-on-surface text-xs px-3 py-2 rounded border border-outline-variant focus:outline-hidden focus:border-tertiary"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] uppercase font-bold text-on-surface-variant mb-1">
-                      Headshot Image URL (Optional)
-                    </label>
-                    <input
-                      type="url"
-                      value={customGolferHeadshot}
-                      onChange={(e) => setCustomGolferHeadshot(e.target.value)}
-                      placeholder="https://a.espncdn.com/i/headshots..."
-                      className="w-full bg-surface-container-high text-on-surface text-xs px-3 py-2 rounded border border-outline-variant focus:outline-hidden focus:border-tertiary"
-                    />
-                  </div>
-                </div>
-                <div className="flex justify-end">
-                  <button
-                    type="submit"
-                    disabled={syncing}
-                    className="inline-flex items-center gap-1 bg-secondary text-on-secondary hover:bg-secondary/95 text-[11px] font-bold px-3.5 py-1.5 rounded transition disabled:opacity-50"
-                  >
-                    <Save className="w-3.5 h-3.5" />
-                    Save Golfer Document
-                  </button>
-                </div>
-              </form>
-            </div>
-          </section>
+          {/* SECTION 3: PLAYER DIRECTORY & HEADSHOT DATABASE CONTROL */}
+          <AdminPlayerDirectoryTools
+            syncing={syncing}
+            customGolferId={customGolferId}
+            customGolferName={customGolferName}
+            customGolferHeadshot={customGolferHeadshot}
+            onChangeCustomGolferId={(id) => setCustomGolferId(id)}
+            onChangeCustomGolferName={(name) => setCustomGolferName(name)}
+            onChangeCustomGolferHeadshot={(url) => setCustomGolferHeadshot(url)}
+            onClearPlayersDatabase={handleClearPlayersDatabase}
+            onImportPgaCatalog={handleImportPgaCatalog}
+            onRepairPlayerDirectory={handleRepairPlayerDirectory}
+            onSaveCustomGolfer={handleSaveCustomGolfer}
+          />
 
           {/* SECTION 4: MAIN PARTICIPANTS LIST */}
-          <section className="bg-surface-container-low border border-outline-variant rounded-xl p-6 space-y-6 shadow-xs">
-            <h2 className="text-sm font-black uppercase tracking-widest text-on-surface border-b border-outline-variant/60 pb-3 flex justify-between items-center">
-              <span>Main Rosters</span>
-              <span className="text-xs text-on-surface-variant font-bold normal-case">
-                {selectedParticipants.length} Participant(s)
-              </span>
-            </h2>
-
-            {/* Add / Edit Form Box */}
-            <div className="p-4 rounded-lg bg-surface-container-lowest border border-outline-variant/60 space-y-4">
-              <div className="flex items-center justify-between border-b border-outline-variant/40 pb-2">
-                <h3 className="text-xs font-black uppercase tracking-widest text-tertiary flex items-center gap-1">
-                  <UserPlus className="w-4 h-4" />
-                  {editingParticipant ? `Edit Participant: ${editingParticipant.name}` : 'Add Participant'}
-                </h3>
-                {editingParticipant && (
-                  <button
-                    onClick={() => {
-                      setEditingParticipant(null);
-                      setPartName('');
-                      setPartGolfer1('');
-                      setPartGolfer2('');
-                      setPartGolfer3('');
-                      setPartIsGreedy(false);
-                      setPartGreedyPlayer('');
-                    }}
-                    className="text-xs font-bold text-on-surface-variant hover:text-on-surface flex items-center gap-0.5"
-                  >
-                    <X className="w-3.5 h-3.5" /> Cancel
-                  </button>
-                )}
-              </div>
-
-              <form onSubmit={handleSaveParticipant} className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
-                  {/* Participant Name */}
-                  <div className="md:col-span-4 space-y-1">
-                    <label className="text-[11px] font-bold text-on-surface-variant">Participant Name</label>
-                    <input
-                      type="text"
-                      placeholder="Enter participant name"
-                      value={partName}
-                      onChange={(e) => setPartName(e.target.value)}
-                      className="w-full bg-surface-container border border-outline-variant rounded px-2.5 py-1.5 text-xs text-on-surface outline-none focus:border-outline"
-                      required
-                    />
-                  </div>
-
-                  {/* Comma-delimited drafted golfers input */}
-                  <div className="md:col-span-8 space-y-1">
-                    <div className="flex justify-between items-center">
-                      <label className="text-[11px] font-bold text-on-surface-variant">
-                        Drafted Golfers (Comma-Delimited Names or IDs)
-                      </label>
-                      <span className="text-[10px] text-tertiary font-bold">
-                        Supports 3 or 4 golfers (Days 3 & 4 cut replacements)
-                      </span>
-                    </div>
-                    <input
-                      type="text"
-                      placeholder="e.g. Scottie Scheffler, Rory McIlroy, Ludvig Aberg, Xander Schauffele"
-                      value={partGolfersInput}
-                      onChange={(e) => setPartGolfersInput(e.target.value)}
-                      className="w-full bg-surface-container border border-outline-variant rounded px-2.5 py-1.5 text-xs text-on-surface outline-none focus:border-outline font-mono"
-                    />
-                  </div>
-
-                  {/* Live Matched Golfers Chips */}
-                  {partGolfersInput.trim() && (
-                    <div className="md:col-span-12 bg-surface-container-high/40 border border-outline-variant/60 rounded-lg p-2.5 space-y-1.5">
-                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-on-surface-variant block">
-                        Live Golfer Resolution Preview:
-                      </span>
-                      <div className="flex flex-wrap gap-2">
-                        {parseCommaDelimitedGolfers(partGolfersInput, competitors).map((g, idx) => (
-                          <div
-                            key={idx}
-                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold border ${
-                              g.matchedId
-                                ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
-                                : 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30'
-                            }`}
-                          >
-                            <span className="text-[10px] font-bold opacity-70">#{idx + 1}</span>
-                            <span>{g.competitor?.athlete?.displayName || g.rawInput}</span>
-                            {g.matchedId ? (
-                              <span className="text-[10px] font-mono text-emerald-600 dark:text-emerald-400">✓ Matched</span>
-                            ) : (
-                              <span className="text-[10px] font-mono text-amber-600 dark:text-amber-400">⚠️ Unrecognized</span>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Fallback Dropdown Selectors (if text box is empty) */}
-                  {!partGolfersInput.trim() && (
-                    <>
-                      <div className="md:col-span-4 space-y-1">
-                        <label className="text-[11px] font-bold text-on-surface-variant">Golfer 1</label>
-                        <select
-                          value={partGolfer1}
-                          onChange={(e) => setPartGolfer1(e.target.value)}
-                          className="w-full bg-surface-container border border-outline-variant rounded px-2.5 py-1.5 text-xs text-on-surface outline-none focus:border-outline"
-                        >
-                          <option value="">-- Choose Golfer 1 --</option>
-                          {fieldGolfers.map((g) => (
-                            <option key={g.id} value={g.id}>
-                              {g.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="md:col-span-4 space-y-1">
-                        <label className="text-[11px] font-bold text-on-surface-variant">Golfer 2</label>
-                        <select
-                          value={partGolfer2}
-                          onChange={(e) => setPartGolfer2(e.target.value)}
-                          className="w-full bg-surface-container border border-outline-variant rounded px-2.5 py-1.5 text-xs text-on-surface outline-none focus:border-outline"
-                        >
-                          <option value="">-- Choose Golfer 2 --</option>
-                          {fieldGolfers.map((g) => (
-                            <option key={g.id} value={g.id}>
-                              {g.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="md:col-span-4 space-y-1">
-                        <label className="text-[11px] font-bold text-on-surface-variant">Golfer 3</label>
-                        <select
-                          value={partGolfer3}
-                          onChange={(e) => setPartGolfer3(e.target.value)}
-                          className="w-full bg-surface-container border border-outline-variant rounded px-2.5 py-1.5 text-xs text-on-surface outline-none focus:border-outline"
-                        >
-                          <option value="">-- Choose Golfer 3 --</option>
-                          {fieldGolfers.map((g) => (
-                            <option key={g.id} value={g.id}>
-                              {g.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </>
-                  )}
-
-                  {/* Greedy Toggle & Player Picker */}
-                  <div className="md:col-span-6 flex items-center gap-2 pt-2">
-                    <input
-                      type="checkbox"
-                      id="greedyCheckbox"
-                      checked={partIsGreedy}
-                      onChange={(e) => setPartIsGreedy(e.target.checked)}
-                      className="rounded border-outline-variant bg-surface text-primary focus:ring-primary w-4 h-4"
-                    />
-                    <label htmlFor="greedyCheckbox" className="text-xs font-bold text-on-surface cursor-pointer select-none">
-                      Greedy Side-Game Player?
-                    </label>
-                  </div>
-
-                  {partIsGreedy && (
-                    <div className="md:col-span-6 space-y-1">
-                      <label className="text-[11px] font-bold text-on-surface-variant">Greedy Golfer</label>
-                      <select
-                        value={partGreedyPlayer}
-                        onChange={(e) => setPartGreedyPlayer(e.target.value)}
-                        className="w-full bg-surface-container border border-outline-variant rounded px-2.5 py-1.5 text-xs text-on-surface outline-none focus:border-outline"
-                      >
-                        <option value="">-- Choose Greedy Golfer --</option>
-                        {fieldGolfers.map((g) => (
-                          <option key={g.id} value={g.id}>
-                            {g.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                </div>
-
-                <div className="pt-2">
-                  <button
-                    type="submit"
-                    disabled={isEventFinalized}
-                    className="inline-flex items-center gap-1 bg-primary text-on-primary hover:bg-primary/95 text-xs font-bold px-4 py-2 rounded-lg transition disabled:opacity-50"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> {editingParticipant ? 'Save Participant' : 'Add Participant'}
-                  </button>
-                </div>
-              </form>
-            </div>
-
-            {/* Participants Table */}
-            <div className="overflow-x-auto border border-outline-variant/60 rounded-lg">
-              <table className="w-full border-collapse text-left text-xs">
-                <thead>
-                  <tr className="bg-surface-container text-[10px] font-extrabold uppercase tracking-wider border-b border-outline-variant/60 text-on-surface-variant">
-                    <th className="py-2.5 px-4 w-1/4">Name</th>
-                    <th className="py-2.5 px-4 w-5/12">Drafted Golfer Roster</th>
-                    <th className="py-2.5 px-4 text-center w-2/12">Entry Payment</th>
-                    <th className="py-2.5 px-4 text-right w-2/12">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-outline-variant/40">
-                  {participantsLoading ? (
-                    <tr>
-                      <td colSpan={4} className="py-8 text-center text-on-surface-variant">
-                        Loading participants...
-                      </td>
-                    </tr>
-                  ) : selectedParticipants.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} className="py-8 text-center text-on-surface-variant font-medium">
-                        No participants added yet for this tournament. Add participants manually or click 'Seed Default Names'.
-                      </td>
-                    </tr>
-                  ) : (
-
-                    selectedParticipants.map((p) => (
-                      <tr key={p.id} className="hover:bg-surface-container-high transition-colors">
-                        <td className="py-3 px-4 font-bold text-on-surface">{p.name}</td>
-                        <td className="py-3 px-4 text-on-surface-variant">
-                          {p.draftedPlayerIds.length > 0 ? (
-                            <div className="flex flex-wrap gap-1.5">
-                              {p.draftedPlayerIds.map((id) => (
-                                <span
-                                  key={id}
-                                  className="px-2 py-0.5 bg-surface-container-high border border-outline-variant/40 rounded-full text-[11px]"
-                                >
-                                  {getGolferNameById(id)}
-                                </span>
-                              ))}
-                            </div>
-                          ) : (
-                            <span className="italic text-[11px] text-outline">Empty roster</span>
-                          )}
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          <button
-                            type="button"
-                            disabled={isEventFinalized}
-                            onClick={() => handleTogglePayment(p)}
-                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold border transition cursor-pointer disabled:opacity-50 ${
-                              p.hasPaidEntry
-                                ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/20'
-                                : 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30 hover:bg-amber-500/20'
-                            }`}
-                          >
-                            {p.hasPaidEntry ? 'Paid ✅' : 'Unpaid ⏳'}
-                          </button>
-                        </td>
-                        <td className="py-3 px-4 text-right space-x-1.5">
-                          <button
-                            onClick={() => startEditParticipant(p)}
-                            disabled={isEventFinalized}
-                            className="text-secondary hover:text-primary font-bold transition text-[11px] disabled:opacity-50"
-                          >
-                            Edit
-                          </button>
-                          <span className="text-outline-variant/40">|</span>
-                          <button
-                            onClick={() => handleDeleteParticipant(p.id)}
-                            disabled={isEventFinalized}
-                            className="text-red-600 hover:text-red-700 font-bold transition text-[11px] disabled:opacity-50"
-                          >
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
+          <AdminParticipantRosterTable
+            selectedParticipants={selectedParticipants}
+            participantsLoading={participantsLoading}
+            isEventFinalized={isEventFinalized}
+            fieldGolfers={fieldGolfers}
+            competitors={competitors}
+            editingParticipant={editingParticipant}
+            partName={partName}
+            partGolfersInput={partGolfersInput}
+            partGolfer1={partGolfer1}
+            partGolfer2={partGolfer2}
+            partGolfer3={partGolfer3}
+            partIsGreedy={partIsGreedy}
+            partGreedyPlayer={partGreedyPlayer}
+            getGolferNameById={getGolferNameById}
+            onChangeName={(name) => setPartName(name)}
+            onChangeGolfersInput={(input) => setPartGolfersInput(input)}
+            onChangeGolfer1={(id) => setPartGolfer1(id)}
+            onChangeGolfer2={(id) => setPartGolfer2(id)}
+            onChangeGolfer3={(id) => setPartGolfer3(id)}
+            onChangeIsGreedy={(isGreedy) => setPartIsGreedy(isGreedy)}
+            onChangeGreedyPlayer={(id) => setPartGreedyPlayer(id)}
+            onSaveParticipant={handleSaveParticipant}
+            onCancelEdit={handleCancelEditParticipant}
+            onStartEdit={startEditParticipant}
+            onDeleteParticipant={handleDeleteParticipant}
+            onTogglePayment={handleTogglePayment}
+          />
 
           {/* SECTION 5: 4TH GOLFER POST-CUT ASSIGNMENT INTERFACE */}
-          <section className="bg-surface-container-low border border-outline-variant rounded-xl p-6 space-y-4 shadow-xs">
-            <div className="border-b border-outline-variant/60 pb-3 flex justify-between items-center">
-              <div>
-                <h2 className="text-sm font-black uppercase tracking-widest text-on-surface flex items-center gap-2">
-                  <UserPlus className="w-5 h-5 text-tertiary" /> 4th Golfer Post-Cut Assignment
-                </h2>
-                <p className="text-[11px] text-on-surface-variant mt-0.5">
-                  Participants who lose 2 drafted golfers to CUT or WD after Round 2 receive a 4th replacement golfer for Rounds 3 & 4.
-                </p>
-              </div>
-              <span className="text-xs font-bold text-on-surface-variant bg-surface-container px-2.5 py-1 rounded-full border border-outline-variant/60">
-                {selectedParticipants.filter((p) => {
-                  const compMap = new Map(competitors.map((c) => [c.athlete?.id || c.id, c]));
-                  const cutCount = p.draftedPlayerIds.slice(0, 3).filter((id) => {
-                    const comp = compMap.get(id);
-                    if (!comp) return false;
-                    const status = normalizeCompetitor(comp).statusInfo;
-                    return status.isCut || status.isWD;
-                  }).length;
-                  return cutCount >= 2;
-                }).length} Eligible
-              </span>
-            </div>
-
-            <div className="overflow-x-auto border border-outline-variant/60 rounded-lg">
-              <table className="w-full border-collapse text-left text-xs">
-                <thead>
-                  <tr className="bg-surface-container text-[10px] font-extrabold uppercase tracking-wider border-b border-outline-variant/60 text-on-surface-variant">
-                    <th className="py-2.5 px-4 w-1/4">Participant</th>
-                    <th className="py-2.5 px-4 w-1/3">Roster Status (R1-R3 Cut/WDs)</th>
-                    <th className="py-2.5 px-4 w-5/12">4th Replacement Golfer Pick</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-outline-variant/40">
-                  {selectedParticipants.length === 0 ? (
-                    <tr>
-                      <td colSpan={3} className="py-6 text-center text-on-surface-variant italic">
-                        No participants in event.
-                      </td>
-                    </tr>
-                  ) : (
-                    (() => {
-                      const compMap = new Map(competitors.map((c) => [c.athlete?.id || c.id, c]));
-                      const allDraftedIds = new Set(
-                        selectedParticipants.flatMap((p) => p.draftedPlayerIds)
-                      );
-
-                      // Available undrafted golfers from field (or include current 4th golfer if selected)
-                      const getAvailableGolfersForParticipant = (current4thId?: string) => {
-                        return fieldGolfers.filter(
-                          (g) => !allDraftedIds.has(g.id) || g.id === current4thId
-                        );
-                      };
-
-                      return selectedParticipants.map((p) => {
-                        const originalPicks = p.draftedPlayerIds.slice(0, 3);
-                        const cutCount = originalPicks.filter((id) => {
-                          const comp = compMap.get(id);
-                          if (!comp) return false;
-                          const status = normalizeCompetitor(comp).statusInfo;
-                          return status.isCut || status.isWD;
-                        }).length;
-
-                        const isEligible = cutCount >= 2;
-                        const fourthGolferId = p.draftedPlayerIds[3] || '';
-
-                        const handleFourthGolferSelect = async (playerId: string) => {
-                          if (!selectedEventId) return;
-                          try {
-                            const newDrafted = [...p.draftedPlayerIds.slice(0, 3)];
-                            if (playerId) {
-                              newDrafted[3] = playerId;
-                            }
-                            const updated: Participant = {
-                              ...p,
-                              draftedPlayerIds: newDrafted,
-                            };
-                            await addParticipantToEvent(selectedEventId, updated);
-                          } catch (err) {
-                            console.error(err);
-                            alert('Failed to update 4th golfer assignment.');
-                          }
-                        };
-
-                        return (
-                          <tr
-                            key={p.id}
-                            className={`transition-colors ${
-                              isEligible ? 'bg-amber-500/5 hover:bg-amber-500/10' : 'hover:bg-surface-container-high'
-                            }`}
-                          >
-                            <td className="py-3 px-4 font-bold text-on-surface">
-                              <div className="flex items-center gap-2">
-                                <span>{p.name}</span>
-                                {isEligible && (
-                                  <span className="text-[9px] font-black uppercase tracking-wider bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/40 px-1.5 py-0.5 rounded">
-                                    Needs 4th Golfer
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="py-3 px-4">
-                              <div className="space-y-1">
-                                <div className="flex flex-wrap gap-1">
-                                  {originalPicks.map((id) => {
-                                    const comp = compMap.get(id);
-                                    const status = comp ? normalizeCompetitor(comp).statusInfo : { isCut: false, isWD: false };
-                                    const name = getGolferNameById(id);
-                                    const isLost = status.isCut || status.isWD;
-                                    return (
-                                      <span
-                                        key={id}
-                                        className={`px-2 py-0.5 rounded text-[10px] font-semibold border ${
-                                          isLost
-                                            ? 'bg-red-500/10 text-red-700 dark:text-red-300 border-red-500/30 line-through'
-                                            : 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
-                                        }`}
-                                      >
-                                        {name} {status.isWD ? '(WD)' : status.isCut ? '(CUT)' : ''}
-                                      </span>
-                                    );
-                                  })}
-                                </div>
-                                <p className="text-[10px] text-on-surface-variant">
-                                  Cut/WD Count: <strong className={cutCount >= 2 ? 'text-red-600 dark:text-red-400 font-bold' : ''}>{cutCount} / 3</strong>
-                                </p>
-                              </div>
-                            </td>
-                            <td className="py-3 px-4">
-                              <div className="flex items-center gap-2">
-                                <select
-                                  value={fourthGolferId}
-                                  onChange={(e) => handleFourthGolferSelect(e.target.value)}
-                                  disabled={!isEligible}
-                                  className="w-full max-w-xs bg-surface-container border border-outline-variant rounded px-2.5 py-1 text-xs text-on-surface outline-none focus:border-outline disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                  <option value="">
-                                    {isEligible ? '-- Select 4th Undrafted Golfer --' : 'N/A (Roster Intact)'}
-                                  </option>
-                                  {getAvailableGolfersForParticipant(fourthGolferId).map((g) => (
-                                    <option key={g.id} value={g.id}>
-                                      {g.name}
-                                    </option>
-                                  ))}
-                                </select>
-                                {fourthGolferId && (
-                                  <button
-                                    onClick={() => handleFourthGolferSelect('')}
-                                    title="Remove 4th Golfer"
-                                    className="p-1 text-red-600 hover:bg-red-500/10 rounded transition"
-                                  >
-                                    <X className="w-3.5 h-3.5" />
-                                  </button>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      });
-                    })()
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
+          <AdminFourthGolferManager
+            selectedParticipants={selectedParticipants}
+            competitors={competitors}
+            fieldGolfers={fieldGolfers}
+            getGolferNameById={getGolferNameById}
+            onFourthGolferSelect={handleFourthGolferSelect}
+          />
 
           {/* SECTION 6: GREEDY GAME PARTICIPANTS */}
-          <section className="bg-surface-container-low border border-outline-variant rounded-xl p-6 space-y-4 shadow-xs">
-            <div className="border-b border-outline-variant/60 pb-3 flex justify-between items-center">
-              <h2 className="text-sm font-black uppercase tracking-widest text-on-surface flex items-center gap-2">
-                <Award className="w-5 h-5 text-tertiary" /> Greedy Side-Game Assignments
-              </h2>
-              <span className="text-xs text-on-surface-variant font-bold">
-                {selectedParticipants.filter((p) => p.isGreedyParticipant).length} Assigned
-              </span>
-            </div>
+          <AdminGreedyManager
+            selectedParticipants={selectedParticipants}
+            fieldGolfers={fieldGolfers}
+            onGreedySelect={handleGreedySelect}
+          />
 
-            <div className="overflow-x-auto border border-outline-variant/60 rounded-lg">
-              <table className="w-full border-collapse text-left text-xs">
-                <thead>
-                  <tr className="bg-surface-container text-[10px] font-extrabold uppercase tracking-wider border-b border-outline-variant/60 text-on-surface-variant">
-                    <th className="py-2.5 px-4 w-1/2">Participant Name</th>
-                    <th className="py-2.5 px-4 w-1/2">Greedy Golfer Selection</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-outline-variant/40">
-                  {selectedParticipants.filter((p) => p.isGreedyParticipant).length === 0 ? (
-                    <tr>
-                      <td colSpan={2} className="py-6 text-center text-on-surface-variant italic">
-                        No participants are flagged as Greedy Side-Game players. Add or edit a participant and check the 'Greedy Side-Game Player?' box to display them here.
-                      </td>
-                    </tr>
-                  ) : (
-                    selectedParticipants
-                      .filter((p) => p.isGreedyParticipant)
-                      .map((p) => (
-                        <tr key={p.id} className="hover:bg-surface-container-high transition-colors">
-                          <td className="py-3 px-4 font-bold text-on-surface">{p.name}</td>
-                          <td className="py-3 px-4">
-                            <select
-                              value={p.greedyPlayerId || ''}
-                              onChange={(e) => handleGreedySelect(p, e.target.value)}
-                              className="w-full max-w-xs bg-surface-container border border-outline-variant rounded px-2.5 py-1 text-xs text-on-surface outline-none focus:border-outline"
-                            >
-                              <option value="">-- Choose Greedy Golfer --</option>
-                              {fieldGolfers.map((g) => (
-                                <option key={g.id} value={g.id}>
-                                  {g.name}
-                                </option>
-                              ))}
-                            </select>
-                          </td>
-                        </tr>
-                      ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          {/* SECTION 6: LIVE PLAYER SCORES */}
-          <section className="bg-surface-container-low border border-outline-variant rounded-xl p-6 space-y-4 shadow-xs">
-            <div className="border-b border-outline-variant/60 pb-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <h2 className="text-sm font-black uppercase tracking-widest text-on-surface flex items-center gap-2">
-                <Trophy className="w-5 h-5 text-amber-400" /> ESPN Competitors Field
-              </h2>
-
-              <div className="relative max-w-xs w-full">
-                <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Search className="h-3.5 w-3.5 text-on-surface-variant" />
-                </span>
-                <input
-                  type="text"
-                  placeholder="Search field..."
-                  value={liveSearchQuery}
-                  onChange={(e) => setLiveSearchQuery(e.target.value)}
-                  className="pl-9 pr-3 py-1.5 bg-surface-container border border-outline-variant rounded-lg text-xs w-full text-on-surface outline-none focus:border-outline"
-                />
-              </div>
-            </div>
-
-            <div className="overflow-x-auto border border-outline-variant/60 rounded-lg max-h-96 overflow-y-auto">
-              <table className="w-full border-collapse text-left text-xs">
-                <thead className="sticky top-0 bg-surface-container text-[10px] font-extrabold uppercase tracking-wider border-b border-outline-variant/60 text-on-surface-variant z-10">
-                  <tr>
-                    <th className="py-2.5 px-4 w-2/5">Player Name</th>
-                    <th className="py-2.5 px-2 text-center w-12">R1</th>
-                    <th className="py-2.5 px-2 text-center w-12">R2</th>
-                    <th className="py-2.5 px-2 text-center w-12">R3</th>
-                    <th className="py-2.5 px-2 text-center w-12">R4</th>
-                    <th className="py-2.5 px-4 text-center w-20">Total Score</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-outline-variant/40">
-                  {loadingCompetitors ? (
-                    <tr>
-                      <td colSpan={6} className="py-8 text-center text-on-surface-variant">
-                        Loading field scores...
-                      </td>
-                    </tr>
-                  ) : filteredLiveCompetitors.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="py-8 text-center text-on-surface-variant italic">
-                        No golfers match the search criteria.
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredLiveCompetitors.map((c) => {
-                      const par = selectedContestConfig?.coursePar;
-                      const r1 = getGolferRoundScoreToPar(c, 1, par);
-                      const r2 = getGolferRoundScoreToPar(c, 2, par);
-                      const r3 = getGolferRoundScoreToPar(c, 3, par);
-                      const r4 = getGolferRoundScoreToPar(c, 4, par);
-
-                      const formatParVal = (val: number | null) => {
-                        if (val === null) return '-';
-                        if (val === 0) return 'E';
-                        return val > 0 ? `+${val}` : `${val}`;
-                      };
-
-                      return (
-                        <tr key={c.id} className="hover:bg-surface-container-high transition-colors">
-                          <td className="py-2.5 px-4 font-semibold text-on-surface">
-                            {c.athlete?.displayName || 'Unknown Golfer'}
-                          </td>
-                          <td className="py-2.5 px-2 text-center text-on-surface-variant font-mono">
-                            {formatParVal(r1)}
-                          </td>
-                          <td className="py-2.5 px-2 text-center text-on-surface-variant font-mono">
-                            {formatParVal(r2)}
-                          </td>
-                          <td className="py-2.5 px-2 text-center text-on-surface-variant font-mono">
-                            {formatParVal(r3)}
-                          </td>
-                          <td className="py-2.5 px-2 text-center text-on-surface-variant font-mono">
-                            {formatParVal(r4)}
-                          </td>
-                          <td className="py-2.5 px-4 text-center font-bold text-tertiary">
-                            {normalizeCompetitor(c).scoreDisplay || (typeof c.score === 'string' ? c.score : '-')}
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
+          {/* SECTION 7: LIVE PLAYER SCORES */}
+          <AdminLeaderboardInspector
+            loadingCompetitors={loadingCompetitors}
+            filteredLiveCompetitors={filteredLiveCompetitors}
+            selectedContestConfig={selectedContestConfig}
+            liveSearchQuery={liveSearchQuery}
+            onChangeLiveSearchQuery={(q) => setLiveSearchQuery(q)}
+          />
         </div>
 
         {/* Right Sidebar: PGA Tour Scoreboard Calendar Quick Select (4 cols) */}
-        <aside className="lg:col-span-4 bg-surface-container-low border border-outline-variant rounded-xl p-6 space-y-4 shadow-xs h-fit sticky top-6">
-          <h2 className="text-xs font-black uppercase tracking-widest text-on-surface border-b border-outline-variant/60 pb-3">
-            PGA Calendar Events
-          </h2>
-          <p className="text-[11px] text-on-surface-variant">
-            Quick selection of scheduled tournaments on the PGA Tour. Active event is starred.
-          </p>
-
-          <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
-            {loadingEvents ? (
-              <div className="py-4 text-center text-xs text-on-surface-variant italic">
-                Loading events list...
-              </div>
-            ) : (
-              events.map((e) => {
-                const isActive = e.id === activeEventId;
-                const isCurrentEdit = e.id === selectedEventId;
-                return (
-                  <button
-                    key={e.id}
-                    onClick={() => setSelectedEventId(e.id)}
-                    className={`w-full text-left p-3 rounded-lg border text-xs transition flex justify-between items-center gap-3 ${
-                      isCurrentEdit
-                        ? 'bg-secondary-container text-on-secondary-container border-outline'
-                        : 'bg-surface-container-lowest border-outline-variant/60 hover:bg-surface-container hover:border-outline-variant'
-                    }`}
-                  >
-                    <div className="space-y-1">
-                      <p className="font-bold truncate max-w-44">{e.name}</p>
-                      <p className="text-[10px] text-on-surface-variant font-semibold">
-                        {e.date ? new Date(e.date).toLocaleDateString() : 'N/A'}
-                      </p>
-                    </div>
-
-                    {isActive && (
-                      <span className="bg-tertiary text-on-tertiary px-1.5 py-0.5 rounded text-[9px] font-black uppercase flex items-center gap-0.5 shrink-0">
-                        <Star className="w-2.5 h-2.5 fill-on-tertiary" /> Active
-                      </span>
-                    )}
-                  </button>
-                );
-              })
-            )}
-          </div>
-        </aside>
+        <AdminCalendarSidebar
+          events={events}
+          loadingEvents={loadingEvents}
+          activeEventId={activeEventId || ''}
+          selectedEventId={selectedEventId}
+          onSelectEvent={(id) => setSelectedEventId(id)}
+        />
       </main>
 
       {/* Batch Paste Rosters Modal */}
-      {showBatchModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
-          <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl max-w-xl w-full p-6 space-y-4 shadow-2xl">
-            <div className="flex justify-between items-center border-b border-outline-variant/60 pb-3">
-              <h3 className="text-base font-extrabold text-on-surface flex items-center gap-2">
-                📋 Batch Paste Participant Rosters
-              </h3>
-              <button
-                onClick={() => setShowBatchModal(false)}
-                className="text-on-surface-variant hover:text-on-surface p-1 rounded-md"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+      <AdminBatchRosterModal
+        isOpen={showBatchModal}
+        syncing={syncing}
+        batchRosterText={batchRosterText}
+        onChangeBatchRosterText={(text) => setBatchRosterText(text)}
+        onClose={() => setShowBatchModal(false)}
+        onProcessBatchRosters={handleProcessBatchRosters}
+      />
 
-            <p className="text-xs text-on-surface-variant leading-relaxed">
-              Paste your participant names and comma-delimited golfer rosters below (one participant per line). Format: <code className="font-mono text-tertiary">Name: Golfer 1, Golfer 2, Golfer 3</code>
-            </p>
-
-            <textarea
-              rows={8}
-              placeholder={`Pat: Scottie Scheffler, Rory McIlroy, Xander Schauffele\nGreg: Jon Rahm, Viktor Hovland, Brooks Koepka\nDereck: Collin Morikawa, Wyndham Clark, Patrick Cantlay`}
-              value={batchRosterText}
-              onChange={(e) => setBatchRosterText(e.target.value)}
-              className="w-full bg-surface-container border border-outline-variant rounded-xl p-3 text-xs text-on-surface font-mono outline-none focus:border-outline"
-            />
-
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setShowBatchModal(false)}
-                className="px-4 py-2 text-xs font-bold text-on-surface-variant hover:bg-surface-container rounded-lg border border-outline-variant"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleProcessBatchRosters}
-                disabled={syncing || !batchRosterText.trim()}
-                className="px-5 py-2 text-xs font-bold bg-tertiary hover:bg-tertiary/90 text-on-tertiary rounded-lg shadow-xs transition disabled:opacity-50"
-              >
-                {syncing ? 'Processing...' : 'Import Rosters'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       {/* Copy Roster from Past Event Modal */}
-      {showCopyModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in">
-          <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl max-w-md w-full p-6 space-y-4 shadow-2xl">
-            <div className="flex justify-between items-center border-b border-outline-variant/60 pb-3">
-              <h3 className="text-base font-extrabold text-on-surface flex items-center gap-2">
-                <Copy className="w-4 h-4 text-tertiary" /> Copy Roster from Past Event
-              </h3>
-              <button
-                onClick={() => setShowCopyModal(false)}
-                className="text-on-surface-variant hover:text-on-surface p-1 rounded-md"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <p className="text-xs text-on-surface-variant leading-relaxed">
-              Select a prior tournament event below. Participant names will be copied to the current event, while drafted golfers, greedy picks, and payment flags will be cleanly reset to defaults.
-            </p>
-
-            <select
-              value={sourceCopyEventId}
-              onChange={(e) => setSourceCopyEventId(e.target.value)}
-              className="w-full bg-surface-container border border-outline-variant rounded-xl p-3 text-xs text-on-surface outline-none focus:border-outline"
-            >
-              <option value="">-- Select Source Tournament Event --</option>
-              {events
-                .filter((ev) => ev.id !== selectedEventId)
-                .map((ev) => (
-                  <option key={ev.id} value={ev.id}>
-                    {ev.name} ({ev.id})
-                  </option>
-                ))}
-            </select>
-
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setShowCopyModal(false)}
-                className="px-4 py-2 text-xs font-bold text-on-surface-variant hover:bg-surface-container rounded-lg border border-outline-variant"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleCopyRosterFromEvent}
-                disabled={!sourceCopyEventId || syncing}
-                className="px-5 py-2 text-xs font-bold bg-tertiary hover:bg-tertiary/90 text-on-tertiary rounded-lg shadow-xs transition disabled:opacity-50"
-              >
-                {syncing ? 'Copying...' : 'Copy Roster & Reset Picks'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <AdminCopyRosterModal
+        isOpen={showCopyModal}
+        syncing={syncing}
+        events={events}
+        selectedEventId={selectedEventId}
+        sourceCopyEventId={sourceCopyEventId}
+        onChangeSourceCopyEventId={(id) => setSourceCopyEventId(id)}
+        onClose={() => setShowCopyModal(false)}
+        onCopyRoster={handleCopyRosterFromEvent}
+      />
     </div>
   );
 }
-

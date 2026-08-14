@@ -504,6 +504,20 @@ export async function copyRosterFromEvent(
   return resetList;
 }
 
+export async function deleteEventSubtree(eventId: string): Promise<void> {
+  if (!eventId) return;
+  const batch = writeBatch(db);
+  const configRef = doc(db, 'events', eventId, 'contestConfig', 'default');
+  batch.delete(configRef);
+
+  const participantsRef = collection(db, 'events', eventId, 'participants');
+  const snap = await getDocs(participantsRef);
+  snap.forEach((docSnap) => {
+    batch.delete(docSnap.ref);
+  });
+  await batch.commit();
+}
+
 
 
 
