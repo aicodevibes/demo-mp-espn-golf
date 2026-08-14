@@ -599,7 +599,7 @@ export function resolveEventCompetitorsWithFallback(
 
 export const DEFAULT_PLAYER_DIRECTORY_MAP: Record<
   string,
-  { id: string; name: string; headshotUrl?: string }
+  { id: string; name: string; headshotUrl?: string; countryFlagUrl?: string }
 > = Object.fromEntries(
   AUTHENTIC_ESPN_PGA_CATALOG.map((c) => [
     c.id,

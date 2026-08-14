@@ -1740,7 +1740,7 @@ export default function AdminPage() {
                             {formatParVal(r4)}
                           </td>
                           <td className="py-2.5 px-4 text-center font-bold text-tertiary">
-                            {(c as any).scoreDisplay || (typeof c.score === 'string' ? c.score : '-')}
+                            {normalizeCompetitor(c).scoreDisplay || (typeof c.score === 'string' ? c.score : '-')}
                           </td>
                         </tr>
                       );

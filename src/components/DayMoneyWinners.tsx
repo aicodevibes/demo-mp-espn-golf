@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { DayMoneyRoundResult, ContestConfig } from '@/types/contest';
-import { DollarSign, Trophy, Award } from 'lucide-react';
+import { Award } from 'lucide-react';
 
 interface DayMoneyWinnersProps {
   dayMoneyResults: DayMoneyRoundResult[];

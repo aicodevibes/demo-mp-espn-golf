@@ -321,7 +321,7 @@ export function normalizeTournamentSnapshot(
         id: dirPlayer.id,
         displayName: dirPlayer.name,
         headshot: { href: dirPlayer.headshotUrl || '' },
-        flag: (dirPlayer as any).countryFlagUrl ? { href: (dirPlayer as any).countryFlagUrl } : undefined,
+        flag: dirPlayer.countryFlagUrl ? { href: dirPlayer.countryFlagUrl } : undefined,
       },
     } as ESPNCompetitor));
   }

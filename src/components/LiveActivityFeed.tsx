@@ -13,7 +13,6 @@ import {
   DollarSign,
   Flame,
   Trophy,
-  Activity,
   Filter,
 } from 'lucide-react';
 
@@ -42,7 +41,7 @@ export function LiveActivityFeed({
   competitors = [],
   contestConfig,
   eventStatus,
-  events: customEvents,
+  events: initialEvents,
   selectedEventId,
   playerSummary,
   loading = false,
@@ -51,26 +50,21 @@ export function LiveActivityFeed({
   const [activeFilter, setActiveFilter] = useState<FilterType>('all');
   const [isExpanded, setIsExpanded] = useState<boolean>(false);
 
-  // Generate events from tournament state if custom events not provided
-  const allEvents = useMemo(() => {
-    if (customEvents && Array.isArray(customEvents)) {
-      return customEvents;
-    }
-    const summariesMap = new Map<string, any>();
-    if (playerSummary?.id) {
-      summariesMap.set(playerSummary.id, playerSummary);
-    }
+  // Generate event feed from raw contest and tournament state
+  const generatedEvents = useMemo(() => {
+    if (initialEvents && initialEvents.length > 0) return initialEvents;
     return generateTournamentActivityEvents(
       participants,
       competitors,
       contestConfig,
       eventStatus,
       selectedEventId,
-      summariesMap
+      playerSummary
     );
-  }, [customEvents, participants, competitors, contestConfig, eventStatus, selectedEventId, playerSummary]);
+  }, [participants, competitors, contestConfig, eventStatus, selectedEventId, initialEvents, playerSummary]);
 
-  // Filter events based on active selection
+  const allEvents = initialEvents && initialEvents.length > 0 ? initialEvents : generatedEvents;
+
   const filteredEvents = useMemo(() => {
     if (activeFilter === 'all') return allEvents;
     return allEvents.filter((evt) => evt.type === activeFilter);
@@ -86,50 +80,6 @@ export function LiveActivityFeed({
     { id: 'drafted_leader', label: 'Drafted Leaders', icon: <Trophy className="w-3.5 h-3.5" /> },
     { id: 'eagle', label: 'Eagles', icon: <Flame className="w-3.5 h-3.5" /> },
   ];
-
-  // Helper to render icon for event cards
-  const renderEventIcon = (type: ActivityEventType, iconName: string) => {
-    switch (type) {
-      case 'day_money':
-        return <DollarSign className="w-4 h-4 text-emerald-400" />;
-      case 'drafted_leader':
-        return <Trophy className="w-4 h-4 text-yellow-300" />;
-      case 'eagle':
-        return <Flame className="w-4 h-4 text-amber-400" />;
-      default:
-        return <Activity className="w-4 h-4 text-primary" />;
-    }
-  };
-
-  // Helper to get badge and border styles per event type
-  const getEventTypeStyles = (type: ActivityEventType) => {
-    switch (type) {
-      case 'day_money':
-        return {
-          iconBg: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
-          badgeBg: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
-          borderHover: 'hover:border-emerald-500/40',
-        };
-      case 'drafted_leader':
-        return {
-          iconBg: 'bg-yellow-500/10 border-yellow-500/20 text-yellow-300',
-          badgeBg: 'bg-yellow-500/15 text-yellow-300 border-yellow-500/30',
-          borderHover: 'hover:border-yellow-500/40',
-        };
-      case 'eagle':
-        return {
-          iconBg: 'bg-amber-500/10 border-amber-500/20 text-amber-400',
-          badgeBg: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
-          borderHover: 'hover:border-amber-500/40',
-        };
-      default:
-        return {
-          iconBg: 'bg-primary/10 border-primary/20 text-primary',
-          badgeBg: 'bg-primary/15 text-primary border-primary/30',
-          borderHover: 'hover:border-primary/40',
-        };
-    }
-  };
 
   if (loading) {
     return (

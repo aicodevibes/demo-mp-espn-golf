@@ -4,6 +4,7 @@ import {
   DEFAULT_PLAYER_DIRECTORY_MAP,
   searchGolferCompetitors,
   findCompetitorByQuery,
+  resolveGolferHeadshotUrls,
 } from '@/lib/espn';
 
 export function normalizeGolferName(name: string): string {
@@ -95,33 +96,11 @@ export function getGolferProfile(
   const shortName = comp?.athlete?.shortName || `${firstName ? firstName.charAt(0) + '.' : ''} ${lastName}`.trim();
 
   // Derive pre-ordered headshot fallback URLs
-  const headshotUrls: string[] = [];
-  
-  // 1. Direct ESPN Athlete headshot href if present
-  if (comp?.athlete?.headshot?.href && comp.athlete.headshot.href.startsWith('http')) {
-    headshotUrls.push(comp.athlete.headshot.href);
-  }
-  
-  // 2. Directory custom URL if present
-  if (directoryPlayer?.headshotUrl && directoryPlayer.headshotUrl.startsWith('http')) {
-    if (!headshotUrls.includes(directoryPlayer.headshotUrl)) {
-      headshotUrls.push(directoryPlayer.headshotUrl);
-    }
-  }
-
-  // 3. Direct ESPN CDN full headshot URL
-  if (athleteId && /^\d+$/.test(athleteId)) {
-    const espnDirectUrl = `https://a.espncdn.com/i/headshots/golf/players/full/${athleteId}.png`;
-    if (!headshotUrls.includes(espnDirectUrl)) {
-      headshotUrls.push(espnDirectUrl);
-    }
-
-    // 4. ESPN Combiner fallback URL
-    const espnCombinerUrl = `https://a.espncdn.com/combiner/i?img=/i/headshots/golf/players/full/${athleteId}.png&w=120&h=120&scale=crop`;
-    if (!headshotUrls.includes(espnCombinerUrl)) {
-      headshotUrls.push(espnCombinerUrl);
-    }
-  }
+  const headshotUrls = resolveGolferHeadshotUrls(
+    athleteId,
+    comp?.athlete?.headshot?.href,
+    directoryPlayer?.headshotUrl
+  );
 
   // Determine draftedBy participants
   const draftedBy: string[] = [];

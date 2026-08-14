@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { ParticipantStanding, ContestConfig } from '@/types/contest';
-import { Trophy, Scissors } from 'lucide-react';
+import { Trophy } from 'lucide-react';
 
 interface ParticipantStandingsProps {
   standings: ParticipantStanding[];

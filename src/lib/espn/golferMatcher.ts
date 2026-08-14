@@ -1,40 +1,15 @@
 import { ESPNCompetitor } from '@/types/espn';
+import {
+  normalizeGolferName,
+  getGolferNameTokens,
+  getGolferLastName,
+} from '../domain/golferDirectory';
 
-/**
- * Normalizes a name string: lowercases, strips diacritics/accents, removes punctuation except spaces.
- */
-export function normalizeGolferName(name: string): string {
-  if (!name) return '';
-  return name
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '') // remove diacritics
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, ' ')  // replace non-alphanumeric with spaces
-    .replace(/\s+/g, ' ')           // collapse whitespace
-    .trim();
-}
-
-/**
- * Extracts normalized word tokens from a name string.
- */
-export function getGolferNameTokens(name: string): string[] {
-  const norm = normalizeGolferName(name);
-  return norm ? norm.split(' ') : [];
-}
-
-/**
- * Helper to derive golfer's last name from athlete object or displayName.
- */
-export function getGolferLastName(comp: ESPNCompetitor): string {
-  if (comp.athlete?.lastName) {
-    return normalizeGolferName(comp.athlete.lastName);
-  }
-  if (comp.athlete?.lastNames) {
-    return normalizeGolferName(comp.athlete.lastNames);
-  }
-  const tokens = getGolferNameTokens(comp.athlete?.displayName || '');
-  return tokens.length > 0 ? tokens[tokens.length - 1] : '';
-}
+export {
+  normalizeGolferName,
+  getGolferNameTokens,
+  getGolferLastName,
+};
 
 export interface GolferMatchResult {
   competitor: ESPNCompetitor;

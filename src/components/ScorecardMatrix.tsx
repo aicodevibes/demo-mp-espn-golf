@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { NormalizedCompetitor, NormalizedPlayerSummary, NormalizedRoundLinescore } from '@/lib/espn';
+import { NormalizedCompetitor, NormalizedPlayerSummary, NormalizedRoundLinescore, NormalizedHoleScore } from '@/lib/espn';
 import { Award, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface ScorecardMatrixProps {
@@ -104,7 +104,7 @@ export function ScorecardMatrix({
   const grandParTotal = normRound?.totalPar ?? (frontParTotal + backParTotal);
   const grandScoreTotal = normRound?.totalStrokes ?? (frontScoreTotal + backScoreTotal);
 
-  const renderScoreBadge = (hole: any) => {
+  const renderScoreBadge = (hole: NormalizedHoleScore | { strokes?: number; par?: number; scoreType?: string; badgeClass?: string }) => {
     const strokes = hole.strokes || 0;
     const par = hole.par || 4;
     const scoreType = hole.scoreType || '';

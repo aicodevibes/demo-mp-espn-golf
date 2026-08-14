@@ -29,7 +29,7 @@ export function DraftedPlayersLeaderboard({
   const evaluated = useMemo(() => {
     if (propOtherDrafted) {
       return {
-        otherDrafted: propOtherDrafted,
+        draftedGolfers: propOtherDrafted,
         playerDraftedByMap: propPlayerDraftedByMap || new Map<string, string[]>(),
       };
     }
@@ -39,7 +39,7 @@ export function DraftedPlayersLeaderboard({
     });
   }, [competitors, participants, eventObj, propOtherDrafted, propPlayerDraftedByMap]);
 
-  const otherDrafted = evaluated.otherDrafted;
+  const otherDrafted = evaluated.draftedGolfers;
   const playerDraftedByMap = evaluated.playerDraftedByMap;
 
   if (otherDrafted.length === 0) {
@@ -68,7 +68,7 @@ export function DraftedPlayersLeaderboard({
 
       {/* Leaderboard Grid / Rows */}
       <div className="space-y-2 max-h-[520px] overflow-y-auto pr-1">
-        {otherDrafted.map((comp, idx) => {
+        {otherDrafted.map((comp: EnrichedCompetitor, idx: number) => {
           const playerId = comp.athlete?.id || comp.id || `drafted-${idx}`;
           const isSelected = selectedPlayerId === playerId;
           const draftedBy = playerDraftedByMap.get(playerId) || comp.profile.draftedBy || [];

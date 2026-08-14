@@ -19,13 +19,6 @@ export interface FieldLeaderboardEvaluation {
   projectedCutIndex: number;
   playerDraftedByMap: Map<string, string[]>;
   rankDisplayMap: Map<string, string>;
-
-  // Backward-compatibility aliases during transition
-  top10Competitors: EnrichedCompetitor[];
-  otherDrafted: EnrichedCompetitor[];
-  otherDraftedCompetitors: EnrichedCompetitor[];
-  activeFieldCompetitors: EnrichedCompetitor[];
-  cutFieldCompetitors: EnrichedCompetitor[];
 }
 
 export interface FieldLeaderboardOptions extends GolferDirectoryOptions {
@@ -285,13 +278,6 @@ export function evaluateFieldLeaderboard(
     projectedCutIndex,
     playerDraftedByMap,
     rankDisplayMap,
-
-    // Aliases
-    top10Competitors: top10Leaders,
-    otherDrafted: draftedGolfers,
-    otherDraftedCompetitors: draftedGolfers,
-    activeFieldCompetitors: activeField,
-    cutFieldCompetitors: cutField,
   };
 }
 

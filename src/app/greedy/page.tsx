@@ -15,8 +15,6 @@ import {
   Settings,
   RefreshCw,
   Users,
-  ShieldCheck,
-  Zap,
 } from 'lucide-react';
 
 const GREEDY_ENTRY_FEE = 50;
@@ -211,7 +209,6 @@ export default function GreedyPage() {
                   {standingsWithPayout.map((s) => {
                     const isWinner = s.rank === 1;
                     const golfer = s.greedyGolfer;
-                    const isCutOrWD = golfer?.isCut || golfer?.isWD;
 
                     return (
                       <tr

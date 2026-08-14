@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import Image from 'next/image';
-import { DEFAULT_PLAYER_DIRECTORY_MAP } from '@/lib/espn';
+import { DEFAULT_PLAYER_DIRECTORY_MAP, resolveGolferHeadshotUrls } from '@/lib/espn';
 import { getGolferInitials, GolferProfile } from '@/lib/domain';
 
 export { getGolferInitials };
@@ -39,12 +39,7 @@ export function GolferHeadshot({
     urls = profile.headshotUrls;
   } else {
     const directoryEntry = playerId ? DEFAULT_PLAYER_DIRECTORY_MAP[playerId] : null;
-    if (src && src.startsWith('http')) urls.push(src);
-    if (directoryEntry?.headshotUrl) urls.push(directoryEntry.headshotUrl);
-    if (playerId && /^\d+$/.test(playerId)) {
-      urls.push(`https://a.espncdn.com/i/headshots/golf/players/full/${playerId}.png`);
-      urls.push(`https://a.espncdn.com/combiner/i?img=/i/headshots/golf/players/full/${playerId}.png&w=120&h=120&scale=crop`);
-    }
+    urls = resolveGolferHeadshotUrls(playerId || '', src, directoryEntry?.headshotUrl);
   }
 
   const effectiveSrc = urls[urlIndex] || '';

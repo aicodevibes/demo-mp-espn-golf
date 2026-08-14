@@ -2,13 +2,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { ShieldCheck, LogIn, LogOut, Trophy, Calendar, Activity, Award } from 'lucide-react';
+import { ShieldCheck, LogOut, Trophy, Calendar, Activity, Award } from 'lucide-react';
 import { ESPNEvent } from '@/types/espn';
-import { formatEventDates } from '@/lib/espn';
+import { NormalizedTournament, formatEventDates } from '@/lib/espn';
 
 interface HeaderProps {
   eventName?: string;
-  eventObj?: ESPNEvent;
+  eventObj?: NormalizedTournament | ESPNEvent | null;
   loading?: boolean;
   events?: ESPNEvent[];
   selectedEventId?: string;
@@ -29,13 +29,15 @@ export function Header({
     setMounted(true);
   }, []);
 
-  const { user, loading, isAdmin, signInWithGoogle, signOut } = useAuth();
+  const { user, loading, isAdmin, signOut } = useAuth();
 
-  const formattedDates =
-    (eventObj as any)?.datesFormatted || formatEventDates(eventObj?.date, eventObj?.endDate);
-  const eventState = (eventObj as any)?.statusState || eventObj?.status?.type?.state;
-  const statusDetail =
-    (eventObj as any)?.statusDetail || eventObj?.status?.type?.detail || 'Scheduled';
+  const isNorm = Boolean(eventObj && 'datesFormatted' in eventObj);
+  const normEvent = isNorm ? (eventObj as NormalizedTournament) : null;
+  const rawEvent = !isNorm ? (eventObj as ESPNEvent | null | undefined) : null;
+
+  const formattedDates = normEvent?.datesFormatted || formatEventDates(rawEvent?.date, rawEvent?.endDate);
+  const eventState = normEvent?.statusState || rawEvent?.status?.type?.state;
+  const statusDetail = normEvent?.statusDetail || rawEvent?.status?.type?.detail || 'Scheduled';
   const isEventUnpopulated = !eventName && !eventObj;
   const isLoadingEvent = eventLoading || isEventUnpopulated;
 

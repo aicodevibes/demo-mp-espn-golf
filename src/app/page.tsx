@@ -1,7 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
-import dynamic from 'next/dynamic';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { Header } from '@/components/Header';
 import { TrackedPlayerHeroGrid } from '@/components/TrackedPlayerHeroGrid';
 import { ScorecardMatrix } from '@/components/ScorecardMatrix';
@@ -14,21 +13,13 @@ import { WagerSettlementLedger } from '@/components/WagerSettlementLedger';
 import { LiveActivityFeed } from '@/components/LiveActivityFeed';
 import { ChevronDown, ChevronUp, Trophy } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-
-
-// ... (keep rest of top code intact until component body)
-
 import {
   useActiveConfig,
   useTrackedPlayers,
   useAllPlayers,
   useParticipants,
   useContestConfig,
-  setActiveEvent,
-  addTrackedPlayer,
-  removeTrackedPlayer,
   syncPlayersToFirestore,
-  TrackedPlayer,
 } from '@/lib/firebase/firestore';
 import { ESPNEvent, ESPNCompetitor } from '@/types/espn';
 import {
@@ -45,9 +36,9 @@ import { useLeaderboardPolling } from '@/hooks/useLeaderboardPolling';
 import { usePlayerSummary } from '@/hooks/usePlayerSummary';
 
 export default function DashboardPage() {
-  const { user, isAdmin } = useAuth();
-  const { config, loading: configLoading } = useActiveConfig();
-  const { players: trackedPlayers, loading: playersLoading } = useTrackedPlayers();
+  const { user } = useAuth();
+  const { config } = useActiveConfig();
+  const { players: trackedPlayers } = useTrackedPlayers();
   const { playerMap: firestorePlayerMap } = useAllPlayers();
 
   const [events, setEvents] = useState<ESPNEvent[]>([]);
@@ -190,17 +181,6 @@ export default function DashboardPage() {
   useLeaderboardPolling({ activeEventId: selectedViewerEventId, onPoll: fetchLeaderboard });
 
 
-  // Vercel Performance Rule: rerender-derived-state & js-set-map-lookups
-  const trackedPlayerIdsSet = useMemo(
-    () => new Set(trackedPlayers.map((p) => p.playerId)),
-    [trackedPlayers]
-  );
-
-  const trackedPlayerIds = useMemo(
-    () => Array.from(trackedPlayerIdsSet),
-    [trackedPlayerIdsSet]
-  );
-
   // Evaluate entire contest via deep ContestEngine seam
   const contestEvaluation = useMemo(() => {
     return evaluateContest(participants, competitors, contestConfig, activeEvent?.status, firestorePlayerMap);
@@ -312,30 +292,6 @@ export default function DashboardPage() {
     competitor: selectedCompetitor,
   });
 
-
-  // Admin Actions
-  const handleSelectEvent = useCallback(async (eventId: string) => {
-    await setActiveEvent(eventId, new Date().getFullYear(), user?.email || 'aicodevibes@gmail.com');
-  }, [user]);
-
-  const handleToggleTrackPlayer = useCallback(async (comp: ESPNCompetitor) => {
-    const playerId = comp.athlete?.id || comp.id;
-    if (!playerId) return;
-
-    const isTracked = trackedPlayerIdsSet.has(playerId);
-    if (isTracked) {
-      await removeTrackedPlayer(playerId);
-    } else {
-      const newPlayer: TrackedPlayer = {
-        playerId: playerId,
-        name: comp.athlete?.displayName || 'Unknown Golfer',
-        headshotUrl: comp.athlete?.headshot?.href || '',
-        country: comp.athlete?.country?.abbreviation || '',
-        displayOrder: trackedPlayers.length + 1,
-      };
-      await addTrackedPlayer(newPlayer);
-    }
-  }, [trackedPlayerIdsSet, trackedPlayers]);
 
   return (
     <div className="min-h-screen bg-surface text-on-surface flex flex-col">

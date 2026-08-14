@@ -1,14 +1,14 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import Link from 'next/link';
-import { ArrowLeft, ShieldCheck, RefreshCw, AlertCircle } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import { DEFAULT_PLAYER_DIRECTORY_MAP } from '@/lib/espn';
 import { GolferHeadshot } from '@/components/GolferHeadshot';
 import { useAllPlayers } from '@/lib/firebase/firestore';
 
 export default function AdminPlayerGalleryPage() {
-  const { playerMap, loading: loadingDirectory } = useAllPlayers();
+  const { playerMap } = useAllPlayers();
 
   const allPlayerEntries = Object.values(DEFAULT_PLAYER_DIRECTORY_MAP);
 
