@@ -439,9 +439,15 @@ export function normalizePlayerSummary(
   const sourceData = rawSummary || fallbackComp;
   const profile = sourceData?.profile || sourceData?.athlete || fallbackComp?.athlete;
 
-  // Deep Module Seam: Combine rounds from rawSummary (detailed hole-by-hole) and fallbackComp linescores (live leaderboard rounds)
+  // Deep Module Seam: Combine rounds from rawSummary (detailed hole-by-hole) and fallbackComp linescores (live leaderboard rounds).
+  // rawSummary provides detailed hole-by-hole data; fallbackComp provides live round summaries from the leaderboard feed.
+  // Merge strategy: prefer rawSummary linescores only when they contain actual played strokes, otherwise preserve fallbackComp's live data.
   const summaryRounds: any[] = rawSummary?.rounds || rawSummary?.linescores || [];
   const compRounds: any[] = fallbackComp?.linescores || [];
+
+  /** Returns true if the linescores array contains at least one hole with strokes played (value > 0). */
+  const hasPlayedHoles = (linescores: any[] | undefined): boolean =>
+    Array.isArray(linescores) && linescores.some((h: any) => (h.value || 0) > 0);
 
   const roundsByPeriod = new Map<number, any>();
   compRounds.forEach((rd: any, idx: number) => {
@@ -457,7 +463,7 @@ export function normalizePlayerSummary(
         ...rd,
         displayValue: rd.displayValue && rd.displayValue !== '-' ? rd.displayValue : existing.displayValue,
         value: rd.value !== undefined && rd.value !== 0 ? rd.value : existing.value,
-        linescores: (rd.linescores && rd.linescores.length > 0) ? rd.linescores : existing.linescores,
+        linescores: hasPlayedHoles(rd.linescores) ? rd.linescores : existing.linescores,
       });
     } else {
       roundsByPeriod.set(period, rd);
