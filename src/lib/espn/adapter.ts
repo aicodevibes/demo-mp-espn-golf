@@ -438,7 +438,36 @@ export function normalizePlayerSummary(
 ): NormalizedPlayerSummary {
   const sourceData = rawSummary || fallbackComp;
   const profile = sourceData?.profile || sourceData?.athlete || fallbackComp?.athlete;
-  const rawRounds: any[] = sourceData?.rounds || sourceData?.linescores || fallbackComp?.linescores || [];
+
+  // Deep Module Seam: Combine rounds from rawSummary (detailed hole-by-hole) and fallbackComp linescores (live leaderboard rounds)
+  const summaryRounds: any[] = rawSummary?.rounds || rawSummary?.linescores || [];
+  const compRounds: any[] = fallbackComp?.linescores || [];
+
+  const roundsByPeriod = new Map<number, any>();
+  compRounds.forEach((rd: any, idx: number) => {
+    const period = rd.period || idx + 1;
+    roundsByPeriod.set(period, rd);
+  });
+  summaryRounds.forEach((rd: any, idx: number) => {
+    const period = rd.period || idx + 1;
+    const existing = roundsByPeriod.get(period);
+    if (existing) {
+      roundsByPeriod.set(period, {
+        ...existing,
+        ...rd,
+        displayValue: rd.displayValue && rd.displayValue !== '-' ? rd.displayValue : existing.displayValue,
+        value: rd.value !== undefined && rd.value !== 0 ? rd.value : existing.value,
+        linescores: (rd.linescores && rd.linescores.length > 0) ? rd.linescores : existing.linescores,
+      });
+    } else {
+      roundsByPeriod.set(period, rd);
+    }
+  });
+
+  const rawRounds: any[] = Array.from(roundsByPeriod.values()).sort((a, b) => (a.period || 0) - (b.period || 0));
+  if (rawRounds.length === 0 && sourceData?.linescores) {
+    rawRounds.push(...sourceData.linescores);
+  }
   const athleteId = profile?.id || fallbackComp?.athlete?.id || fallbackComp?.id || '';
   const dirPlayer = playerDirectoryMap[athleteId];
 

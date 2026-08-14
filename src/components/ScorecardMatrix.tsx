@@ -43,7 +43,8 @@ export function ScorecardMatrix({
     const started = playerSummary.rounds.filter((rd) => {
       const hasStrokes = rd.holes && rd.holes.some((h) => (h.strokes || 0) > 0);
       const hasDisplayVal = Boolean(rd.displayValue && rd.displayValue.trim() !== '' && rd.displayValue !== '-');
-      return hasStrokes || hasDisplayVal;
+      const hasFormattedScore = Boolean(rd.formattedScore && rd.formattedScore.trim() !== '' && rd.formattedScore !== '-');
+      return hasStrokes || hasDisplayVal || hasFormattedScore;
     });
     if (started.length === 0 && playerSummary.rounds.length > 0) {
       return [playerSummary.rounds[0]];

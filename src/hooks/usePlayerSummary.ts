@@ -1,9 +1,15 @@
 import { useState, useEffect, useMemo } from 'react';
-import { ESPNCompetitor, ESPNPlayerSummary } from '@/types/espn';
+import { ESPNCompetitor } from '@/types/espn';
 import { EspnTournamentAdapter, NormalizedPlayerSummary } from '@/lib/espn';
 
+interface CacheEntry {
+  summary: NormalizedPlayerSummary;
+  fingerprint: string;
+  timestamp: number;
+}
+
 // Global in-memory cache for player summaries during the browser session
-const playerSummaryCache = new Map<string, NormalizedPlayerSummary>();
+const playerSummaryCache = new Map<string, CacheEntry>();
 
 export function clearPlayerSummaryCache() {
   playerSummaryCache.clear();
@@ -24,24 +30,38 @@ export interface UsePlayerSummaryResult {
 
 /**
  * Custom hook to fetch, cache, and fallback-hydrate hole-by-hole ESPN player summaries.
- * Provides 0ms instant cache retrieval and synchronous competitor fallback hydration.
+ * Provides 0ms instant cache retrieval and synchronous competitor fallback hydration,
+ * while automatically re-validating in the background whenever live hole progress advances.
  */
 export function usePlayerSummary({ eventId, competitor }: UsePlayerSummaryOptions): UsePlayerSummaryResult {
   const competitorId = competitor?.athlete?.id || competitor?.id;
+  const period = competitor?.status?.period ?? 1;
+  const thru = competitor?.status?.thru ?? 0;
+  const rawScore = competitor?.score;
+  const scoreDisplay = typeof rawScore === 'string' || typeof rawScore === 'number'
+    ? String(rawScore)
+    : (rawScore && typeof rawScore === 'object' && 'displayValue' in rawScore && rawScore.displayValue !== undefined
+        ? String(rawScore.displayValue)
+        : '');
+  const isLive = competitor?.status?.type?.state === 'in';
+
   const cacheKey = eventId && competitorId ? `${eventId}_${competitorId}` : '';
+  const fingerprint = `${cacheKey}_p${period}_t${thru}_s${scoreDisplay}`;
 
   // Synchronously compute cached summary or fallback summary during render to prevent 1-frame stale state tearing
   const currentSummary = useMemo(() => {
     if (!cacheKey || !competitor) return null;
-    return playerSummaryCache.get(cacheKey) || EspnTournamentAdapter.normalizePlayerSummary(null, competitor);
+    const cached = playerSummaryCache.get(cacheKey);
+    if (cached) return cached.summary;
+    return EspnTournamentAdapter.normalizePlayerSummary(null, competitor);
   }, [cacheKey, competitor]);
 
   const [fetchedSummary, setFetchedSummary] = useState<NormalizedPlayerSummary | null>(null);
-  const [fetchedCacheKey, setFetchedCacheKey] = useState<string>('');
+  const [fetchedFingerprint, setFetchedFingerprint] = useState<string>('');
   const [isFetching, setIsFetching] = useState<boolean>(false);
 
-  // Use fetched summary if it matches current cacheKey, otherwise use currentSummary
-  const summary = (fetchedCacheKey === cacheKey && fetchedSummary) ? fetchedSummary : currentSummary;
+  // Use fetched summary if it matches current fingerprint, otherwise use currentSummary
+  const summary = (fetchedFingerprint === fingerprint && fetchedSummary) ? fetchedSummary : currentSummary;
 
   useEffect(() => {
     if (!eventId || !competitorId || !competitor || !cacheKey) {
@@ -49,14 +69,17 @@ export function usePlayerSummary({ eventId, competitor }: UsePlayerSummaryOption
       return;
     }
 
-    let isMounted = true;
+    const cached = playerSummaryCache.get(cacheKey);
+    const now = Date.now();
+    const isFresh = cached && cached.fingerprint === fingerprint && (now - cached.timestamp < (isLive ? 30000 : 300000));
 
-    // If already in memory cache, no background fetch needed
-    if (playerSummaryCache.has(cacheKey)) {
+    // If cache is fresh and fingerprint matches, skip background network fetch
+    if (isFresh) {
       setIsFetching(false);
       return;
     }
 
+    let isMounted = true;
     setIsFetching(true);
 
     async function fetchSummary() {
@@ -69,8 +92,12 @@ export function usePlayerSummary({ eventId, competitor }: UsePlayerSummaryOption
           const data = await res.json();
           if (isMounted) {
             const formatted = EspnTournamentAdapter.normalizePlayerSummary(data, competitor);
-            playerSummaryCache.set(cacheKey, formatted);
-            setFetchedCacheKey(cacheKey);
+            playerSummaryCache.set(cacheKey, {
+              summary: formatted,
+              fingerprint,
+              timestamp: Date.now(),
+            });
+            setFetchedFingerprint(fingerprint);
             setFetchedSummary(formatted);
           }
         } else {
@@ -90,7 +117,7 @@ export function usePlayerSummary({ eventId, competitor }: UsePlayerSummaryOption
     return () => {
       isMounted = false;
     };
-  }, [eventId, competitorId, competitor, cacheKey]);
+  }, [eventId, competitorId, competitor, cacheKey, fingerprint, isLive]);
 
   // isLoading is true on cold-start when no player summary exists yet
   const isLoading = summary === null;
@@ -101,4 +128,3 @@ export function usePlayerSummary({ eventId, competitor }: UsePlayerSummaryOption
     isFetching,
   };
 }
-
