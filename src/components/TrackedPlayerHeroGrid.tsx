@@ -1,15 +1,12 @@
-'use client';
-
 import React from 'react';
-import { ESPNCompetitor } from '@/types/espn';
-import { Trophy, Activity, Award } from 'lucide-react';
+import { Trophy } from 'lucide-react';
 import { GolferHeadshot } from './GolferHeadshot';
 import { NormalizedCompetitor } from '@/lib/espn';
-import { getWinnerStatus, getPlayerStatusInfo, formatThruDisplay, getGolferCumulativeScoreToPar } from '@/lib/espn';
+import { ESPNCompetitor } from '@/types/espn';
 
 interface TrackedPlayerHeroGridProps {
-  trackedCompetitors: (ESPNCompetitor | NormalizedCompetitor)[];
-  allCompetitors?: (ESPNCompetitor | NormalizedCompetitor)[];
+  trackedCompetitors: (NormalizedCompetitor | ESPNCompetitor)[];
+  allCompetitors?: (NormalizedCompetitor | ESPNCompetitor)[];
   eventStatus?: any;
   rankDisplayMap?: Map<string, string>;
   selectedPlayerId?: string;
@@ -45,22 +42,23 @@ export function TrackedPlayerHeroGrid({
         const isNormalized = 'statusInfo' in comp && 'scoreMeta' in comp;
         const normComp = isNormalized ? (comp as NormalizedCompetitor) : null;
 
-        const score = normComp ? normComp.scoreDisplay : getGolferCumulativeScoreToPar(comp, eventStatus).formattedScore;
-        const isUnderPar = normComp ? normComp.scoreMeta.isUnderPar : getGolferCumulativeScoreToPar(comp, eventStatus).isUnderPar;
-        const isOverPar = normComp ? normComp.scoreMeta.isOverPar : getGolferCumulativeScoreToPar(comp, eventStatus).isOverPar;
-        const thru = normComp ? normComp.thruDisplay : formatThruDisplay(comp, eventStatus);
+        const score = normComp?.scoreDisplay || (typeof comp.score === 'string' ? comp.score : '-');
+        const isUnderPar = normComp?.scoreMeta?.isUnderPar ?? (score.startsWith('-'));
+        const isOverPar = normComp?.scoreMeta?.isOverPar ?? (score.startsWith('+'));
+        const thru = normComp?.thruDisplay || (comp.status?.thru ? `${comp.status.thru}` : '-');
 
-        const statusInfo = normComp
-          ? normComp.statusInfo
-          : getPlayerStatusInfo(comp, eventStatus);
+        const statusInfo = normComp?.statusInfo || {
+          isCut: Boolean(comp.status?.position?.displayName === 'CUT'),
+          isWD: Boolean(comp.status?.position?.displayName === 'WD'),
+          isWinner: false,
+          badgeLabel: '',
+          statusBadge: '',
+        };
 
-        const winnerInfo = normComp
-          ? {
-              isWinner: normComp.statusInfo.isWinner,
-              isPlayoff: normComp.statusInfo.isPlayoff,
-              badgeLabel: normComp.statusInfo.badgeLabel,
-            }
-          : getWinnerStatus(comp, eventStatus, allCompetitors.length > 0 ? allCompetitors : trackedCompetitors);
+        const winnerInfo = {
+          isWinner: Boolean(statusInfo.isWinner),
+          badgeLabel: statusInfo.badgeLabel || statusInfo.statusBadge || '',
+        };
 
         const computedRank =
           rankDisplayMap?.get(playerId) ||
@@ -133,10 +131,10 @@ export function TrackedPlayerHeroGrid({
 
                 <div>
                   <h3 className="text-sm font-bold text-on-surface group-hover:text-tertiary transition truncate max-w-30">
-                    {comp.athlete.displayName}
+                    {comp.athlete?.displayName || 'Golfer'}
                   </h3>
                   <p className="text-[11px] text-on-surface-variant">
-                    Thru: <span className="font-semibold text-on-surface">{formatThruDisplay(comp, eventStatus)}</span>
+                    Thru: <span className="font-semibold text-on-surface">{thru}</span>
                   </p>
                 </div>
               </div>

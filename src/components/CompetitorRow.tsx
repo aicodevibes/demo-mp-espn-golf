@@ -1,13 +1,11 @@
-'use client';
-
 import React from 'react';
 import { ESPNCompetitor } from '@/types/espn';
-import { User } from 'lucide-react';
+import { NormalizedCompetitor } from '@/lib/espn';
 import { GolferHeadshot } from './GolferHeadshot';
-import { getPlayerStatusInfo, getScoreMeta, formatThruDisplay, getGolferCumulativeScoreToPar } from '@/lib/espn';
+import { getPlayerStatusInfo, formatThruDisplay, getGolferCumulativeScoreToPar } from '@/lib/espn';
 
 export interface CompetitorRowProps {
-  competitor: ESPNCompetitor;
+  competitor: ESPNCompetitor | NormalizedCompetitor;
   draftedBy?: string[];
   rankDisplay?: string | number;
   isSelected?: boolean;
@@ -29,13 +27,20 @@ export function CompetitorRow({
 }: CompetitorRowProps) {
   if (!competitor) return null;
 
+  const isNormalized = 'statusInfo' in competitor && 'scoreMeta' in competitor;
+  const normComp = isNormalized ? (competitor as NormalizedCompetitor) : null;
+
   const playerId = competitor.athlete?.id || competitor.id || '';
   const displayName = competitor.athlete?.displayName || 'Golfer';
-  const headshotUrl = competitor.athlete?.headshot?.href;
-  const { formattedScore: score, isUnderPar, isOverPar } = getGolferCumulativeScoreToPar(competitor, eventStatus);
+  const headshotUrl = competitor.athlete?.headshot?.href || normComp?.headshotUrls?.[0];
+
+  const score = normComp?.scoreDisplay || getGolferCumulativeScoreToPar(competitor, eventStatus).formattedScore;
+  const isUnderPar = normComp?.scoreMeta?.isUnderPar ?? getGolferCumulativeScoreToPar(competitor, eventStatus).isUnderPar;
+  const isOverPar = normComp?.scoreMeta?.isOverPar ?? getGolferCumulativeScoreToPar(competitor, eventStatus).isOverPar;
+  const thru = normComp?.thruDisplay || formatThruDisplay(competitor, eventStatus);
 
   const isDrafted = draftedBy.length > 0;
-  const statusInfo = getPlayerStatusInfo(competitor, eventStatus);
+  const statusInfo = normComp?.statusInfo || getPlayerStatusInfo(competitor, eventStatus);
 
   const displayRank = rankDisplay !== undefined
     ? rankDisplay
@@ -105,7 +110,7 @@ export function CompetitorRow({
           </div>
 
           <span className="text-[10px] text-on-surface-variant">
-            Thru: <strong className="text-on-surface">{formatThruDisplay(competitor, eventStatus)}</strong>
+            Thru: <strong className="text-on-surface">{thru}</strong>
           </span>
         </div>
       </div>

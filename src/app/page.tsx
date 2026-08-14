@@ -225,9 +225,9 @@ export default function DashboardPage() {
     return EspnTournamentAdapter.normalizeTournamentSnapshot(
       { events },
       activeEventObj,
-      { activeEventId: selectedViewerEventId }
+      { activeEventId: selectedViewerEventId, playerDirectoryMap: firestorePlayerMap }
     );
-  }, [events, activeEventObj, selectedViewerEventId]);
+  }, [events, activeEventObj, selectedViewerEventId, firestorePlayerMap]);
 
   const fieldEvaluation = useMemo(() => {
     return evaluateFieldLeaderboard({
@@ -240,29 +240,15 @@ export default function DashboardPage() {
 
   // Vercel Performance Rule: rerender-memo & js-index-maps
   const displayCompetitors = useMemo(() => {
-    const compMap = new Map(competitors.map((c) => [c.athlete?.id || c.id, c]));
+    const compMap = normalizedTournament.competitorMap;
 
     // 1. Top View: 1st through 4th golfer in sorted tournament leaderboard
     if (isTopView) {
       if (fieldEvaluation.top10Leaders.length > 0) {
         return fieldEvaluation.top10Leaders.slice(0, 4);
       }
-      if (competitors.length > 0) {
-        return competitors.slice(0, 4);
-      }
-      if (trackedPlayers.length > 0) {
-        return trackedPlayers.slice(0, 4).map((p) => {
-          const directoryPlayer = firestorePlayerMap[p.playerId] || DEFAULT_PLAYER_DIRECTORY_MAP[p.playerId];
-          return (
-            compMap.get(p.playerId) ||
-            createSyntheticCompetitor(
-              p.playerId,
-              p.name || directoryPlayer?.name || `Golfer (${p.playerId})`,
-              p.headshotUrl || directoryPlayer?.headshotUrl,
-              p.country
-            )
-          );
-        });
+      if (normalizedTournament.competitors.length > 0) {
+        return normalizedTournament.competitors.slice(0, 4);
       }
       return [];
     }
@@ -270,21 +256,33 @@ export default function DashboardPage() {
     // 2. Selected Participant View: display their drafted golfers
     if (activeParticipant && activeParticipant.draftedPlayerIds && activeParticipant.draftedPlayerIds.length > 0) {
       return activeParticipant.draftedPlayerIds.map((playerId) => {
-        const directoryPlayer = firestorePlayerMap[playerId] || DEFAULT_PLAYER_DIRECTORY_MAP[playerId];
-        return (
-          compMap.get(playerId) ||
-          createSyntheticCompetitor(
-            playerId,
-            directoryPlayer?.name || `Golfer (${playerId})`,
-            directoryPlayer?.headshotUrl,
-            ''
-          )
+        const existing = compMap.get(playerId);
+        if (existing) return existing;
+        const dirPlayer = firestorePlayerMap[playerId] || DEFAULT_PLAYER_DIRECTORY_MAP[playerId];
+        return EspnTournamentAdapter.normalizeCompetitor(
+          {
+            id: playerId,
+            score: '-',
+            status: {
+              thru: 0,
+              position: { displayName: '-' },
+              type: { state: 'pre', completed: false, description: 'Scheduled' },
+            },
+            athlete: {
+              id: playerId,
+              displayName: dirPlayer?.name || `Golfer (${playerId})`,
+              headshot: { href: dirPlayer?.headshotUrl || '' },
+            },
+          } as ESPNCompetitor,
+          activeEvent?.status,
+          [],
+          firestorePlayerMap
         );
       });
     }
 
-    return competitors.slice(0, 4);
-  }, [competitors, activeParticipant, trackedPlayers, isTopView, fieldEvaluation]);
+    return normalizedTournament.competitors.slice(0, 4);
+  }, [normalizedTournament, activeParticipant, isTopView, fieldEvaluation, firestorePlayerMap, activeEvent]);
 
   // Auto-select 1st golfer of newly displayed participant watchlist
   useEffect(() => {
