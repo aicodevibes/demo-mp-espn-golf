@@ -123,7 +123,15 @@ export function generateTournamentActivityEvents(
       const golferName = comp.athlete?.displayName || comp.athlete?.shortName || `Golfer (${golferId})`;
       const drafterStr = ` • Drafted by ${drafters.join(', ')}`;
 
-      const summary = playerSummaries?.get(golferId);
+      let summary: any = null;
+      if (playerSummaries instanceof Map) {
+        summary = playerSummaries.get(golferId);
+      } else if (playerSummaries && typeof playerSummaries === 'object') {
+        const sumId = (playerSummaries as any).id || (playerSummaries as any).athlete?.id;
+        if (sumId === golferId || !sumId) {
+          summary = playerSummaries;
+        }
+      }
       const roundSources: any[] = summary?.rounds || comp.linescores || comp.rounds || [];
 
       if (Array.isArray(roundSources)) {
