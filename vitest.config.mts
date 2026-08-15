@@ -8,7 +8,7 @@ export default defineConfig({
     environment: 'node',
     globals: true,
     testTimeout: 30000,
-    pool: 'threads',
+    pool: 'forks',
   },
   resolve: {
     alias: {

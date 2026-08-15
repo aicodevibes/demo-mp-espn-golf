@@ -73,7 +73,7 @@ describe('Scoring Engine (lib/scoring.ts)', () => {
     expect(dayMoney).toHaveLength(4);
     // Round 1 low score is 68 (tied between Sam Burns [Pat] and Cameron Young [Greg])
     const r1 = dayMoney[0];
-    expect(r1.lowScore).toBe(68);
+    expect(r1.lowScore).toBe('68(-2)');
     expect(r1.winners).toHaveLength(2);
     // 100 pool / 2 = 50
     expect(r1.winners[0].payout).toBe(50);
@@ -299,7 +299,7 @@ describe('Scoring Engine (lib/scoring.ts)', () => {
       expect(r1.winners.some((w) => w.golferId === 'g4th')).toBe(false);
 
       // R3 low score of 68 (shot by g4th) SHOULD win Day Money for Pat
-      expect(r3.lowScore).toBe(68);
+      expect(r3.lowScore).toBe('68(-2)');
       expect(r3.winners.some((w) => w.golferId === 'g4th')).toBe(true);
     });
   });

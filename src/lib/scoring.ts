@@ -310,26 +310,48 @@ export function calculateDayMoneyWinners(
     // Tie-breaker sort: most finished holes first (thruNum descending: 18 / F > 15 > 2)
     leaders.sort((a, b) => b.thruNum - a.thruNum);
 
-    // Round is completed if all leaders (and active event) have completed round rd
-    const isRoundDone = leaders.every((l) => l.isCompleted || l.thruNum === 18) &&
-      (eventStatus?.type?.state === 'post' || (eventStatus?.period && eventStatus.period > rd) || leaders.every((l) => l.isCompleted));
+    // Round is completed if:
+    // 1. ESPN tournament state is post-tournament ('post' / completed), OR
+    // 2. ESPN tournament period has advanced past this round (eventStatus.period > rd), OR
+    // 3. ALL active drafted candidates for this round have finished 18 holes
+    const allCandidatesFinished = candidates.length > 0 && candidates.every((c) => c.isCompleted || c.thruNum === 18);
+    const isRoundDone = Boolean(
+      eventStatus?.type?.state === 'post' ||
+      (typeof eventStatus?.period === 'number' && eventStatus.period > rd) ||
+      allCandidatesFinished
+    );
 
     const splitPayout = Math.round((dayMoneyPool / leaders.length) * 100) / 100;
 
-    const lowScoreDisplay = isRoundDone && leaders[0]?.roundStrokes
-      ? leaders[0].roundStrokes
-      : leaders[0]?.formattedScore || 'E';
+    const leader0 = leaders[0];
+    const lowScoreDisplay = isRoundDone
+      ? (leader0?.roundStrokes && leader0.formattedScore
+          ? `${leader0.roundStrokes}(${leader0.formattedScore})`
+          : leader0?.roundStrokes !== null && leader0?.roundStrokes !== undefined
+          ? `${leader0.roundStrokes}`
+          : leader0?.formattedScore || 'E')
+      : (leader0?.formattedScore || 'E');
 
-    const winners: DayMoneyWinner[] = leaders.map((l) => ({
-      participantId: l.owner.id,
-      participantName: l.owner.name,
-      golferId: l.golferId,
-      golferName: l.golferName,
-      dailyScore: l.roundStrokes && l.thruNum === 18 ? l.roundStrokes : l.formattedScore,
-      payout: isRoundDone ? splitPayout : 0,
-      thru: l.thruNum === 18 ? 'F' : l.thruNum > 0 ? `${l.thruNum}` : '-',
-      isCompleted: l.isCompleted,
-    }));
+    const winners: DayMoneyWinner[] = leaders.map((l) => {
+      const dailyScoreDisplay = isRoundDone
+        ? (l.roundStrokes && l.formattedScore
+            ? `${l.roundStrokes}(${l.formattedScore})`
+            : l.roundStrokes !== null && l.roundStrokes !== undefined
+            ? `${l.roundStrokes}`
+            : l.formattedScore)
+        : l.formattedScore;
+
+      return {
+        participantId: l.owner.id,
+        participantName: l.owner.name,
+        golferId: l.golferId,
+        golferName: l.golferName,
+        dailyScore: dailyScoreDisplay,
+        payout: isRoundDone ? splitPayout : 0,
+        thru: l.thruNum === 18 ? 'F' : l.thruNum > 0 ? `${l.thruNum}` : '-',
+        isCompleted: isRoundDone,
+      };
+    });
 
     results.push({
       round: rd,
