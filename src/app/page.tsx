@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Header } from '@/components/Header';
 import { TrackedPlayerHeroGrid } from '@/components/TrackedPlayerHeroGrid';
 import { ScorecardMatrix } from '@/components/ScorecardMatrix';
@@ -12,52 +12,32 @@ import { DayMoneyWinners } from '@/components/DayMoneyWinners';
 import { WagerSettlementLedger } from '@/components/WagerSettlementLedger';
 import { LiveActivityFeed } from '@/components/LiveActivityFeed';
 import { ChevronDown, ChevronUp, Trophy } from 'lucide-react';
-import { useAuth } from '@/context/AuthContext';
-import {
-  useActiveConfig,
-  useTrackedPlayers,
-  useAllPlayers,
-  useParticipants,
-  useContestConfig,
-  syncPlayersToFirestore,
-} from '@/lib/firebase/firestore';
-import { ESPNEvent, ESPNCompetitor } from '@/types/espn';
-import {
-  resolveActiveEvent,
-  resolveEventCompetitorsWithFallback,
-  DEFAULT_PLAYER_DIRECTORY_MAP,
-  readScoreboardCache,
-  writeScoreboardCache,
-  EspnTournamentAdapter,
-} from '@/lib/espn';
-import { evaluateContest } from '@/lib/contestEngine';
-import { evaluateFieldLeaderboard } from '@/lib/domain';
-import { useLeaderboardPolling } from '@/hooks/useLeaderboardPolling';
+import { useEventContext } from '@/context/EventContext';
+import { DEFAULT_PLAYER_DIRECTORY_MAP, EspnTournamentAdapter } from '@/lib/espn';
+import { ESPNCompetitor } from '@/types/espn';
 import { usePlayerSummary } from '@/hooks/usePlayerSummary';
 
 export default function DashboardPage() {
-  const { user } = useAuth();
-  const { config } = useActiveConfig();
-  const { players: trackedPlayers } = useTrackedPlayers();
-  const { playerMap: firestorePlayerMap } = useAllPlayers();
+  const {
+    events,
+    activeEvent,
+    selectedEventId,
+    isHistoricalView,
+    setEventOverride,
+    competitors,
+    tournament,
+    fieldEvaluation,
+    contestEvaluation,
+    participants,
+    contestConfig,
+    firestorePlayerMap,
+    loading: eventContextLoading,
+  } = useEventContext();
 
-  const [events, setEvents] = useState<ESPNEvent[]>([]);
-  const [activeEventObj, setActiveEventObj] = useState<ESPNEvent | null>(null);
-  const [competitors, setCompetitors] = useState<ESPNCompetitor[]>([]);
-  const [loadingLeaderboard, setLoadingLeaderboard] = useState<boolean>(true);
-
+  // Local UI-only state
   const [selectedPlayerId, setSelectedPlayerId] = useState<string>('');
   const [selectedParticipantId, setSelectedParticipantId] = useState<string>('top_view');
-
   const [isWatchlistCollapsed, setIsWatchlistCollapsed] = useState<boolean>(false);
-
-  // Safely hydrate scoreboard cache client-side after mount to prevent hydration mismatch
-  useEffect(() => {
-    const cachedEvents = readScoreboardCache();
-    if (cachedEvents && cachedEvents.length > 0) {
-      setEvents(cachedEvents);
-    }
-  }, []);
 
   // Load watchlist collapse preference client-side to prevent hydration mismatch
   useEffect(() => {
@@ -79,118 +59,12 @@ export default function DashboardPage() {
     });
   };
 
-  // 1. Fetch ESPN Scoreboard (Events List) & Revalidate Local Cache
-  useEffect(() => {
-    async function fetchScoreboard() {
-      try {
-        const res = await fetch('/api/espn/scoreboard');
-        if (res.ok) {
-          const data = await res.json();
-          const fetchedEvents = data.events || [];
-          setEvents(fetchedEvents);
-          writeScoreboardCache(fetchedEvents);
-        }
-      } catch (err) {
-        console.error('Failed to fetch ESPN Scoreboard:', err);
-      }
-    }
-    fetchScoreboard();
-  }, []);
-
-  // 2. Set Active Event ID & Viewer Override
-  const [viewerEventIdOverride, setViewerEventIdOverride] = useState<string>('');
-  const defaultEventId = useMemo(() => {
-    const live = events.find(
-      (e) =>
-        e.status?.type?.state === 'in' ||
-        e.status?.type?.description?.toLowerCase().includes('in progress') ||
-        e.status?.type?.detail?.toLowerCase().includes('in progress')
-    );
-    return live?.id || events[0]?.id || '';
-  }, [events]);
-
-  const effectiveActiveEventId = config?.activeEventId || defaultEventId;
-  const selectedViewerEventId = viewerEventIdOverride || effectiveActiveEventId;
-  const isHistoricalView = Boolean(viewerEventIdOverride && viewerEventIdOverride !== config?.activeEventId);
-
-  const activeEvent = useMemo(() => {
-    return resolveActiveEvent(events, activeEventObj, selectedViewerEventId);
-  }, [events, activeEventObj, selectedViewerEventId]);
-
-  const { config: contestConfig, loading: contestConfigLoading } = useContestConfig(selectedViewerEventId);
-  const { participants, loading: participantsLoading } = useParticipants(selectedViewerEventId);
-
-  // Auto-select 1st participant when loaded
+  // Auto-select 1st participant when loaded if needed
   useEffect(() => {
     if (participants.length > 0 && !selectedParticipantId) {
       setSelectedParticipantId(participants[0].id);
     }
   }, [participants, selectedParticipantId]);
-
-  // 3. Fetch Selected Event Leaderboard — stable callback so polling can call it without re-creating on every render
-  const fetchLeaderboard = useCallback(async () => {
-    if (!selectedViewerEventId) return;
-    
-    // Only show loading skeleton on initial fetch when competitors are empty
-    setCompetitors((currentComps) => {
-      if (currentComps.length === 0) {
-        setLoadingLeaderboard(true);
-      }
-      return currentComps;
-    });
-
-    try {
-      const res = await fetch(`/api/espn/leaderboard?event=${selectedViewerEventId}`);
-
-      if (res.ok) {
-        const data = await res.json();
-        if (data.events && data.events[0]) {
-          setActiveEventObj(data.events[0]);
-          const comps = data.events[0]?.competitions?.[0]?.competitors || [];
-          const resolvedComps = resolveEventCompetitorsWithFallback(comps, []);
-          setCompetitors(resolvedComps);
-          syncPlayersToFirestore(resolvedComps);
-
-          // Auto-select first tracked player or first field competitor if none selected yet
-          if (resolvedComps.length > 0) {
-            setSelectedPlayerId((prev) => {
-              if (prev) return prev;
-              const firstTracked = resolvedComps.find((c: ESPNCompetitor) =>
-                trackedPlayers.some((p) => p.playerId === (c.athlete?.id || c.id))
-              );
-              return firstTracked ? firstTracked.athlete?.id || firstTracked.id : resolvedComps[0].athlete?.id || resolvedComps[0].id;
-            });
-          }
-        }
-      }
-    } catch (err) {
-      console.error('Failed to fetch ESPN Leaderboard:', err);
-    } finally {
-      setLoadingLeaderboard(false);
-    }
-  }, [selectedViewerEventId, trackedPlayers]);
-
-  // Initial leaderboard fetch on active event change — clear competitors immediately so old event data never bleeds through
-  useEffect(() => {
-    setCompetitors([]);
-    setActiveEventObj(null);
-    fetchLeaderboard();
-  }, [selectedViewerEventId, fetchLeaderboard]);
-
-  // 3a. Poll leaderboard every 5 minutes while tab is visible; re-fetch immediately on tab return
-  useLeaderboardPolling({ activeEventId: selectedViewerEventId, onPoll: fetchLeaderboard });
-
-
-  // Evaluate entire contest via deep ContestEngine seam
-  const contestEvaluation = useMemo(() => {
-    return evaluateContest(participants, competitors, contestConfig, activeEvent?.status, firestorePlayerMap);
-  }, [participants, competitors, contestConfig, activeEvent, firestorePlayerMap]);
-
-  const participantStandings = contestEvaluation.standings;
-  const dayMoneyResults = contestEvaluation.dayMoneyResults;
-  const wagerLedger = contestEvaluation.wagerLedger;
-  const playerDraftedByMap = contestEvaluation.playerDraftedByMap;
-
 
   const isTopView = selectedParticipantId === 'top_view' || !selectedParticipantId;
 
@@ -200,34 +74,17 @@ export default function DashboardPage() {
     return participants.find((p) => p.id === selectedParticipantId) || null;
   }, [participants, selectedParticipantId, isTopView]);
 
-  const normalizedTournament = useMemo(() => {
-    return EspnTournamentAdapter.normalizeTournamentSnapshot(
-      { events },
-      activeEventObj,
-      { activeEventId: selectedViewerEventId, playerDirectoryMap: firestorePlayerMap }
-    );
-  }, [events, activeEventObj, selectedViewerEventId, firestorePlayerMap]);
-
-  const fieldEvaluation = useMemo(() => {
-    return evaluateFieldLeaderboard({
-      tournament: normalizedTournament,
-      competitors,
-      participants,
-      eventStatus: normalizedTournament.rawEvent?.status || activeEvent?.status,
-    });
-  }, [normalizedTournament, competitors, participants, activeEvent]);
-
   // Vercel Performance Rule: rerender-memo & js-index-maps
   const displayCompetitors = useMemo(() => {
-    const compMap = normalizedTournament.competitorMap;
+    const compMap = tournament.competitorMap;
 
     // 1. Top View: 1st through 4th golfer in sorted tournament leaderboard
     if (isTopView) {
       if (fieldEvaluation.top10Leaders.length > 0) {
         return fieldEvaluation.top10Leaders.slice(0, 4);
       }
-      if (normalizedTournament.competitors.length > 0) {
-        return normalizedTournament.competitors.slice(0, 4);
+      if (tournament.competitors.length > 0) {
+        return tournament.competitors.slice(0, 4);
       }
       return [];
     }
@@ -260,8 +117,8 @@ export default function DashboardPage() {
       });
     }
 
-    return normalizedTournament.competitors.slice(0, 4);
-  }, [normalizedTournament, activeParticipant, isTopView, fieldEvaluation, firestorePlayerMap, activeEvent]);
+    return tournament.competitors.slice(0, 4);
+  }, [tournament, activeParticipant, isTopView, fieldEvaluation, firestorePlayerMap, activeEvent]);
 
   // Auto-select 1st golfer of newly displayed participant watchlist
   useEffect(() => {
@@ -277,21 +134,18 @@ export default function DashboardPage() {
   }, [displayCompetitors, selectedPlayerId]);
 
   const selectedCompetitor = useMemo(() => {
-    return normalizedTournament.competitorMap.get(selectedPlayerId) || displayCompetitors[0] || null;
-  }, [normalizedTournament, selectedPlayerId, displayCompetitors]);
+    return tournament.competitorMap.get(selectedPlayerId) || displayCompetitors[0] || null;
+  }, [tournament, selectedPlayerId, displayCompetitors]);
 
-  const selectedCompetitorId = selectedCompetitor?.athlete?.id || selectedCompetitor?.id;
-
-  // 4. Fetch Hole-by-Hole Player Summary via usePlayerSummary custom hook
+  // Fetch Hole-by-Hole Player Summary via usePlayerSummary custom hook
   const {
     summary: playerSummary,
     isLoading: loadingSummary,
     isFetching: isFetchingSummary,
   } = usePlayerSummary({
-    eventId: selectedViewerEventId,
+    eventId: selectedEventId,
     competitor: selectedCompetitor,
   });
-
 
   return (
     <div className="min-h-screen bg-surface text-on-surface flex flex-col">
@@ -300,8 +154,8 @@ export default function DashboardPage() {
         eventName={activeEvent?.name}
         eventObj={activeEvent || undefined}
         events={events}
-        selectedEventId={selectedViewerEventId}
-        onSelectEvent={setViewerEventIdOverride}
+        selectedEventId={selectedEventId}
+        onSelectEvent={setEventOverride}
       />
 
       {/* Historical Archive Banner */}
@@ -310,10 +164,10 @@ export default function DashboardPage() {
           <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 flex flex-wrap items-center justify-between gap-3 shadow-xs">
             <div className="flex items-center gap-2 text-xs font-bold">
               <Trophy className="w-4 h-4 text-amber-600 dark:text-amber-400 shrink-0" />
-              <span>Viewing Historical Archive: {activeEvent?.name || 'Tournament'} ({selectedViewerEventId})</span>
+              <span>Viewing Historical Archive: {activeEvent?.name || 'Tournament'} ({selectedEventId})</span>
             </div>
             <button
-              onClick={() => setViewerEventIdOverride('')}
+              onClick={() => setEventOverride('')}
               className="text-[11px] font-extrabold px-2.5 py-1 rounded bg-amber-500 text-amber-950 hover:bg-amber-400 transition cursor-pointer"
             >
               Return to Live Event
@@ -324,16 +178,20 @@ export default function DashboardPage() {
 
       {/* Main Content Dashboard Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 lg:px-8 py-6 space-y-8">
-
         {/* Section 1: Participant View Selector & Watchlist Hero Grid */}
         <section className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3 bg-surface-container-low p-3.5 rounded-xl border border-outline-variant/60">
             <div className="flex items-center gap-2">
               <h2 className="text-sm font-black uppercase tracking-wider text-on-surface">
-                {isTopView ? 'Top View Watchlist (1st - 4th Golfers)' : activeParticipant ? `${activeParticipant.name}'s Watchlist` : 'Participant Watchlist'}
+                {isTopView
+                  ? 'Top View Watchlist (1st - 4th Golfers)'
+                  : activeParticipant
+                  ? `${activeParticipant.name}'s Watchlist`
+                  : 'Participant Watchlist'}
               </h2>
               <span className="text-xs font-bold text-on-surface-variant bg-surface-container-high px-2 py-0.5 rounded-full border border-outline-variant/60">
-                {displayCompetitors.length} Golfer{displayCompetitors.length === 1 ? '' : 's'} {isWatchlistCollapsed ? '• Hidden' : ''}
+                {displayCompetitors.length} Golfer{displayCompetitors.length === 1 ? '' : 's'}{' '}
+                {isWatchlistCollapsed ? '• Hidden' : ''}
               </span>
             </div>
 
@@ -350,12 +208,17 @@ export default function DashboardPage() {
                   className="bg-surface-container-lowest border border-outline-variant rounded-lg px-3 py-1.5 text-xs font-bold text-on-surface outline-none focus:border-tertiary shadow-xs cursor-pointer"
                 >
                   <option value="top_view">Top View (1st - 4th Golfers)</option>
-                  {participantsLoading ? (
-                    <option value="" disabled>Loading Participants...</option>
+                  {eventContextLoading ? (
+                    <option value="" disabled>
+                      Loading Participants...
+                    </option>
                   ) : (
                     participants.map((p) => (
                       <option key={p.id} value={p.id}>
-                        {p.name} {p.draftedPlayerIds.length > 0 ? `(${p.draftedPlayerIds.length} Golfers)` : '(No Roster)'}
+                        {p.name}{' '}
+                        {p.draftedPlayerIds.length > 0
+                          ? `(${p.draftedPlayerIds.length} Golfers)`
+                          : '(No Roster)'}
                       </option>
                     ))
                   )}
@@ -364,7 +227,7 @@ export default function DashboardPage() {
 
               <button
                 onClick={toggleWatchlistCollapse}
-                title={isWatchlistCollapsed ? "Expand Watchlist Section" : "Collapse Watchlist Section"}
+                title={isWatchlistCollapsed ? 'Expand Watchlist Section' : 'Collapse Watchlist Section'}
                 className="p-1.5 text-on-surface-variant hover:text-on-surface bg-surface-container-lowest hover:bg-surface-container-high rounded-lg border border-outline-variant transition cursor-pointer flex items-center gap-1 text-xs font-bold"
               >
                 {isWatchlistCollapsed ? (
@@ -382,7 +245,7 @@ export default function DashboardPage() {
           {!isWatchlistCollapsed && (
             <TrackedPlayerHeroGrid
               trackedCompetitors={displayCompetitors}
-              allCompetitors={normalizedTournament.competitors}
+              allCompetitors={tournament.competitors}
               eventStatus={activeEvent?.status}
               rankDisplayMap={fieldEvaluation.rankDisplayMap}
               selectedPlayerId={selectedPlayerId || selectedCompetitor?.athlete?.id || selectedCompetitor?.id}
@@ -406,9 +269,9 @@ export default function DashboardPage() {
         {/* Section 3: Official Participant Standings */}
         <section>
           <ParticipantStandings
-            standings={participantStandings}
+            standings={contestEvaluation.standings}
             contestConfig={contestConfig}
-            loading={loadingLeaderboard || participantsLoading || contestConfigLoading}
+            loading={eventContextLoading}
             onSelectParticipant={(pId) => setSelectedParticipantId(pId)}
             onSelectPlayer={(pId) => setSelectedPlayerId(pId)}
           />
@@ -454,10 +317,10 @@ export default function DashboardPage() {
         {/* Section 6: Day Money Winners */}
         <section>
           <DayMoneyWinners
-            dayMoneyResults={dayMoneyResults}
+            dayMoneyResults={contestEvaluation.dayMoneyResults}
             contestConfig={contestConfig}
             eventStatus={activeEvent?.status}
-            loading={loadingLeaderboard || participantsLoading || contestConfigLoading}
+            loading={eventContextLoading}
           />
         </section>
 
@@ -468,7 +331,7 @@ export default function DashboardPage() {
             competitors={competitors}
             contestConfig={contestConfig}
             eventStatus={activeEvent?.status}
-            selectedEventId={selectedViewerEventId}
+            selectedEventId={selectedEventId}
             playerSummary={playerSummary}
           />
         </section>
@@ -480,7 +343,7 @@ export default function DashboardPage() {
             competitors={competitors}
             contestConfig={contestConfig}
             eventStatus={activeEvent?.status}
-            wagerLedger={wagerLedger}
+            wagerLedger={contestEvaluation.wagerLedger}
           />
         </section>
       </main>
