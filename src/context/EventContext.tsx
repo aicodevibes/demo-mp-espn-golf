@@ -139,7 +139,7 @@ const EventContext = createContext<EventContextState>({
   refreshLeaderboard: async () => {},
 });
 
-const LEADERBOARD_POLL_INTERVAL_MS = 45 * 1000;
+const LEADERBOARD_POLL_INTERVAL_MS = 5 * 60 * 1000;
 
 interface EventContextProviderProps {
   children: ReactNode;
