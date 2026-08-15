@@ -261,13 +261,25 @@ export function calculateDayMoneyWinners(
 
       const ls = comp.linescores?.find((l) => l.period === rd);
       const isRoundDone = isRoundCompleted(comp, rd, eventStatus);
+      const playerPeriod = comp.status?.period;
       const thru = comp.status?.thru;
+      const isCurrentRound = !playerPeriod || playerPeriod === rd;
+      const isPastRound = typeof playerPeriod === 'number' && playerPeriod > rd;
+      const isEventPastRound = typeof eventStatus?.period === 'number' && eventStatus.period > rd;
 
       let thruNum = 0;
-      if (isRoundDone || thru === 18 || comp.status?.type?.completed) {
+      if (isRoundDone || isPastRound || isEventPastRound) {
         thruNum = 18;
-      } else if (typeof thru === 'number' && thru > 0) {
-        thruNum = thru;
+      } else if (isCurrentRound) {
+        if (thru === 18 || comp.status?.type?.completed) {
+          thruNum = 18;
+        } else if (typeof thru === 'number' && thru > 0) {
+          thruNum = thru;
+        } else if (ls?.linescores && Array.isArray(ls.linescores) && ls.linescores.length > 0) {
+          thruNum = ls.linescores.length;
+        } else if (ls && typeof ls.value === 'number' && ls.value >= 40) {
+          thruNum = 18;
+        }
       } else if (ls && typeof ls.value === 'number' && ls.value >= 40) {
         thruNum = 18;
       }
@@ -287,7 +299,7 @@ export function calculateDayMoneyWinners(
           roundStrokes: roundScoreRes.roundStrokes,
           formattedScore: roundScoreRes.formattedScore,
           thruNum,
-          isCompleted: isRoundDone,
+          isCompleted: isRoundDone || thruNum === 18,
         });
       });
     });

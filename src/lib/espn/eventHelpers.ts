@@ -628,28 +628,40 @@ export function isRoundCompleted(
     if (round > 2 && statusInfo.isCut) return false;
   }
 
+  // 1. If the player or tournament has already advanced past this round with full strokes (>= 40), it is completed.
+  const playerPeriod = comp.status?.period;
+  const eventPeriod = eventStatus?.period;
+  if (
+    ((typeof playerPeriod === 'number' && playerPeriod > round) ||
+      (typeof eventPeriod === 'number' && eventPeriod > round)) &&
+    ls.value >= 40
+  ) {
+    return true;
+  }
+
+  const isCurrentRound = !playerPeriod || playerPeriod === round;
   const thru = comp.status?.thru;
   const state = comp.status?.type?.state || eventStatus?.type?.state;
   const completed = comp.status?.type?.completed || eventStatus?.type?.completed;
 
-  // 1. Explicit in-progress check: if status.thru is explicitly less than 18 (and >= 0), it's not completed.
-  if (typeof thru === 'number' && thru >= 0 && thru < 18) {
+  // 2. Explicit in-progress check for the active round: if status.thru is explicitly less than 18, it's not completed.
+  if (isCurrentRound && typeof thru === 'number' && thru >= 0 && thru < 18) {
     return false;
   }
 
-  // 2. If status.type.completed is explicitly false or state is in/pre (and thru is not 18), it's not completed.
-  if (completed === false || state === 'in' || state === 'pre') {
+  // 3. If status.type.completed is explicitly false or state is in/pre (and thru is not 18), it's not completed.
+  if (isCurrentRound && (completed === false || state === 'in' || state === 'pre')) {
     if (thru !== 18) {
       return false;
     }
   }
 
-  // 3. Check if explicit hole linescores exist and have fewer than 18 holes
+  // 4. Check if explicit hole linescores exist and have fewer than 18 holes
   if (ls.linescores && Array.isArray(ls.linescores) && ls.linescores.length < 18) {
     return false;
   }
 
-  // 4. A completed 18-hole round has full round strokes (>= 40)
+  // 5. A completed 18-hole round has full round strokes (>= 40)
   if (ls.value >= 40) {
     return true;
   }
