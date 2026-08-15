@@ -61,7 +61,7 @@ export function DayMoneyWinners({ dayMoneyResults, contestConfig, eventStatus, l
                       ? 'text-tertiary bg-tertiary/15 border-tertiary/30'
                       : 'text-secondary bg-secondary/15 border-secondary/30'
                   }`}>
-                    {isRoundComplete ? 'Low' : 'In-Progress Low'}: {result.lowScore}
+                    {isRoundComplete ? 'Low' : 'Current Low'}: {result.lowScore}
                   </span>
                 ) : (
                   <span className="text-[10px] text-on-surface-variant bg-surface-container px-2 py-0.5 rounded">
@@ -79,9 +79,6 @@ export function DayMoneyWinners({ dayMoneyResults, contestConfig, eventStatus, l
                   </div>
                 ) : (
                   result.winners.map((w, idx) => {
-                    const projectedPayout = isTie ? result.totalPool / result.winners.length : result.totalPool;
-                    const displayPayout = isRoundComplete ? w.payout : projectedPayout;
-
                     return (
                       <div
                         key={`${w.participantId}-${idx}`}
@@ -102,12 +99,25 @@ export function DayMoneyWinners({ dayMoneyResults, contestConfig, eventStatus, l
                         </div>
 
                         <div className="text-right shrink-0">
-                          <span className={`font-black text-xs ${isRoundComplete ? 'text-tertiary' : 'text-secondary'}`}>
-                            ${displayPayout.toFixed(2)}
-                          </span>
-                          <div className="text-[9px] font-semibold text-on-surface-variant/70">
-                            {isRoundComplete ? (isTie ? 'Tie Split' : 'Winner') : 'Projected'}
-                          </div>
+                          {isRoundComplete ? (
+                            <>
+                              <span className="font-black text-xs text-tertiary">
+                                ${w.payout.toFixed(2)}
+                              </span>
+                              <div className="text-[9px] font-semibold text-on-surface-variant/70">
+                                {isTie ? 'Tie Split' : 'Winner'}
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <span className="font-black text-xs text-secondary font-mono">
+                                —
+                              </span>
+                              <div className="text-[9px] font-semibold text-on-surface-variant/70">
+                                {isTie ? 'Co-Leader' : 'Current Leader'}
+                              </div>
+                            </>
+                          )}
                         </div>
                       </div>
                     );
