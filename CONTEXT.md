@@ -15,7 +15,7 @@
 - **ESPN Tournament Adapter**: Unified deep adapter that encapsulates raw ESPN scoreboard parsing, active event resolution, 36-hole cut detection (`linescores.length === 2`), 2-stage CDN headshot fallbacks, and pre-indexed O(1) competitor lookups into a single snapshot pipeline.
 - **Normalized Competitor Snapshot**: Pre-evaluated competitor model with embedded status metadata (`isCut`, `isWD`, `isDQ`, `isWinner`, `isPlayoff`, `statusBadge`), pre-computed scores to par, formatted thru displays, and resolved multi-stage headshots.
 - **Normalized Player Summary Snapshot**: Structured 18-hole scorecard view model with pre-calculated front/back/total pars, stroke totals, hole relative scores, and badge classifications.
-- **Event State Context Provider**: Unified real-time subscriber and domain context provider that manages single-instance Firestore subscriptions for active event configuration, contest settings, and participant rosters.
+- **Event State Context Provider**: Deep orchestration module that manages single-instance Firestore subscriptions, ESPN scoreboard and leaderboard fetching with 5-minute polling, scoreboard caching, tournament normalization via the ESPN Tournament Adapter, Field Leaderboard Evaluator categorization, and Contest Engine evaluation in a single context provider — exposing one `useEventContext()` hook to all consuming routes. Owns the viewer event override for historical archive navigation.
 
 
 ### Scoring & Financial Terms
