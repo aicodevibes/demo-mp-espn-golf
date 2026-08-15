@@ -1,10 +1,8 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import Link from 'next/link';
-import { useActiveConfig, useContestConfig, useParticipants, useAllPlayers } from '@/lib/firebase/firestore';
-import { evaluateContest } from '@/lib/contestEngine';
-import { ESPNCompetitor } from '@/types/espn';
+import { useEventContext } from '@/context/EventContext';
 import { GolferHeadshot } from '@/components/GolferHeadshot';
 import {
   ArrowLeft,
@@ -20,45 +18,14 @@ import {
 const GREEDY_ENTRY_FEE = 50;
 
 export default function GreedyPage() {
-  const { config: appConfig, loading: appConfigLoading } = useActiveConfig();
-  const activeEventId = appConfig?.activeEventId || '';
-
-  const { config: contestConfig, loading: configLoading } = useContestConfig(activeEventId);
-  const { participants, loading: participantsLoading } = useParticipants(activeEventId);
-  const { playerMap: firestorePlayerMap } = useAllPlayers();
-
-  const [competitors, setCompetitors] = useState<ESPNCompetitor[]>([]);
-  const [loadingCompetitors, setLoadingCompetitors] = useState<boolean>(true);
-
-  useEffect(() => {
-    if (!activeEventId) return;
-
-    async function fetchLeaderboard() {
-      setLoadingCompetitors(true);
-      try {
-        const res = await fetch(`/api/espn/leaderboard?event=${activeEventId}`);
-        if (res.ok) {
-          const data = await res.json();
-          const comps = data.events?.[0]?.competitions?.[0]?.competitors || [];
-          setCompetitors(comps);
-        }
-      } catch (err) {
-        console.error('Failed to fetch competitors for Greedy page:', err);
-      } finally {
-        setLoadingCompetitors(false);
-      }
-    }
-    fetchLeaderboard();
-  }, [activeEventId]);
-
-  const contestEvaluation = useMemo(() => {
-    return evaluateContest(participants, competitors, contestConfig, null, firestorePlayerMap);
-  }, [participants, competitors, contestConfig, firestorePlayerMap]);
+  const {
+    contestEvaluation,
+    contestConfig,
+    loading: isLoading,
+  } = useEventContext();
 
   const greedyStandings = contestEvaluation.greedyStandings;
-
   const isEventFinalized = contestEvaluation.wagerLedger.isFinalized || contestConfig?.isFinalized || false;
-
   const totalPool = greedyStandings.length * GREEDY_ENTRY_FEE;
 
   // Winner take all allocation with tie split (only awarded at event end)
@@ -67,15 +34,16 @@ export default function GreedyPage() {
 
     const topRank = greedyStandings[0]?.rank || 1;
     const winners = greedyStandings.filter((s) => s.rank === topRank);
-    const splitPayout = isEventFinalized && winners.length > 0 ? Math.round((totalPool / winners.length) * 100) / 100 : 0;
+    const splitPayout =
+      isEventFinalized && winners.length > 0
+        ? Math.round((totalPool / winners.length) * 100) / 100
+        : 0;
 
     return greedyStandings.map((s) => ({
       ...s,
       payout: s.rank === topRank ? splitPayout : 0,
     }));
   }, [greedyStandings, totalPool, isEventFinalized]);
-
-  const isLoading = appConfigLoading || configLoading || participantsLoading || loadingCompetitors;
 
   return (
     <div className="min-h-screen bg-surface text-on-surface flex flex-col font-sans">
