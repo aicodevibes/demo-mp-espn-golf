@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ESPNEventStatus } from '@/types/espn';
 
+const LIVE_CACHE_CONTROL = 'public, s-maxage=15, stale-while-revalidate=30';
+const RELAXED_CACHE_CONTROL = 'public, s-maxage=300, stale-while-revalidate=600';
+const NO_STORE_CACHE_CONTROL = 'no-store';
+
 interface LeaderboardPayload {
   status?: ESPNEventStatus;
   events?: Array<{
@@ -13,38 +17,32 @@ interface UpstreamErrorPayload {
   error?: string;
 }
 
+function isStatusActive(status?: ESPNEventStatus): boolean {
+  if (!status) return false;
+
+  const state = status.type?.state;
+  const name = status.type?.name;
+  if (state === 'in' || name === 'STATUS_IN_PROGRESS' || name === 'STATUS_PLAYOFF') {
+    return true;
+  }
+
+  const detail = (status.type?.detail || status.type?.description || '').toLowerCase();
+  return detail.includes('in progress') || detail.includes('playoff');
+}
+
 function isEventActive(data: unknown): boolean {
   if (!data || typeof data !== 'object') return false;
 
   const payload = data as LeaderboardPayload;
 
   // 1. Direct status object on payload
-  const directStatus = payload.status;
-  if (directStatus) {
-    const state = directStatus.type?.state;
-    const name = directStatus.type?.name;
-    if (state === 'in' || name === 'STATUS_IN_PROGRESS' || name === 'STATUS_PLAYOFF') {
-      return true;
-    }
-    const detail = (directStatus.type?.detail || directStatus.type?.description || '').toLowerCase();
-    if (detail.includes('in progress') || detail.includes('playoff')) {
-      return true;
-    }
+  if (isStatusActive(payload.status)) {
+    return true;
   }
 
   // 2. Events array
   if (Array.isArray(payload.events) && payload.events.length > 0) {
-    return payload.events.some((event) => {
-      const status = event?.status;
-      if (!status) return false;
-      const state = status.type?.state;
-      const name = status.type?.name;
-      if (state === 'in' || name === 'STATUS_IN_PROGRESS' || name === 'STATUS_PLAYOFF') {
-        return true;
-      }
-      const detail = (status.type?.detail || status.type?.description || '').toLowerCase();
-      return detail.includes('in progress') || detail.includes('playoff');
-    });
+    return payload.events.some((event) => isStatusActive(event?.status));
   }
 
   return false;
@@ -95,12 +93,10 @@ export async function GET(req: NextRequest) {
 
     const data: unknown = await res.json();
 
-    let cacheControl = 'no-store';
+    let cacheControl = NO_STORE_CACHE_CONTROL;
     if (!isForce) {
       const active = isEventActive(data);
-      cacheControl = active
-        ? 'public, s-maxage=15, stale-while-revalidate=30'
-        : 'public, s-maxage=300, stale-while-revalidate=600';
+      cacheControl = active ? LIVE_CACHE_CONTROL : RELAXED_CACHE_CONTROL;
     }
 
     return NextResponse.json(data, {
