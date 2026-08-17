@@ -30,6 +30,13 @@ import {
 } from '@/lib/espn';
 import { evaluateContest, ContestEvaluationResult } from '@/lib/contestEngine';
 import { evaluateFieldLeaderboard, FieldLeaderboardEvaluation } from '@/lib/domain';
+import {
+  useLeaderboardPolling,
+  LIVE_POLL_INTERVAL_MS,
+  RELAXED_POLL_INTERVAL_MS,
+} from '@/hooks/useLeaderboardPolling';
+
+export { LIVE_POLL_INTERVAL_MS, RELAXED_POLL_INTERVAL_MS };
 
 export interface EventContextState {
   /** The globally active event ID configured in Firestore (/config/app). */
@@ -139,9 +146,6 @@ const EventContext = createContext<EventContextState>({
   error: null,
   refreshLeaderboard: async () => {},
 });
-
-export const LIVE_POLL_INTERVAL_MS = 35 * 1000; // 35 seconds
-export const RELAXED_POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
 interface EventContextProviderProps {
   children: ReactNode;
@@ -406,39 +410,12 @@ export function EventContextProvider({ children, initialEventId = '' }: EventCon
     );
   }, [participants, competitors, contestConfig, activeEvent, firestorePlayerMap]);
 
-  // 12. Adaptive Interval & Tab Visibility Polling
-  const pollIntervalMs = useMemo(() => {
-    return tournament.statusState === 'in' ? LIVE_POLL_INTERVAL_MS : RELAXED_POLL_INTERVAL_MS;
-  }, [tournament.statusState]);
-
-  useEffect(() => {
-    if (!selectedViewerEventId) return;
-
-    const pollIfVisible = () => {
-      if (typeof document !== 'undefined' && !document.hidden) {
-        fetchLeaderboard();
-      }
-    };
-
-    const interval = setInterval(pollIfVisible, pollIntervalMs);
-
-    const handleVisibilityChange = () => {
-      if (typeof document !== 'undefined' && !document.hidden) {
-        fetchLeaderboard();
-      }
-    };
-
-    if (typeof document !== 'undefined') {
-      document.addEventListener('visibilitychange', handleVisibilityChange);
-    }
-
-    return () => {
-      clearInterval(interval);
-      if (typeof document !== 'undefined') {
-        document.removeEventListener('visibilitychange', handleVisibilityChange);
-      }
-    };
-  }, [selectedViewerEventId, pollIntervalMs, fetchLeaderboard]);
+  // 12. Adaptive Interval & Tab Visibility Polling Hook
+  useLeaderboardPolling({
+    activeEventId: selectedViewerEventId,
+    isLive: tournament.statusState === 'in',
+    onPoll: fetchLeaderboard,
+  });
 
   const handleRefresh = useCallback(async () => {
     await fetchLeaderboard(true);
