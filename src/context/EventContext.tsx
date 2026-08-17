@@ -24,6 +24,7 @@ import {
   DEFAULT_PLAYER_DIRECTORY_MAP,
   readScoreboardCache,
   writeScoreboardCache,
+  writeCachedActiveEventId,
   EspnTournamentAdapter,
   NormalizedTournament,
 } from '@/lib/espn';
@@ -148,7 +149,11 @@ interface EventContextProviderProps {
 
 export function EventContextProvider({ children, initialEventId = '' }: EventContextProviderProps) {
   // 1. Core Firestore State
-  const [activeConfigId, setActiveConfigId] = useState<string>(initialEventId);
+  const [activeConfigId, setActiveConfigId] = useState<string>(() => {
+    if (initialEventId) return initialEventId;
+    const cached = readScoreboardCache();
+    return cached?.lastActiveEventId || '';
+  });
   const [activeSeason, setActiveSeason] = useState<number>(new Date().getFullYear());
   const [activeConfig, setActiveConfig] = useState<AppConfig | null>(null);
   const [contestConfig, setContestConfig] = useState<ContestConfig | null>(null);
@@ -158,7 +163,10 @@ export function EventContextProvider({ children, initialEventId = '' }: EventCon
   >(DEFAULT_PLAYER_DIRECTORY_MAP);
 
   // 2. Scoreboard & Event State
-  const [events, setEvents] = useState<ESPNEvent[]>([]);
+  const [events, setEvents] = useState<ESPNEvent[]>(() => {
+    const cached = readScoreboardCache();
+    return cached?.events || [];
+  });
   const [activeEventObj, setActiveEventObj] = useState<ESPNEvent | null>(null);
   const [competitors, setCompetitors] = useState<ESPNCompetitor[]>([]);
   const [viewerEventIdOverride, setViewerEventIdOverride] = useState<string>('');
@@ -168,14 +176,6 @@ export function EventContextProvider({ children, initialEventId = '' }: EventCon
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<Error | null>(null);
 
-  // Hydrate initial scoreboard cache from localStorage
-  useEffect(() => {
-    const cachedEvents = readScoreboardCache();
-    if (cachedEvents && cachedEvents.length > 0) {
-      setEvents(cachedEvents);
-    }
-  }, []);
-
   // 4. Fetch ESPN Scoreboard (Events List)
   useEffect(() => {
     async function fetchScoreboard() {
@@ -183,16 +183,16 @@ export function EventContextProvider({ children, initialEventId = '' }: EventCon
         const res = await fetch('/api/espn/scoreboard');
         if (res.ok) {
           const data = await res.json();
-          const fetchedEvents = data.events || [];
+          const fetchedEvents: ESPNEvent[] = data.events || [];
           setEvents(fetchedEvents);
-          writeScoreboardCache(fetchedEvents);
+          writeScoreboardCache(fetchedEvents, activeConfigId || undefined);
         }
       } catch (err) {
         console.error('Failed to fetch ESPN Scoreboard:', err);
       }
     }
     fetchScoreboard();
-  }, []);
+  }, [activeConfigId]);
 
   // 5. Subscribe to /config/app
   useEffect(() => {
@@ -203,7 +203,10 @@ export function EventContextProvider({ children, initialEventId = '' }: EventCon
         if (snap.exists()) {
           const data = snap.data() as AppConfig;
           setActiveConfig(data);
-          if (data.activeEventId) setActiveConfigId(data.activeEventId);
+          if (data.activeEventId) {
+            setActiveConfigId(data.activeEventId);
+            writeCachedActiveEventId(data.activeEventId);
+          }
           if (data.activeSeason) setActiveSeason(data.activeSeason);
         }
       },
@@ -230,6 +233,12 @@ export function EventContextProvider({ children, initialEventId = '' }: EventCon
   const isHistoricalView = Boolean(
     viewerEventIdOverride && viewerEventIdOverride !== effectiveActiveEventId
   );
+
+  useEffect(() => {
+    if (effectiveActiveEventId) {
+      writeCachedActiveEventId(effectiveActiveEventId);
+    }
+  }, [effectiveActiveEventId]);
 
   const activeEvent = useMemo(() => {
     return resolveActiveEvent(events, activeEventObj, selectedViewerEventId);
@@ -330,7 +339,7 @@ export function EventContextProvider({ children, initialEventId = '' }: EventCon
           syncPlayersToFirestore(resolvedComps);
         }
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('EventContext failed to fetch ESPN Leaderboard:', err);
       setError(err instanceof Error ? err : new Error(String(err)));
     } finally {

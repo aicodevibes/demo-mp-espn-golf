@@ -37,4 +37,13 @@ export {
   findCompetitorByQuery,
   parseCommaDelimitedGolfers,
 } from './golferMatcher';
-export { readScoreboardCache, writeScoreboardCache, SCOREBOARD_CACHE_KEY } from './scoreboardCache';
+export {
+  readScoreboardCache,
+  writeScoreboardCache,
+  readCachedActiveEventId,
+  writeCachedActiveEventId,
+  SCOREBOARD_CACHE_KEY,
+  SCOREBOARD_CACHE_TTL_MS,
+  type CachedScoreboardData,
+  type CachedScoreboardResult,
+} from './scoreboardCache';

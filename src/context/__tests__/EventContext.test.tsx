@@ -4,13 +4,13 @@ import React from 'react';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { EventContextProvider, useEventContext } from '../EventContext';
+import { SCOREBOARD_CACHE_KEY } from '@/lib/espn';
 
 // Mock Firebase Firestore methods
 vi.mock('firebase/firestore', () => ({
   doc: vi.fn(),
   collection: vi.fn(),
-  onSnapshot: vi.fn((ref, callback) => {
-    // Return empty unsubscribe function
+  onSnapshot: vi.fn(() => {
     return vi.fn();
   }),
   setDoc: vi.fn(),
@@ -33,7 +33,28 @@ vi.mock('@/lib/firebase/config', () => ({
 }));
 
 describe('EventContextProvider Deep Domain Seam', () => {
+  let mockStorage: Record<string, string> = {};
+
   beforeEach(() => {
+    mockStorage = {};
+    const storageMock: Storage = {
+      getItem: (k: string) => mockStorage[k] ?? null,
+      setItem: (k: string, v: string) => {
+        mockStorage[k] = String(v);
+      },
+      removeItem: (k: string) => {
+        delete mockStorage[k];
+      },
+      clear: () => {
+        mockStorage = {};
+      },
+      length: 0,
+      key: () => null,
+    };
+    const target = globalThis as unknown as { window?: { localStorage: Storage }; localStorage?: Storage };
+    target.window = { localStorage: storageMock };
+    target.localStorage = storageMock;
+
     vi.stubGlobal(
       'fetch',
       vi.fn().mockImplementation((url: string) => {
@@ -120,5 +141,64 @@ describe('EventContextProvider Deep Domain Seam', () => {
 
     expect(result.current.selectedEventId).toBe('401705663');
     expect(result.current.isHistoricalView).toBe(false);
+  });
+
+  it('hydrates initial active event ID from local storage cache for zero-waterfall bootstrapping', async () => {
+    const cachedData = {
+      timestamp: Date.now(),
+      events: [
+        {
+          id: '401580384',
+          name: 'PGA Championship',
+          status: { type: { state: 'in', description: 'In Progress' } },
+        },
+      ],
+      lastActiveEventId: '401580384',
+    };
+    mockStorage[SCOREBOARD_CACHE_KEY] = JSON.stringify(cachedData);
+
+    const fetchSpy = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/api/espn/leaderboard')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            events: [
+              {
+                id: '401580384',
+                name: 'PGA Championship',
+                status: { type: { state: 'in', description: 'In Progress' } },
+                competitions: [{ competitors: [] }],
+              },
+            ],
+          }),
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ events: cachedData.events }),
+      });
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <EventContextProvider>{children}</EventContextProvider>
+    );
+
+    const { result } = renderHook(() => useEventContext(), { wrapper });
+
+    // Synchronously hydrated from local storage
+    expect(result.current.activeEventId).toBe('401580384');
+    expect(result.current.selectedEventId).toBe('401580384');
+    expect(result.current.events).toHaveLength(1);
+
+    // Immediately fired leaderboard fetch for cached event in parallel
+    await waitFor(
+      () => {
+        expect(fetchSpy).toHaveBeenCalledWith(
+          expect.stringContaining('/api/espn/leaderboard?event=401580384')
+        );
+      },
+      { container: document.body }
+    );
   });
 });

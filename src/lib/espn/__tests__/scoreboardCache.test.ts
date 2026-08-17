@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   readScoreboardCache,
   writeScoreboardCache,
+  readCachedActiveEventId,
+  writeCachedActiveEventId,
   SCOREBOARD_CACHE_KEY,
   SCOREBOARD_CACHE_TTL_MS,
 } from '../scoreboardCache';
@@ -29,7 +31,7 @@ describe('scoreboardCache', () => {
 
   beforeEach(() => {
     mockStorage = {};
-    const storageMock = {
+    const storageMock: Storage = {
       getItem: (k: string) => mockStorage[k] ?? null,
       setItem: (k: string, v: string) => {
         mockStorage[k] = String(v);
@@ -43,39 +45,67 @@ describe('scoreboardCache', () => {
       length: 0,
       key: () => null,
     };
-    (global as any).window = { localStorage: storageMock };
-    (global as any).localStorage = storageMock;
+    const target = globalThis as unknown as { window?: { localStorage: Storage }; localStorage?: Storage };
+    target.window = { localStorage: storageMock };
+    target.localStorage = storageMock;
     vi.restoreAllMocks();
   });
 
   it('returns null when cache is empty', () => {
     expect(readScoreboardCache()).toBeNull();
+    expect(readCachedActiveEventId()).toBeNull();
   });
 
-  it('writes to localStorage and reads back valid cached events', () => {
+  it('writes to localStorage and reads back valid cached events and lastActiveEventId', () => {
     const now = 1000000;
-    writeScoreboardCache(mockEvents, now);
+    writeScoreboardCache(mockEvents, '401580384', now);
 
     const cached = readScoreboardCache(now + 1000);
     expect(cached).not.toBeNull();
-    expect(cached).toHaveLength(1);
-    expect(cached?.[0].name).toBe('PGA Championship');
+    expect(cached?.events).toHaveLength(1);
+    expect(cached?.events[0].name).toBe('PGA Championship');
+    expect(cached?.lastActiveEventId).toBe('401580384');
+    expect(readCachedActiveEventId(now + 1000)).toBe('401580384');
+  });
+
+  it('preserves existing lastActiveEventId when updating cache without explicit event ID', () => {
+    const now = 1000000;
+    writeScoreboardCache(mockEvents, '401580384', now);
+
+    // Write updated events without passing active event ID
+    writeScoreboardCache(mockEvents, undefined, now + 1000);
+
+    const cached = readScoreboardCache(now + 2000);
+    expect(cached?.lastActiveEventId).toBe('401580384');
+  });
+
+  it('allows updating cached active event ID independently', () => {
+    const now = 1000000;
+    writeScoreboardCache(mockEvents, '401580384', now);
+
+    writeCachedActiveEventId('401705663', now + 500);
+
+    const cached = readScoreboardCache(now + 1000);
+    expect(cached?.lastActiveEventId).toBe('401705663');
+    expect(cached?.events).toHaveLength(1);
   });
 
   it('returns null and purges cache when TTL expires (5 minutes)', () => {
     const now = 1000000;
-    writeScoreboardCache(mockEvents, now);
+    writeScoreboardCache(mockEvents, '401580384', now);
 
     // 5 minutes + 1 ms later
     const expiredTime = now + SCOREBOARD_CACHE_TTL_MS + 1;
     const cached = readScoreboardCache(expiredTime);
 
     expect(cached).toBeNull();
+    expect(readCachedActiveEventId(expiredTime)).toBeNull();
     expect(localStorage.getItem(SCOREBOARD_CACHE_KEY)).toBeNull();
   });
 
   it('handles corrupted JSON in localStorage gracefully', () => {
     localStorage.setItem(SCOREBOARD_CACHE_KEY, 'invalid-json-{');
     expect(readScoreboardCache()).toBeNull();
+    expect(readCachedActiveEventId()).toBeNull();
   });
 });
