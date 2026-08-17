@@ -71,7 +71,7 @@ export function Header({
   const eventState = normEvent?.statusState || rawEvent?.status?.type?.state;
   const statusDetail = normEvent?.statusDetail || rawEvent?.status?.type?.detail || 'Scheduled';
   const isEventUnpopulated = !eventName && !eventObj;
-  const isLoadingEvent = eventLoading || isEventUnpopulated;
+  const isLoadingEvent = !mounted || eventLoading || isEventUnpopulated;
 
   return (
     <header className="w-full border-b border-outline-variant bg-surface-container-lowest/90 text-on-surface backdrop-blur-md shadow-xs px-4 lg:px-8 py-3.5 sticky top-0 z-40">

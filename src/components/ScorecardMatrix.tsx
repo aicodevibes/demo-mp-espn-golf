@@ -20,12 +20,16 @@ export function ScorecardMatrix({
   playerName = 'Selected Golfer',
 }: ScorecardMatrixProps) {
   const [activeRound, setActiveRound] = useState<number>(1);
-  const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
+  const [isCollapsed, setIsCollapsed] = useState<boolean>(false);
+
+  useEffect(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('mp_scorecard_collapsed') === 'true';
+      const stored = localStorage.getItem('mp_scorecard_collapsed');
+      if (stored !== null) {
+        setIsCollapsed(stored === 'true');
+      }
     }
-    return false;
-  });
+  }, []);
 
   const toggleCollapse = () => {
     setIsCollapsed((prev) => {
