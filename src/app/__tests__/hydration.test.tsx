@@ -29,8 +29,6 @@ describe('Header SSR and Hydration Consistency', () => {
         loading={true}
         eventName={undefined}
         eventObj={undefined}
-        events={[]}
-        selectedEventId=""
       />
     );
 
@@ -46,8 +44,6 @@ describe('Header SSR and Hydration Consistency', () => {
           loading={false}
           eventName="The Sentry"
           eventObj={{ id: '401811927', name: 'The Sentry' } as any}
-          events={[{ id: '401811927', name: 'The Sentry' } as any]}
-          selectedEventId="401811927"
         />
       );
     });

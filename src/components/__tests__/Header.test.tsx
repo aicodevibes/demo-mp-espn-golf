@@ -4,7 +4,6 @@ import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { Header, formatRelativeTime } from '../Header';
-import { ESPNEvent } from '@/types/espn';
 
 vi.mock('@/context/AuthContext', () => ({
   useAuth: () => ({
@@ -48,36 +47,14 @@ describe('Header Component', () => {
     expect(screen.getByTestId('header-event-skeleton')).toBeInTheDocument();
   });
 
-  it('renders live event title, dates, and live status badge when event data is provided', () => {
+  it('renders live event title, dates, and live status badge as clean static text without dropdown', () => {
     render(<Header eventName="PGA Championship" eventObj={mockEvent} />);
 
     expect(screen.getByText(/PGA Championship/)).toBeInTheDocument();
     expect(screen.getByText(/Live/)).toBeInTheDocument();
     expect(screen.queryByTestId('header-event-skeleton')).not.toBeInTheDocument();
-  });
-
-  it('renders Event Selector dropdown and triggers onSelectEvent without side effects', () => {
-    const mockEvents: ESPNEvent[] = [
-      { id: '401580384', name: 'PGA Championship' },
-      { id: '401580354', name: 'Masters Tournament' },
-    ];
-    const onSelectEvent = vi.fn();
-
-    render(
-      <Header
-        eventName="PGA Championship"
-        events={mockEvents}
-        selectedEventId="401580384"
-        onSelectEvent={onSelectEvent}
-      />
-    );
-
-    const selector = screen.getByTestId('header-event-selector') as HTMLSelectElement;
-    expect(selector).toBeInTheDocument();
-    expect(screen.getByText('Masters Tournament')).toBeInTheDocument();
-
-    fireEvent.change(selector, { target: { value: '401580354' } });
-    expect(onSelectEvent).toHaveBeenCalledWith('401580354');
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('header-event-selector')).not.toBeInTheDocument();
   });
 
   it('renders live refresh control and triggers onRefresh when clicked', () => {

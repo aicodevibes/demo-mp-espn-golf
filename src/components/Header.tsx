@@ -22,9 +22,6 @@ export interface HeaderProps {
   eventName?: string;
   eventObj?: NormalizedTournament | ESPNEvent | null;
   loading?: boolean;
-  events?: ESPNEvent[];
-  selectedEventId?: string;
-  onSelectEvent?: (eventId: string) => void;
   isRefreshing?: boolean;
   lastRefreshedAt?: Date | null;
   onRefresh?: (options?: { force?: boolean }) => void | Promise<void>;
@@ -34,9 +31,6 @@ export function Header({
   eventName,
   eventObj,
   loading: eventLoading,
-  events,
-  selectedEventId,
-  onSelectEvent,
   isRefreshing = false,
   lastRefreshedAt = null,
   onRefresh,
@@ -72,6 +66,7 @@ export function Header({
   const statusDetail = normEvent?.statusDetail || rawEvent?.status?.type?.detail || 'Scheduled';
   const isEventUnpopulated = !eventName && !eventObj;
   const isLoadingEvent = !mounted || eventLoading || isEventUnpopulated;
+  const displayName = eventName || eventObj?.name;
 
   return (
     <header className="w-full border-b border-outline-variant bg-surface-container-lowest/90 text-on-surface backdrop-blur-md shadow-xs px-4 lg:px-8 py-3.5 sticky top-0 z-40">
@@ -99,25 +94,13 @@ export function Header({
                 </div>
               ) : (
                 <>
-                  {mounted && events && events.length > 0 && onSelectEvent ? (
-                    <select
-                      data-testid="header-event-selector"
-                      value={selectedEventId || ''}
-                      onChange={(e) => onSelectEvent(e.target.value)}
-                      className="bg-surface-container-low border border-outline-variant rounded px-2 py-0.5 text-xs font-semibold text-on-surface outline-none focus:border-outline cursor-pointer"
+                  {displayName && (
+                    <p
+                      className="text-xs font-semibold truncate max-w-xs sm:max-w-md text-on-surface-variant"
+                      data-testid="header-event-name"
                     >
-                      {events.map((event) => (
-                        <option key={event.id} value={event.id}>
-                          {event.name}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    (eventName || eventObj?.name) && (
-                      <p className="text-xs font-semibold truncate max-w-xs sm:max-w-md text-on-surface-variant">
-                        <span>{eventName || eventObj?.name}</span>
-                      </p>
-                    )
+                      <span>{displayName}</span>
+                    </p>
                   )}
 
                   {formattedDates && (

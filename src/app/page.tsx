@@ -156,9 +156,6 @@ export default function DashboardPage() {
       <Header
         eventName={activeEvent?.name}
         eventObj={activeEvent || undefined}
-        events={events}
-        selectedEventId={selectedEventId}
-        onSelectEvent={setEventOverride}
         isRefreshing={isRefreshing}
         lastRefreshedAt={lastRefreshedAt}
         onRefresh={refreshLeaderboard}
