@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ESPNEventStatus } from '@/types/espn';
+import { getMemorySnapshot, setMemorySnapshot } from '../serverCache';
 
 const LIVE_CACHE_CONTROL = 'public, s-maxage=15, stale-while-revalidate=30';
 const RELAXED_CACHE_CONTROL = 'public, s-maxage=300, stale-while-revalidate=600';
@@ -49,11 +50,12 @@ function isEventActive(data: unknown): boolean {
 }
 
 export async function GET(req: NextRequest) {
-  try {
-    const { searchParams } = new URL(req.url);
-    const eventId = searchParams.get('event');
-    const isForce = searchParams.get('force') === 'true';
+  const { searchParams } = new URL(req.url);
+  const eventId = searchParams.get('event');
+  const isForce = searchParams.get('force') === 'true';
+  const cacheKey = `leaderboard:${eventId || 'default'}`;
 
+  try {
     const url = eventId
       ? `https://site.web.api.espn.com/apis/site/v2/sports/golf/leaderboard?event=${eventId}`
       : 'https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard';
@@ -69,13 +71,27 @@ export async function GET(req: NextRequest) {
           headers,
         }
       : ({
-          next: { revalidate: 15 },
+          next: {
+            revalidate: 15,
+            tags: ['espn-leaderboard'],
+          },
           headers,
         } as RequestInit);
 
     const res = await fetch(url, fetchOptions);
 
     if (!res.ok) {
+      // Check for stale snapshot fallback on upstream error
+      const staleSnapshot = getMemorySnapshot(cacheKey);
+      if (staleSnapshot) {
+        return NextResponse.json(staleSnapshot.data, {
+          headers: {
+            'Cache-Control': NO_STORE_CACHE_CONTROL,
+            'X-Cache-Stale': 'true',
+          },
+        });
+      }
+
       let errorMessage = `ESPN Leaderboard API returned status ${res.status}`;
       try {
         const errorData = (await res.json()) as UpstreamErrorPayload;
@@ -92,6 +108,7 @@ export async function GET(req: NextRequest) {
     }
 
     const data: unknown = await res.json();
+    setMemorySnapshot(cacheKey, data);
 
     let cacheControl = NO_STORE_CACHE_CONTROL;
     if (!isForce) {
@@ -105,6 +122,16 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (error: unknown) {
+    const staleSnapshot = getMemorySnapshot(cacheKey);
+    if (staleSnapshot) {
+      return NextResponse.json(staleSnapshot.data, {
+        headers: {
+          'Cache-Control': NO_STORE_CACHE_CONTROL,
+          'X-Cache-Stale': 'true',
+        },
+      });
+    }
+
     const message = error instanceof Error ? error.message : 'Failed to fetch ESPN Leaderboard';
     return NextResponse.json(
       { error: message },
@@ -112,3 +139,4 @@ export async function GET(req: NextRequest) {
     );
   }
 }
+

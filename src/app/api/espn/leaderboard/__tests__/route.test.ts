@@ -1,16 +1,19 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { NextRequest } from 'next/server';
 import { GET } from '../route';
+import { clearMemorySnapshots, setMemorySnapshot } from '../../serverCache';
 
 describe('/api/espn/leaderboard Route Handler', () => {
   const originalFetch = global.fetch;
 
   beforeEach(() => {
     vi.restoreAllMocks();
+    clearMemorySnapshots();
   });
 
   afterEach(() => {
     global.fetch = originalFetch;
+    clearMemorySnapshots();
   });
 
   it('sets revalidate: 15 and s-maxage=15, stale-while-revalidate=30 for active tournament events', async () => {
@@ -46,7 +49,7 @@ describe('/api/espn/leaderboard Route Handler', () => {
     expect(fetchSpy).toHaveBeenCalledWith(
       'https://site.web.api.espn.com/apis/site/v2/sports/golf/leaderboard?event=401580384',
       expect.objectContaining({
-        next: { revalidate: 15 },
+        next: { revalidate: 15, tags: ['espn-leaderboard'] },
       })
     );
 
@@ -192,7 +195,7 @@ describe('/api/espn/leaderboard Route Handler', () => {
     expect(res.headers.get('Cache-Control')).toBe('public, s-maxage=15, stale-while-revalidate=30');
   });
 
-  it('gracefully handles upstream 429 rate limit error with structured JSON', async () => {
+  it('gracefully handles upstream 429 rate limit error with structured JSON when no stale data exists', async () => {
     global.fetch = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ message: 'Rate limit exceeded' }), {
         status: 429,
@@ -208,7 +211,46 @@ describe('/api/espn/leaderboard Route Handler', () => {
     expect(json.error).toBe('Rate limit exceeded');
   });
 
-  it('gracefully handles upstream 500 error with structured JSON', async () => {
+  it('returns stale snapshot when upstream fails with 500 error', async () => {
+    setMemorySnapshot('leaderboard:401580384', {
+      id: '401580384',
+      name: 'Cached Masters',
+    });
+
+    global.fetch = vi.fn().mockResolvedValue(
+      new Response('Internal Server Error', {
+        status: 500,
+      })
+    );
+
+    const req = new NextRequest('http://localhost:3000/api/espn/leaderboard?event=401580384');
+    const res = await GET(req);
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('X-Cache-Stale')).toBe('true');
+    expect(res.headers.get('Cache-Control')).toBe('no-store');
+    const json = await res.json();
+    expect(json.name).toBe('Cached Masters');
+  });
+
+  it('returns stale snapshot when upstream throws a network error', async () => {
+    setMemorySnapshot('leaderboard:401580384', {
+      id: '401580384',
+      name: 'Cached Masters',
+    });
+
+    global.fetch = vi.fn().mockRejectedValue(new Error('Network connectivity lost'));
+
+    const req = new NextRequest('http://localhost:3000/api/espn/leaderboard?event=401580384');
+    const res = await GET(req);
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('X-Cache-Stale')).toBe('true');
+    const json = await res.json();
+    expect(json.name).toBe('Cached Masters');
+  });
+
+  it('gracefully handles upstream 500 error with structured JSON when no stale snapshot exists', async () => {
     global.fetch = vi.fn().mockResolvedValue(
       new Response('Internal Server Error', {
         status: 500,
@@ -223,7 +265,7 @@ describe('/api/espn/leaderboard Route Handler', () => {
     expect(json.error).toBe('ESPN Leaderboard API returned status 500');
   });
 
-  it('gracefully handles network fetch exceptions with 500 status', async () => {
+  it('gracefully handles network fetch exceptions with 500 status when no stale snapshot exists', async () => {
     global.fetch = vi.fn().mockRejectedValue(new Error('Network connectivity lost'));
 
     const req = new NextRequest('http://localhost:3000/api/espn/leaderboard?event=401580384');
@@ -234,3 +276,4 @@ describe('/api/espn/leaderboard Route Handler', () => {
     expect(json.error).toBe('Network connectivity lost');
   });
 });
+
