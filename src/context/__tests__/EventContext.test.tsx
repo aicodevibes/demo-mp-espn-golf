@@ -3,7 +3,12 @@ import '@testing-library/jest-dom/vitest';
 import React from 'react';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { EventContextProvider, useEventContext } from '../EventContext';
+import {
+  EventContextProvider,
+  useEventContext,
+  LIVE_POLL_INTERVAL_MS,
+  RELAXED_POLL_INTERVAL_MS,
+} from '../EventContext';
 import { SCOREBOARD_CACHE_KEY } from '@/lib/espn';
 
 // Mock Firebase Firestore methods
@@ -111,6 +116,11 @@ describe('EventContextProvider Deep Domain Seam', () => {
     vi.restoreAllMocks();
   });
 
+  it('exports expected poll interval constants (35s live, 5m relaxed)', () => {
+    expect(LIVE_POLL_INTERVAL_MS).toBe(35000);
+    expect(RELAXED_POLL_INTERVAL_MS).toBe(300000);
+  });
+
   it('provides comprehensive context state and handles viewer event overrides', async () => {
     const wrapper = ({ children }: { children: React.ReactNode }) => (
       <EventContextProvider initialEventId="401705663">{children}</EventContextProvider>
@@ -186,17 +196,139 @@ describe('EventContextProvider Deep Domain Seam', () => {
 
     const { result } = renderHook(() => useEventContext(), { wrapper });
 
-    // Synchronously hydrated from local storage
     expect(result.current.activeEventId).toBe('401580384');
     expect(result.current.selectedEventId).toBe('401580384');
     expect(result.current.events).toHaveLength(1);
 
-    // Immediately fired leaderboard fetch for cached event in parallel
     await waitFor(
       () => {
         expect(fetchSpy).toHaveBeenCalledWith(
           expect.stringContaining('/api/espn/leaderboard?event=401580384')
         );
+      },
+      { container: document.body }
+    );
+  });
+
+  it('optimistically retains competitor state and sets error when leaderboard fetch encounters 429 error', async () => {
+    let callCount = 0;
+    const fetchSpy = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/api/espn/leaderboard')) {
+        callCount++;
+        if (callCount === 1) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({
+              events: [
+                {
+                  id: '401705663',
+                  name: 'Masters Tournament',
+                  status: { type: { state: 'in', description: 'In Progress' } },
+                  competitions: [
+                    {
+                      id: '401705663',
+                      competitors: [
+                        {
+                          id: '4397140',
+                          athlete: { id: '4397140', displayName: 'Scottie Scheffler' },
+                          score: '-9',
+                          status: { thru: 18, position: { displayName: '1' } },
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            }),
+          });
+        }
+        // Second call fails with 429 Rate Limit
+        return Promise.resolve({
+          ok: false,
+          status: 429,
+          json: async () => ({ error: 'Too many requests' }),
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({ events: [] }),
+      });
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <EventContextProvider initialEventId="401705663">{children}</EventContextProvider>
+    );
+
+    const { result } = renderHook(() => useEventContext(), { wrapper });
+
+    // Wait for initial successful load
+    await waitFor(
+      () => {
+        expect(result.current.competitors).toHaveLength(1);
+        expect(result.current.competitors[0].athlete?.displayName).toBe('Scottie Scheffler');
+        expect(result.current.error).toBeNull();
+      },
+      { container: document.body }
+    );
+
+    // Trigger refresh that returns 429
+    await act(async () => {
+      await result.current.refreshLeaderboard();
+    });
+
+    // Verify error is set but competitors state is optimistically retained
+    expect(result.current.error).not.toBeNull();
+    expect(result.current.error?.message).toBe('Too many requests');
+    expect(result.current.competitors).toHaveLength(1);
+    expect(result.current.competitors[0].athlete?.displayName).toBe('Scottie Scheffler');
+  });
+
+  it('triggers immediate fetch when browser tab transitions from hidden to visible', async () => {
+    const fetchSpy = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        events: [
+          {
+            id: '401705663',
+            name: 'Masters Tournament',
+            status: { type: { state: 'in', description: 'In Progress' } },
+            competitions: [{ competitors: [] }],
+          },
+        ],
+      }),
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <EventContextProvider initialEventId="401705663">{children}</EventContextProvider>
+    );
+
+    renderHook(() => useEventContext(), { wrapper });
+
+    await waitFor(
+      () => {
+        expect(fetchSpy).toHaveBeenCalled();
+      },
+      { container: document.body }
+    );
+
+    const initialFetchCount = fetchSpy.mock.calls.filter((c: any) =>
+      c[0].includes('/api/espn/leaderboard')
+    ).length;
+
+    // Simulate tab becoming visible
+    Object.defineProperty(document, 'hidden', { value: false, configurable: true });
+    act(() => {
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+
+    await waitFor(
+      () => {
+        const afterCount = fetchSpy.mock.calls.filter((c: any) =>
+          c[0].includes('/api/espn/leaderboard')
+        ).length;
+        expect(afterCount).toBeGreaterThan(initialFetchCount);
       },
       { container: document.body }
     );

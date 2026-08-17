@@ -140,7 +140,8 @@ const EventContext = createContext<EventContextState>({
   refreshLeaderboard: async () => {},
 });
 
-const LEADERBOARD_POLL_INTERVAL_MS = 5 * 60 * 1000;
+export const LIVE_POLL_INTERVAL_MS = 35 * 1000; // 35 seconds
+export const RELAXED_POLL_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
 interface EventContextProviderProps {
   children: ReactNode;
@@ -323,13 +324,31 @@ export function EventContextProvider({ children, initialEventId = '' }: EventCon
   }, [selectedViewerEventId]);
 
   // 10. Fetch Leaderboard for Selected Event
-  const fetchLeaderboard = useCallback(async () => {
-    if (!selectedViewerEventId) return;
+  const fetchLeaderboard = useCallback(
+    async (isForce: boolean = false) => {
+      if (!selectedViewerEventId) return;
 
-    setIsRefreshing(true);
-    try {
-      const res = await fetch(`/api/espn/leaderboard?event=${selectedViewerEventId}`);
-      if (res.ok) {
+      setIsRefreshing(true);
+      try {
+        const url = isForce
+          ? `/api/espn/leaderboard?event=${selectedViewerEventId}&force=true`
+          : `/api/espn/leaderboard?event=${selectedViewerEventId}`;
+        const res = await fetch(url);
+        if (!res.ok) {
+          let errorMessage = `ESPN Leaderboard API returned status ${res.status}`;
+          try {
+            const errorData = await res.json();
+            if (errorData && (errorData.error || errorData.message)) {
+              errorMessage = errorData.error || errorData.message;
+            }
+          } catch {
+            // Fall back to status string
+          }
+          setError(new Error(errorMessage));
+          // Optimistically retain existing state
+          return;
+        }
+
         const data = await res.json();
         if (data.events && data.events[0]) {
           setActiveEventObj(data.events[0]);
@@ -337,16 +356,18 @@ export function EventContextProvider({ children, initialEventId = '' }: EventCon
           const resolvedComps = resolveEventCompetitorsWithFallback(comps, []);
           setCompetitors(resolvedComps);
           syncPlayersToFirestore(resolvedComps);
+          setError(null);
         }
+      } catch (err: unknown) {
+        console.error('EventContext failed to fetch ESPN Leaderboard:', err);
+        setError(err instanceof Error ? err : new Error(String(err)));
+      } finally {
+        setIsRefreshing(false);
+        setLoading(false);
       }
-    } catch (err: unknown) {
-      console.error('EventContext failed to fetch ESPN Leaderboard:', err);
-      setError(err instanceof Error ? err : new Error(String(err)));
-    } finally {
-      setIsRefreshing(false);
-      setLoading(false);
-    }
-  }, [selectedViewerEventId]);
+    },
+    [selectedViewerEventId]
+  );
 
   // Initial leaderboard fetch whenever selected event changes
   useEffect(() => {
@@ -356,32 +377,7 @@ export function EventContextProvider({ children, initialEventId = '' }: EventCon
     fetchLeaderboard();
   }, [selectedViewerEventId, fetchLeaderboard]);
 
-  // 11. 45-Second Interval & Tab Visibility Polling
-  useEffect(() => {
-    if (!selectedViewerEventId) return;
-
-    const pollIfVisible = () => {
-      if (!document.hidden) {
-        fetchLeaderboard();
-      }
-    };
-
-    const interval = setInterval(pollIfVisible, LEADERBOARD_POLL_INTERVAL_MS);
-
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        fetchLeaderboard();
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      clearInterval(interval);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [selectedViewerEventId, fetchLeaderboard]);
-
-  // 12. Deep Domain Evaluators
+  // 11. Deep Domain Evaluators
   const tournament = useMemo(() => {
     return EspnTournamentAdapter.normalizeTournamentSnapshot(
       { events },
@@ -410,6 +406,44 @@ export function EventContextProvider({ children, initialEventId = '' }: EventCon
     );
   }, [participants, competitors, contestConfig, activeEvent, firestorePlayerMap]);
 
+  // 12. Adaptive Interval & Tab Visibility Polling
+  const pollIntervalMs = useMemo(() => {
+    return tournament.statusState === 'in' ? LIVE_POLL_INTERVAL_MS : RELAXED_POLL_INTERVAL_MS;
+  }, [tournament.statusState]);
+
+  useEffect(() => {
+    if (!selectedViewerEventId) return;
+
+    const pollIfVisible = () => {
+      if (typeof document !== 'undefined' && !document.hidden) {
+        fetchLeaderboard();
+      }
+    };
+
+    const interval = setInterval(pollIfVisible, pollIntervalMs);
+
+    const handleVisibilityChange = () => {
+      if (typeof document !== 'undefined' && !document.hidden) {
+        fetchLeaderboard();
+      }
+    };
+
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+    }
+
+    return () => {
+      clearInterval(interval);
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', handleVisibilityChange);
+      }
+    };
+  }, [selectedViewerEventId, pollIntervalMs, fetchLeaderboard]);
+
+  const handleRefresh = useCallback(async () => {
+    await fetchLeaderboard(true);
+  }, [fetchLeaderboard]);
+
   return (
     <EventContext.Provider
       value={{
@@ -431,7 +465,7 @@ export function EventContextProvider({ children, initialEventId = '' }: EventCon
         loading,
         isRefreshing,
         error,
-        refreshLeaderboard: fetchLeaderboard,
+        refreshLeaderboard: handleRefresh,
       }}
     >
       {children}
