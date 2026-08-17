@@ -73,6 +73,8 @@ export interface EventContextState {
   /** Pure contest evaluation (standings, day money results, greedy standings, wager ledger). */
   contestEvaluation: ContestEvaluationResult;
 
+  /** True when the latest data snapshot was served from a stale-while-error cache. */
+  isStaleData: boolean;
   /** True during initial cold-start data fetching. */
   loading: boolean;
   /** True when a background leaderboard refresh is currently underway. */
@@ -143,6 +145,7 @@ const EventContext = createContext<EventContextState>({
   tournament: DEFAULT_TOURNAMENT,
   fieldEvaluation: DEFAULT_FIELD_EVALUATION,
   contestEvaluation: DEFAULT_CONTEST_EVALUATION,
+  isStaleData: false,
   loading: true,
   isRefreshing: false,
   lastRefreshedAt: null,
@@ -173,10 +176,12 @@ export function EventContextProvider({ children, initialEventId = '' }: EventCon
   const [viewerEventIdOverride, setViewerEventIdOverride] = useState<string>('');
 
   // 3. Status Flags
+  const [isStaleData, setIsStaleData] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null);
   const [error, setError] = useState<Error | null>(null);
+  const lastForcedRefreshRef = React.useRef<number>(0);
 
   // 4. Safe client-side hydration from local cache
   useEffect(() => {
@@ -363,6 +368,9 @@ export function EventContextProvider({ children, initialEventId = '' }: EventCon
           return;
         }
 
+        const isStale = Boolean(res.headers?.get && res.headers.get('X-Cache-Stale') === 'true');
+        setIsStaleData(isStale);
+
         const data = await res.json();
         if (data.events && data.events[0]) {
           setActiveEventObj(data.events[0]);
@@ -448,6 +456,14 @@ export function EventContextProvider({ children, initialEventId = '' }: EventCon
   const handleRefresh = useCallback(
     async (options?: { force?: boolean }) => {
       const isForce = options?.force ?? true;
+      if (isForce) {
+        const now = Date.now();
+        if (now - lastForcedRefreshRef.current < 10000) {
+          // In 10-second debounce cooldown window — skip duplicate forced network hit
+          return;
+        }
+        lastForcedRefreshRef.current = now;
+      }
       await fetchLeaderboard(isForce);
     },
     [fetchLeaderboard]
@@ -471,6 +487,7 @@ export function EventContextProvider({ children, initialEventId = '' }: EventCon
         tournament,
         fieldEvaluation,
         contestEvaluation,
+        isStaleData,
         loading,
         isRefreshing,
         lastRefreshedAt,
@@ -481,6 +498,7 @@ export function EventContextProvider({ children, initialEventId = '' }: EventCon
       {children}
     </EventContext.Provider>
   );
+
 }
 
 export function useEventContext(): EventContextState {

@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
-import { Header, formatRelativeTime } from '../Header';
+import { Header, formatRelativeTime, formatTimestamp } from '../Header';
 
 vi.mock('@/context/AuthContext', () => ({
   useAuth: () => ({
@@ -23,6 +23,14 @@ describe('formatRelativeTime helper', () => {
     expect(formatRelativeTime(new Date('2026-08-17T11:58:00Z'), now)).toBe('2m ago');
     expect(formatRelativeTime(new Date('2026-08-17T10:00:00Z'), now)).toBe('2h ago');
     expect(formatRelativeTime(new Date('2026-08-15T12:00:00Z'), now)).toBe('2d ago');
+  });
+});
+
+describe('formatTimestamp helper', () => {
+  it('formats time string correctly', () => {
+    expect(formatTimestamp(null)).toBe('');
+    const d = new Date('2026-08-17T14:15:00Z');
+    expect(formatTimestamp(d)).toBeTruthy();
   });
 });
 
@@ -108,10 +116,25 @@ describe('Header Component', () => {
     const refreshBtn = screen.getByTestId('header-refresh-button');
     expect(refreshBtn).toBeInTheDocument();
     expect(refreshBtn).toHaveAttribute('aria-label', 'Refresh leaderboard data');
-    expect(screen.getByTestId('header-refresh-time')).toHaveTextContent('Refreshed just now');
+    expect(screen.getByTestId('header-refresh-time')).toHaveTextContent(/Updated/);
 
     fireEvent.click(refreshBtn);
     expect(onRefresh).toHaveBeenCalledWith({ force: true });
+  });
+
+  it('renders subtle cached badge when isStaleData is true', () => {
+    render(
+      <Header
+        eventName="PGA Championship"
+        eventObj={mockEvent}
+        lastRefreshedAt={new Date()}
+        isStaleData={true}
+        onRefresh={vi.fn()}
+      />
+    );
+
+    expect(screen.getByTestId('header-stale-badge')).toBeInTheDocument();
+    expect(screen.getByTestId('header-stale-badge')).toHaveTextContent('Cached');
   });
 
   it('disables refresh button and displays spinning animation when isRefreshing is true', () => {
@@ -132,3 +155,4 @@ describe('Header Component', () => {
     expect(icon).toHaveClass('animate-spin');
   });
 });
+

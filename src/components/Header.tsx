@@ -18,11 +18,17 @@ export function formatRelativeTime(date: Date | null, now: Date = new Date()): s
   return `${diffDays}d ago`;
 }
 
+export function formatTimestamp(date: Date | null): string {
+  if (!date) return '';
+  return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
 export interface HeaderProps {
   eventName?: string;
   eventObj?: NormalizedTournament | ESPNEvent | null;
   loading?: boolean;
   isRefreshing?: boolean;
+  isStaleData?: boolean;
   lastRefreshedAt?: Date | null;
   onRefresh?: (options?: { force?: boolean }) => void | Promise<void>;
 }
@@ -32,6 +38,7 @@ export function Header({
   eventObj,
   loading: eventLoading,
   isRefreshing = false,
+  isStaleData = false,
   lastRefreshedAt = null,
   onRefresh,
 }: HeaderProps) {
@@ -67,6 +74,7 @@ export function Header({
   const isEventUnpopulated = !eventName && !eventObj;
   const isLoadingEvent = !mounted || eventLoading || isEventUnpopulated;
   const displayName = eventName || eventObj?.name;
+  const timeFormatted = formatTimestamp(lastRefreshedAt);
 
   return (
     <header className="w-full border-b border-outline-variant bg-surface-container-lowest/90 text-on-surface backdrop-blur-md shadow-xs px-4 lg:px-8 py-3.5 sticky top-0 z-40">
@@ -126,7 +134,7 @@ export function Header({
 
                   {/* Live Refresh Widget */}
                   {onRefresh && (
-                    <div className="inline-flex items-center gap-1 text-[11px] text-on-surface-variant bg-surface-container-low px-2 py-0.5 rounded border border-outline-variant">
+                    <div className="inline-flex items-center gap-1.5 text-[11px] text-on-surface-variant bg-surface-container-low px-2 py-0.5 rounded border border-outline-variant">
                       <button
                         type="button"
                         onClick={() => onRefresh({ force: true })}
@@ -140,12 +148,25 @@ export function Header({
                           className={`w-3 h-3 ${isRefreshing ? 'animate-spin text-tertiary' : ''}`}
                         />
                       </button>
-                      {relativeTime ? (
+                      {timeFormatted ? (
                         <span className="text-[10px] whitespace-nowrap text-on-surface-variant" data-testid="header-refresh-time">
-                          Refreshed {relativeTime}
+                          Updated {timeFormatted}
+                        </span>
+                      ) : relativeTime ? (
+                        <span className="text-[10px] whitespace-nowrap text-on-surface-variant" data-testid="header-refresh-time">
+                          Updated {relativeTime}
                         </span>
                       ) : (
                         <span className="text-[10px] whitespace-nowrap text-on-surface-variant">Live sync</span>
+                      )}
+                      {isStaleData && (
+                        <span
+                          className="text-[9px] font-semibold px-1 py-0.2 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30"
+                          title="Displaying cached snapshot while upstream data is delayed"
+                          data-testid="header-stale-badge"
+                        >
+                          Cached
+                        </span>
                       )}
                     </div>
                   )}
@@ -154,6 +175,7 @@ export function Header({
             </div>
           </div>
         </div>
+
 
         {/* User Auth & Navigation Section */}
         <div className="flex items-center gap-3">

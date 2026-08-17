@@ -31,6 +31,7 @@ export default function DashboardPage() {
     participants,
     contestConfig,
     firestorePlayerMap,
+    isStaleData,
     loading: eventContextLoading,
     isRefreshing,
     lastRefreshedAt,
@@ -168,6 +169,7 @@ export default function DashboardPage() {
         eventName={activeEvent?.name}
         eventObj={activeEvent || undefined}
         isRefreshing={isRefreshing}
+        isStaleData={isStaleData}
         lastRefreshedAt={lastRefreshedAt}
         onRefresh={refreshLeaderboard}
       />
