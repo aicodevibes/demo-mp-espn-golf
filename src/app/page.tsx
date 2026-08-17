@@ -123,20 +123,23 @@ export default function DashboardPage() {
     return tournament.competitors.slice(0, 4);
   }, [tournament, activeParticipant, isTopView, fieldEvaluation, firestorePlayerMap, activeEvent]);
 
-  // Auto-select 1st golfer of newly displayed participant watchlist if current selection is not in active field
+  // Auto-select 1st golfer when participant view changes or tournament event changes
   useEffect(() => {
     if (displayCompetitors.length > 0) {
-      const isSelectedInTournament = Boolean(
-        selectedPlayerId &&
-          (tournament.competitorMap.has(selectedPlayerId) ||
-            displayCompetitors.some((c) => (c.athlete?.id || c.id) === selectedPlayerId))
-      );
-      if (!isSelectedInTournament) {
-        const firstId = displayCompetitors[0]?.athlete?.id || displayCompetitors[0]?.id;
-        if (firstId) setSelectedPlayerId(firstId);
+      const firstId = displayCompetitors[0]?.athlete?.id || displayCompetitors[0]?.id;
+      if (firstId) {
+        setSelectedPlayerId(firstId);
       }
     }
-  }, [displayCompetitors, selectedPlayerId, tournament.competitorMap]);
+  }, [selectedParticipantId, selectedEventId]);
+
+  // Fallback: If selectedPlayerId is empty on cold-start, select 1st displayed golfer
+  useEffect(() => {
+    if (!selectedPlayerId && displayCompetitors.length > 0) {
+      const firstId = displayCompetitors[0]?.athlete?.id || displayCompetitors[0]?.id;
+      if (firstId) setSelectedPlayerId(firstId);
+    }
+  }, [selectedPlayerId, displayCompetitors]);
 
   const selectedCompetitor = useMemo(() => {
     if (!selectedPlayerId) return displayCompetitors[0] || null;

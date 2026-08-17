@@ -117,7 +117,11 @@ describe('ScorecardMatrix Component', () => {
     expect(screen.getByText('IN')).toBeInTheDocument();
     expect(screen.getByText('TOT')).toBeInTheDocument();
 
-    // Front/Back/Total strokes
+    // Latest round (R2) is auto-focused
+    expect(screen.getByText('70')).toBeInTheDocument();
+
+    // Switch to R1 to verify R1 strokes
+    fireEvent.click(screen.getByText('R1 (-5)'));
     expect(screen.getByText('33')).toBeInTheDocument();
     expect(screen.getByText('34')).toBeInTheDocument();
     expect(screen.getByText('67')).toBeInTheDocument();

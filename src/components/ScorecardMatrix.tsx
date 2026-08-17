@@ -57,15 +57,13 @@ export function ScorecardMatrix({
   }, [playerSummary]);
 
   // Auto-focus latest started round when player or rounds update
+  const playerId = competitor?.athlete?.id || competitor?.id || playerSummary?.player?.id;
   useEffect(() => {
     if (startedRounds.length > 0) {
-      const isCurrentActiveValid = startedRounds.some((r) => r.period === activeRound);
-      if (!isCurrentActiveValid) {
-        const latestPeriod = startedRounds[startedRounds.length - 1].period;
-        setActiveRound(latestPeriod);
-      }
+      const latestPeriod = startedRounds[startedRounds.length - 1].period;
+      setActiveRound(latestPeriod);
     }
-  }, [startedRounds, activeRound]);
+  }, [playerId, startedRounds.length]);
 
   // Use the pre-evaluated status info on NormalizedCompetitor
   const statusInfo = competitor?.statusInfo || null;

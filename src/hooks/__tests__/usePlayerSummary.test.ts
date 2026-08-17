@@ -185,4 +185,46 @@ describe('usePlayerSummary Hook', () => {
 
     unmount();
   });
+
+  it('updates summary immediately when switching competitors', async () => {
+    const compA = { id: '111', athlete: { id: '111', displayName: 'Golfer A' }, score: '-1' } as any;
+    const compB = { id: '222', athlete: { id: '222', displayName: 'Golfer B' }, score: '-5' } as any;
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        const id = url.includes('111') ? '111' : '222';
+        const name = id === '111' ? 'Golfer A' : 'Golfer B';
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            profile: { id, displayName: name },
+            rounds: [{ period: 1, displayValue: id === '111' ? '71' : '67', linescores: [] }],
+          }),
+        });
+      })
+    );
+
+    let comp = compA;
+    const { result, rerender } = renderHook(() =>
+      usePlayerSummary({ eventId: '401234', competitor: comp })
+    );
+
+    await waitFor(() => {
+      expect(result.current.summary?.player.displayName).toBe('Golfer A');
+    });
+
+    // Switch to Golfer B
+    comp = compB;
+    rerender();
+
+    // Immediately shows Golfer B fallback/summary
+    expect(result.current.summary?.player.displayName).toBe('Golfer B');
+
+    await waitFor(() => {
+      expect(result.current.isFetching).toBe(false);
+    });
+
+    expect(result.current.summary?.player.displayName).toBe('Golfer B');
+  });
 });
