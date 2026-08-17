@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { ESPNCompetitor } from '@/types/espn';
 import { EspnTournamentAdapter, NormalizedPlayerSummary } from '@/lib/espn';
 
@@ -31,7 +31,7 @@ export interface UsePlayerSummaryResult {
 /**
  * Custom hook to fetch, cache, and fallback-hydrate hole-by-hole ESPN player summaries.
  * Provides 0ms instant cache retrieval and synchronous competitor fallback hydration,
- * while automatically re-validating in the background whenever live hole progress advances.
+ * with AbortController cancellation and 404 cooldown caching to prevent network storms.
  */
 export function usePlayerSummary({ eventId, competitor }: UsePlayerSummaryOptions): UsePlayerSummaryResult {
   const competitorId = competitor?.athlete?.id || competitor?.id;
@@ -47,6 +47,10 @@ export function usePlayerSummary({ eventId, competitor }: UsePlayerSummaryOption
 
   const cacheKey = eventId && competitorId ? `${eventId}_${competitorId}` : '';
   const fingerprint = `${cacheKey}_p${period}_t${thru}_s${scoreDisplay}`;
+
+  // Keep ref to latest competitor to avoid unstable object references in useEffect
+  const competitorRef = useRef(competitor);
+  competitorRef.current = competitor;
 
   // Synchronously compute cached summary or fallback summary during render to prevent 1-frame stale state tearing
   const currentSummary = useMemo(() => {
@@ -64,7 +68,7 @@ export function usePlayerSummary({ eventId, competitor }: UsePlayerSummaryOption
   const summary = (fetchedFingerprint === fingerprint && fetchedSummary) ? fetchedSummary : currentSummary;
 
   useEffect(() => {
-    if (!eventId || !competitorId || !competitor || !cacheKey) {
+    if (!eventId || !competitorId || !cacheKey) {
       setIsFetching(false);
       return;
     }
@@ -79,6 +83,7 @@ export function usePlayerSummary({ eventId, competitor }: UsePlayerSummaryOption
       return;
     }
 
+    const controller = new AbortController();
     let isMounted = true;
     setIsFetching(true);
 
@@ -86,12 +91,14 @@ export function usePlayerSummary({ eventId, competitor }: UsePlayerSummaryOption
       try {
         const season = new Date().getFullYear();
         const res = await fetch(
-          `/api/espn/playersummary?eventId=${eventId}&playerId=${competitorId}&season=${season}`
+          `/api/espn/playersummary?eventId=${eventId}&playerId=${competitorId}&season=${season}`,
+          { signal: controller.signal }
         );
         if (res.ok) {
           const data = await res.json();
           if (isMounted) {
-            const formatted = EspnTournamentAdapter.normalizePlayerSummary(data, competitor);
+            const comp = competitorRef.current;
+            const formatted = EspnTournamentAdapter.normalizePlayerSummary(data, comp);
             playerSummaryCache.set(cacheKey, {
               summary: formatted,
               fingerprint,
@@ -100,13 +107,27 @@ export function usePlayerSummary({ eventId, competitor }: UsePlayerSummaryOption
             setFetchedFingerprint(fingerprint);
             setFetchedSummary(formatted);
           }
-        } else {
-          console.warn(`[usePlayerSummary] HTTP ${res.status} fetching summary for player ${competitorId}`);
+        } else if (res.status === 404) {
+          // On 404 (e.g. player not in field or pre-round), cache normalized fallback to prevent spamming
+          const comp = competitorRef.current;
+          const fallback = EspnTournamentAdapter.normalizePlayerSummary(null, comp);
+          playerSummaryCache.set(cacheKey, {
+            summary: fallback,
+            fingerprint,
+            timestamp: Date.now(),
+          });
+          if (isMounted) {
+            setFetchedFingerprint(fingerprint);
+            setFetchedSummary(fallback);
+          }
         }
-      } catch (err) {
+      } catch (err: any) {
+        if (err?.name === 'AbortError') {
+          return;
+        }
         console.error('[usePlayerSummary] Failed to fetch player summary from ESPN API:', err);
       } finally {
-        if (isMounted) {
+        if (isMounted && !controller.signal.aborted) {
           setIsFetching(false);
         }
       }
@@ -116,8 +137,9 @@ export function usePlayerSummary({ eventId, competitor }: UsePlayerSummaryOption
 
     return () => {
       isMounted = false;
+      controller.abort();
     };
-  }, [eventId, competitorId, competitor, cacheKey, fingerprint, isLive]);
+  }, [eventId, competitorId, cacheKey, fingerprint, isLive]);
 
   // isLoading is true on cold-start when no player summary exists yet
   const isLoading = summary === null;

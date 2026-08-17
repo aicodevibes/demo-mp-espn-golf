@@ -40,17 +40,15 @@ describe('usePlayerSummary Hook', () => {
   });
 
   it('populates initial fallback summary synchronously from competitor', async () => {
-    // Mock API fetch to return delayed response
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockImplementation(() => new Promise(() => {})) // Never resolves immediately
+      vi.fn().mockImplementation(() => new Promise(() => {}))
     );
 
     const { result } = renderHook(() =>
       usePlayerSummary({ eventId: '401234', competitor: mockCompetitor })
     );
 
-    // Synchronous fallback should populate immediately
     expect(result.current.summary).not.toBeNull();
     expect(result.current.summary?.player.displayName).toBe('Tiger Woods');
     expect(result.current.isLoading).toBe(false);
@@ -90,11 +88,12 @@ describe('usePlayerSummary Hook', () => {
     expect(result.current.summary).not.toBeNull();
     expect(result.current.isLoading).toBe(false);
     expect(global.fetch).toHaveBeenCalledWith(
-      expect.stringContaining('/api/espn/playersummary?eventId=401234&playerId=12345')
+      expect.stringContaining('/api/espn/playersummary?eventId=401234&playerId=12345'),
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
     );
   });
 
-  it('returns cached summary instantly (0ms latency, isFetching: false) on subsequent calls', async () => {
+  it('returns cached summary instantly on subsequent calls', async () => {
     const mockApiData = {
       profile: { id: '12345', displayName: 'Tiger Woods' },
       rounds: [{ period: 1, displayValue: '70', linescores: [] }],
@@ -106,7 +105,6 @@ describe('usePlayerSummary Hook', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    // First render - populates cache
     const { result, unmount } = renderHook(() =>
       usePlayerSummary({ eventId: '401234', competitor: mockCompetitor })
     );
@@ -118,7 +116,6 @@ describe('usePlayerSummary Hook', () => {
     unmount();
     fetchMock.mockClear();
 
-    // Second render with same competitor - should hit cache
     const { result: result2 } = renderHook(() =>
       usePlayerSummary({ eventId: '401234', competitor: mockCompetitor })
     );
@@ -127,5 +124,65 @@ describe('usePlayerSummary Hook', () => {
     expect(result2.current.isLoading).toBe(false);
     expect(result2.current.isFetching).toBe(false);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('caches fallback summary on 404 response to prevent retry loops and suppress error storms', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      json: async () => ({ error: 'Not found' }),
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { result, rerender } = renderHook(() =>
+      usePlayerSummary({ eventId: '401234', competitor: mockCompetitor })
+    );
+
+    await waitFor(() => {
+      expect(result.current.isFetching).toBe(false);
+    });
+
+    // Fallback summary is active
+    expect(result.current.summary).not.toBeNull();
+    expect(result.current.summary?.player.displayName).toBe('Tiger Woods');
+
+    fetchMock.mockClear();
+
+    // Rerender - should NOT trigger another fetch because 404 fallback is cached
+    rerender();
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(result.current.isFetching).toBe(false);
+  });
+
+  it('aborts previous in-flight fetch when competitor changes', async () => {
+    const abortSpy = vi.fn();
+    let currentSignal: AbortSignal | null = null;
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url, options) => {
+        currentSignal = options?.signal;
+        currentSignal?.addEventListener('abort', abortSpy);
+        return new Promise(() => {}); // Never resolves
+      })
+    );
+
+    let comp = mockCompetitor;
+    const { rerender, unmount } = renderHook(() =>
+      usePlayerSummary({ eventId: '401234', competitor: comp })
+    );
+
+    expect(currentSignal).not.toBeNull();
+    expect(abortSpy).not.toHaveBeenCalled();
+
+    // Switch to another golfer
+    comp = { ...mockCompetitor, id: '99999', athlete: { id: '99999', displayName: 'Rory' } } as any;
+    rerender();
+
+    // Previous request should be aborted
+    expect(abortSpy).toHaveBeenCalledTimes(1);
+
+    unmount();
   });
 });

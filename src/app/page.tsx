@@ -137,7 +137,13 @@ export default function DashboardPage() {
   }, [displayCompetitors, selectedPlayerId]);
 
   const selectedCompetitor = useMemo(() => {
-    return tournament.competitorMap.get(selectedPlayerId) || displayCompetitors[0] || null;
+    if (!selectedPlayerId) return displayCompetitors[0] || null;
+    return (
+      tournament.competitorMap.get(selectedPlayerId) ||
+      displayCompetitors.find((c) => (c.athlete?.id || c.id) === selectedPlayerId) ||
+      displayCompetitors[0] ||
+      null
+    );
   }, [tournament, selectedPlayerId, displayCompetitors]);
 
   // Fetch Hole-by-Hole Player Summary via usePlayerSummary custom hook
