@@ -123,18 +123,20 @@ export default function DashboardPage() {
     return tournament.competitors.slice(0, 4);
   }, [tournament, activeParticipant, isTopView, fieldEvaluation, firestorePlayerMap, activeEvent]);
 
-  // Auto-select 1st golfer of newly displayed participant watchlist
+  // Auto-select 1st golfer of newly displayed participant watchlist if current selection is not in active field
   useEffect(() => {
     if (displayCompetitors.length > 0) {
-      const isSelectedInDisplay = displayCompetitors.some(
-        (c) => (c.athlete?.id || c.id) === selectedPlayerId
+      const isSelectedInTournament = Boolean(
+        selectedPlayerId &&
+          (tournament.competitorMap.has(selectedPlayerId) ||
+            displayCompetitors.some((c) => (c.athlete?.id || c.id) === selectedPlayerId))
       );
-      if (!isSelectedInDisplay) {
+      if (!isSelectedInTournament) {
         const firstId = displayCompetitors[0]?.athlete?.id || displayCompetitors[0]?.id;
         if (firstId) setSelectedPlayerId(firstId);
       }
     }
-  }, [displayCompetitors, selectedPlayerId]);
+  }, [displayCompetitors, selectedPlayerId, tournament.competitorMap]);
 
   const selectedCompetitor = useMemo(() => {
     if (!selectedPlayerId) return displayCompetitors[0] || null;
