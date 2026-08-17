@@ -83,7 +83,7 @@ export async function GET(req: NextRequest) {
         const eventData = await eventRes.json();
         const course = eventData.courses?.[0];
         if (course && Array.isArray(course.holes) && course.holes.length > 0) {
-          data.courseHoles = course.holes.map((h: any) => h.shotsToPar);
+          data.courseHoles = course.holes.map((h: { shotsToPar?: number }) => h.shotsToPar);
           data.courseName = course.name;
           data.shotsToPar = course.shotsToPar;
         }

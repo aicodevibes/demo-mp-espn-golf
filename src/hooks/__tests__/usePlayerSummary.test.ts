@@ -227,4 +227,55 @@ describe('usePlayerSummary Hook', () => {
 
     expect(result.current.summary?.player.displayName).toBe('Golfer B');
   });
+
+  it('pre-fetches golfer scorecards in background and warms cache for instantaneous zero-delay loading', async () => {
+    const { prefetchPlayerSummaries, prefetchPlayerSummary, getCachedPlayerSummary, buildPlayerSummaryCacheKey } = await import('../usePlayerSummary');
+
+    const golfer1: ESPNCompetitor = {
+      id: 'g1',
+      athlete: { id: 'g1', displayName: 'Scottie Scheffler' },
+      score: '-10',
+    } as ESPNCompetitor;
+
+    const golfer2: ESPNCompetitor = {
+      id: 'g2',
+      athlete: { id: 'g2', displayName: 'Rory McIlroy' },
+      score: '-8',
+    } as ESPNCompetitor;
+
+    const fetchSpy = vi.fn().mockImplementation((url: string) => {
+      const id = url.includes('g1') ? 'g1' : 'g2';
+      const name = id === 'g1' ? 'Scottie Scheffler' : 'Rory McIlroy';
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          profile: { id, displayName: name },
+          rounds: [{ period: 1, displayValue: '66', linescores: [] }],
+        }),
+      });
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    // Eager batch prefetch for drafted golfers
+    await prefetchPlayerSummaries('401580384', [golfer1, golfer2]);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+
+    const cacheKey1 = buildPlayerSummaryCacheKey('401580384', 'g1');
+    const cached1 = getCachedPlayerSummary(cacheKey1);
+    expect(cached1).toBeDefined();
+    expect(cached1?.summary.player.displayName).toBe('Scottie Scheffler');
+
+    // When the user clicks or selects golfer1, hook returns cached summary immediately without initiating a fetch
+    fetchSpy.mockClear();
+    const { result } = renderHook(() =>
+      usePlayerSummary({ eventId: '401580384', competitor: golfer1 })
+    );
+
+    expect(result.current.isLoading).toBe(false);
+    expect(result.current.isFetching).toBe(false);
+    expect(result.current.summary?.player.displayName).toBe('Scottie Scheffler');
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
 });
+

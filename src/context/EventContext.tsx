@@ -428,6 +428,23 @@ export function EventContextProvider({ children, initialEventId = '' }: EventCon
     onPoll: fetchLeaderboard,
   });
 
+  // 13. Eager Drafted Roster Scorecard Pre-fetching
+  useEffect(() => {
+    if (!selectedViewerEventId || fieldEvaluation.draftedGolfers.length === 0) return;
+
+    // Collect competitor objects for all drafted golfers
+    const draftedCompetitors: ESPNCompetitor[] = fieldEvaluation.draftedGolfers
+      .map((drafted) => tournament.competitorMap.get(drafted.id) || competitors.find((c) => (c.athlete?.id || c.id) === drafted.id))
+      .filter((c): c is ESPNCompetitor => Boolean(c));
+
+    if (draftedCompetitors.length > 0) {
+      // Import prefetchPlayerSummaries dynamically/directly to pre-warm client cache in the background
+      import('@/hooks/usePlayerSummary').then(({ prefetchPlayerSummaries }) => {
+        prefetchPlayerSummaries(selectedViewerEventId, draftedCompetitors);
+      });
+    }
+  }, [selectedViewerEventId, fieldEvaluation.draftedGolfers, tournament.competitorMap, competitors]);
+
   const handleRefresh = useCallback(
     async (options?: { force?: boolean }) => {
       const isForce = options?.force ?? true;
