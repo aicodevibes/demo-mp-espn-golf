@@ -82,7 +82,7 @@ export interface EventContextState {
   /** Error object if any subscription or fetch failed. */
   error: Error | null;
   /** Manual trigger to force re-fetch latest ESPN leaderboard. */
-  refreshLeaderboard: () => Promise<void>;
+  refreshLeaderboard: (options?: { force?: boolean }) => Promise<void>;
 }
 
 const DEFAULT_TOURNAMENT: NormalizedTournament = {
@@ -422,9 +422,13 @@ export function EventContextProvider({ children, initialEventId = '' }: EventCon
     onPoll: fetchLeaderboard,
   });
 
-  const handleRefresh = useCallback(async () => {
-    await fetchLeaderboard(true);
-  }, [fetchLeaderboard]);
+  const handleRefresh = useCallback(
+    async (options?: { force?: boolean }) => {
+      const isForce = options?.force ?? true;
+      await fetchLeaderboard(isForce);
+    },
+    [fetchLeaderboard]
+  );
 
   return (
     <EventContext.Provider

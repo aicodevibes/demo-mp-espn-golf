@@ -96,10 +96,10 @@ describe('Header Component', () => {
     const refreshBtn = screen.getByTestId('header-refresh-button');
     expect(refreshBtn).toBeInTheDocument();
     expect(refreshBtn).toHaveAttribute('aria-label', 'Refresh leaderboard data');
-    expect(screen.getByTestId('header-refresh-time')).toHaveTextContent('just now');
+    expect(screen.getByTestId('header-refresh-time')).toHaveTextContent('Refreshed just now');
 
     fireEvent.click(refreshBtn);
-    expect(onRefresh).toHaveBeenCalledTimes(1);
+    expect(onRefresh).toHaveBeenCalledWith({ force: true });
   });
 
   it('disables refresh button and displays spinning animation when isRefreshing is true', () => {

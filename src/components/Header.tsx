@@ -27,7 +27,7 @@ export interface HeaderProps {
   onSelectEvent?: (eventId: string) => void;
   isRefreshing?: boolean;
   lastRefreshedAt?: Date | null;
-  onRefresh?: () => void | Promise<void>;
+  onRefresh?: (options?: { force?: boolean }) => void | Promise<void>;
 }
 
 export function Header({
@@ -146,7 +146,7 @@ export function Header({
                     <div className="inline-flex items-center gap-1 text-[11px] text-on-surface-variant bg-surface-container-low px-2 py-0.5 rounded border border-outline-variant">
                       <button
                         type="button"
-                        onClick={() => onRefresh()}
+                        onClick={() => onRefresh({ force: true })}
                         disabled={isRefreshing}
                         aria-label="Refresh leaderboard data"
                         title="Refresh live leaderboard"
@@ -159,10 +159,10 @@ export function Header({
                       </button>
                       {relativeTime ? (
                         <span className="text-[10px] whitespace-nowrap text-on-surface-variant" data-testid="header-refresh-time">
-                          {relativeTime}
+                          Refreshed {relativeTime}
                         </span>
                       ) : (
-                        <span className="text-[10px] whitespace-nowrap text-on-surface-variant">Live</span>
+                        <span className="text-[10px] whitespace-nowrap text-on-surface-variant">Live sync</span>
                       )}
                     </div>
                   )}
