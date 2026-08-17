@@ -72,7 +72,7 @@ export function Top10Leaderboard({
         {top10Leaders.map((comp, idx) => {
           const playerId = comp.athlete?.id || comp.id || `top10-${idx}`;
           const isSelected = selectedPlayerId === playerId;
-          const draftedBy = playerDraftedByMap.get(playerId) || comp.profile.draftedBy || [];
+          const draftedBy = playerDraftedByMap.get(playerId) || comp.profile?.draftedBy || [];
 
           return (
             <CompetitorRow

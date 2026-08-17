@@ -63,7 +63,7 @@ export function ScorecardMatrix({
       const latestPeriod = startedRounds[startedRounds.length - 1].period;
       setActiveRound(latestPeriod);
     }
-  }, [playerId, startedRounds.length]);
+  }, [playerId, startedRounds]);
 
   // Use the pre-evaluated status info on NormalizedCompetitor
   const statusInfo = competitor?.statusInfo || null;

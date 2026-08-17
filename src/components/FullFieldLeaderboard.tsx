@@ -77,7 +77,7 @@ export function FullFieldLeaderboard({
         {activeField.map((comp, idx) => {
           const playerId = comp.athlete?.id || comp.id || `active-${idx}`;
           const isSelected = selectedPlayerId === playerId;
-          const draftedBy = playerDraftedByMap.get(playerId) || comp.profile.draftedBy || [];
+          const draftedBy = playerDraftedByMap.get(playerId) || comp.profile?.draftedBy || [];
 
           return (
             <CompetitorRow
@@ -109,7 +109,7 @@ export function FullFieldLeaderboard({
         {cutField.map((comp, idx) => {
           const playerId = comp.athlete?.id || comp.id || `cut-${idx}`;
           const isSelected = selectedPlayerId === playerId;
-          const draftedBy = playerDraftedByMap.get(playerId) || comp.profile.draftedBy || [];
+          const draftedBy = playerDraftedByMap.get(playerId) || comp.profile?.draftedBy || [];
 
           return (
             <CompetitorRow

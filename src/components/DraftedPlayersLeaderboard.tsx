@@ -71,7 +71,7 @@ export function DraftedPlayersLeaderboard({
         {otherDrafted.map((comp: EnrichedCompetitor, idx: number) => {
           const playerId = comp.athlete?.id || comp.id || `drafted-${idx}`;
           const isSelected = selectedPlayerId === playerId;
-          const draftedBy = playerDraftedByMap.get(playerId) || comp.profile.draftedBy || [];
+          const draftedBy = playerDraftedByMap.get(playerId) || comp.profile?.draftedBy || [];
 
           const isFourthGolfer = participants.some(p => p.draftedPlayerIds && p.draftedPlayerIds[3] === playerId);
 
