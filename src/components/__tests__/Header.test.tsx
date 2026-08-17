@@ -47,14 +47,49 @@ describe('Header Component', () => {
     expect(screen.getByTestId('header-event-skeleton')).toBeInTheDocument();
   });
 
-  it('renders live event title, dates, and live status badge as clean static text without dropdown', () => {
+  it('renders live event title, formatted dates, and live status badge as clean static text without dropdown', () => {
     render(<Header eventName="PGA Championship" eventObj={mockEvent} />);
 
     expect(screen.getByText(/PGA Championship/)).toBeInTheDocument();
     expect(screen.getByText(/Live/)).toBeInTheDocument();
+    expect(screen.getByText(/May 14.*17.*2026/)).toBeInTheDocument();
     expect(screen.queryByTestId('header-event-skeleton')).not.toBeInTheDocument();
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
     expect(screen.queryByTestId('header-event-selector')).not.toBeInTheDocument();
+  });
+
+  it('renders Final status badge when event statusState is post', () => {
+    const finalEvent = {
+      ...mockEvent,
+      status: {
+        type: {
+          name: 'STATUS_FINAL',
+          description: 'Final',
+          detail: 'Final',
+          state: 'post',
+        },
+      },
+    };
+    render(<Header eventName="PGA Championship" eventObj={finalEvent} />);
+
+    expect(screen.getByText(/Final/)).toBeInTheDocument();
+  });
+
+  it('renders Scheduled status badge when event statusState is pre', () => {
+    const scheduledEvent = {
+      ...mockEvent,
+      status: {
+        type: {
+          name: 'STATUS_SCHEDULED',
+          description: 'Scheduled',
+          detail: 'Scheduled',
+          state: 'pre',
+        },
+      },
+    };
+    render(<Header eventName="PGA Championship" eventObj={scheduledEvent} />);
+
+    expect(screen.getByText(/Scheduled/)).toBeInTheDocument();
   });
 
   it('renders live refresh control and triggers onRefresh when clicked', () => {
