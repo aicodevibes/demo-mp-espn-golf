@@ -77,6 +77,8 @@ export interface EventContextState {
   loading: boolean;
   /** True when a background leaderboard refresh is currently underway. */
   isRefreshing: boolean;
+  /** Timestamp of the last successful leaderboard refresh. */
+  lastRefreshedAt: Date | null;
   /** Error object if any subscription or fetch failed. */
   error: Error | null;
   /** Manual trigger to force re-fetch latest ESPN leaderboard. */
@@ -143,6 +145,7 @@ const EventContext = createContext<EventContextState>({
   contestEvaluation: DEFAULT_CONTEST_EVALUATION,
   loading: true,
   isRefreshing: false,
+  lastRefreshedAt: null,
   error: null,
   refreshLeaderboard: async () => {},
 });
@@ -179,6 +182,7 @@ export function EventContextProvider({ children, initialEventId = '' }: EventCon
   // 3. Status Flags
   const [loading, setLoading] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null);
   const [error, setError] = useState<Error | null>(null);
 
   // 4. Fetch ESPN Scoreboard (Events List)
@@ -361,6 +365,7 @@ export function EventContextProvider({ children, initialEventId = '' }: EventCon
           setCompetitors(resolvedComps);
           syncPlayersToFirestore(resolvedComps);
           setError(null);
+          setLastRefreshedAt(new Date());
         }
       } catch (err: unknown) {
         console.error('EventContext failed to fetch ESPN Leaderboard:', err);
@@ -441,6 +446,7 @@ export function EventContextProvider({ children, initialEventId = '' }: EventCon
         contestEvaluation,
         loading,
         isRefreshing,
+        lastRefreshedAt,
         error,
         refreshLeaderboard: handleRefresh,
       }}

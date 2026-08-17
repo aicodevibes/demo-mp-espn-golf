@@ -2,17 +2,32 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { ShieldCheck, LogOut, Trophy, Calendar, Activity, Award } from 'lucide-react';
+import { ShieldCheck, LogOut, Trophy, Calendar, Activity, Award, RotateCw } from 'lucide-react';
 import { ESPNEvent } from '@/types/espn';
 import { NormalizedTournament, formatEventDates } from '@/lib/espn';
 
-interface HeaderProps {
+export function formatRelativeTime(date: Date | null, now: Date = new Date()): string {
+  if (!date) return '';
+  const diffSec = Math.floor((now.getTime() - date.getTime()) / 1000);
+  if (diffSec < 0 || diffSec < 60) return 'just now';
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHours = Math.floor(diffMin / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  return `${diffDays}d ago`;
+}
+
+export interface HeaderProps {
   eventName?: string;
   eventObj?: NormalizedTournament | ESPNEvent | null;
   loading?: boolean;
   events?: ESPNEvent[];
   selectedEventId?: string;
   onSelectEvent?: (eventId: string) => void;
+  isRefreshing?: boolean;
+  lastRefreshedAt?: Date | null;
+  onRefresh?: () => void | Promise<void>;
 }
 
 export function Header({
@@ -22,12 +37,29 @@ export function Header({
   events,
   selectedEventId,
   onSelectEvent,
+  isRefreshing = false,
+  lastRefreshedAt = null,
+  onRefresh,
 }: HeaderProps) {
   const [mounted, setMounted] = useState(false);
+  const [relativeTime, setRelativeTime] = useState<string>('');
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    const updateTime = () => {
+      if (lastRefreshedAt) {
+        setRelativeTime(formatRelativeTime(lastRefreshedAt));
+      } else {
+        setRelativeTime('');
+      }
+    };
+    updateTime();
+    const timer = setInterval(updateTime, 10000);
+    return () => clearInterval(timer);
+  }, [lastRefreshedAt]);
 
   const { user, loading, isAdmin, signOut } = useAuth();
 
@@ -80,7 +112,6 @@ export function Header({
                         </option>
                       ))}
                     </select>
-
                   ) : (
                     (eventName || eventObj?.name) && (
                       <p className="text-xs font-semibold truncate max-w-xs sm:max-w-md text-on-surface-variant">
@@ -88,8 +119,6 @@ export function Header({
                       </p>
                     )
                   )}
-
-
 
                   {formattedDates && (
                     <span className="inline-flex items-center gap-1 text-[11px] font-medium text-on-surface-variant bg-surface-container-low px-2 py-0.5 rounded border border-outline-variant">
@@ -110,6 +139,32 @@ export function Header({
                     <span className="inline-flex items-center gap-1 text-[11px] font-medium text-on-surface-variant bg-surface-container-low px-2 py-0.5 rounded border border-outline-variant">
                       Scheduled
                     </span>
+                  )}
+
+                  {/* Live Refresh Widget */}
+                  {onRefresh && (
+                    <div className="inline-flex items-center gap-1 text-[11px] text-on-surface-variant bg-surface-container-low px-2 py-0.5 rounded border border-outline-variant">
+                      <button
+                        type="button"
+                        onClick={() => onRefresh()}
+                        disabled={isRefreshing}
+                        aria-label="Refresh leaderboard data"
+                        title="Refresh live leaderboard"
+                        className="p-0.5 text-on-surface-variant hover:text-on-surface transition rounded cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-1 focus:ring-primary"
+                        data-testid="header-refresh-button"
+                      >
+                        <RotateCw
+                          className={`w-3 h-3 ${isRefreshing ? 'animate-spin text-tertiary' : ''}`}
+                        />
+                      </button>
+                      {relativeTime ? (
+                        <span className="text-[10px] whitespace-nowrap text-on-surface-variant" data-testid="header-refresh-time">
+                          {relativeTime}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] whitespace-nowrap text-on-surface-variant">Live</span>
+                      )}
+                    </div>
                   )}
                 </>
               )}

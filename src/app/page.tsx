@@ -32,6 +32,9 @@ export default function DashboardPage() {
     contestConfig,
     firestorePlayerMap,
     loading: eventContextLoading,
+    isRefreshing,
+    lastRefreshedAt,
+    refreshLeaderboard,
   } = useEventContext();
 
   // Local UI-only state
@@ -156,6 +159,9 @@ export default function DashboardPage() {
         events={events}
         selectedEventId={selectedEventId}
         onSelectEvent={setEventOverride}
+        isRefreshing={isRefreshing}
+        lastRefreshedAt={lastRefreshedAt}
+        onRefresh={refreshLeaderboard}
       />
 
       {/* Historical Archive Banner */}
