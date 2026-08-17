@@ -57,6 +57,7 @@ export function TrackedPlayerHeroGrid({
 
         const computedRank =
           rankDisplayMap?.get(playerId) ||
+          (comp as any).formattedRank ||
           (comp.status?.position?.displayName && comp.status.position.displayName !== 'E' ? comp.status.position.displayName : null) ||
           (comp.order ? `${comp.order}` : '-');
 

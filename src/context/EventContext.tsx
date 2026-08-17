@@ -157,11 +157,7 @@ interface EventContextProviderProps {
 
 export function EventContextProvider({ children, initialEventId = '' }: EventContextProviderProps) {
   // 1. Core Firestore State
-  const [activeConfigId, setActiveConfigId] = useState<string>(() => {
-    if (initialEventId) return initialEventId;
-    const cached = readScoreboardCache();
-    return cached?.lastActiveEventId || '';
-  });
+  const [activeConfigId, setActiveConfigId] = useState<string>(initialEventId || '');
   const [activeSeason, setActiveSeason] = useState<number>(new Date().getFullYear());
   const [activeConfig, setActiveConfig] = useState<AppConfig | null>(null);
   const [contestConfig, setContestConfig] = useState<ContestConfig | null>(null);
@@ -171,10 +167,7 @@ export function EventContextProvider({ children, initialEventId = '' }: EventCon
   >(DEFAULT_PLAYER_DIRECTORY_MAP);
 
   // 2. Scoreboard & Event State
-  const [events, setEvents] = useState<ESPNEvent[]>(() => {
-    const cached = readScoreboardCache();
-    return cached?.events || [];
-  });
+  const [events, setEvents] = useState<ESPNEvent[]>([]);
   const [activeEventObj, setActiveEventObj] = useState<ESPNEvent | null>(null);
   const [competitors, setCompetitors] = useState<ESPNCompetitor[]>([]);
   const [viewerEventIdOverride, setViewerEventIdOverride] = useState<string>('');
@@ -184,6 +177,19 @@ export function EventContextProvider({ children, initialEventId = '' }: EventCon
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null);
   const [error, setError] = useState<Error | null>(null);
+
+  // 4. Safe client-side hydration from local cache
+  useEffect(() => {
+    const cached = readScoreboardCache();
+    if (cached) {
+      if (cached.events && cached.events.length > 0) {
+        setEvents((prev) => (prev.length === 0 ? cached.events : prev));
+      }
+      if (cached.lastActiveEventId && !initialEventId) {
+        setActiveConfigId((prev) => (!prev ? cached.lastActiveEventId! : prev));
+      }
+    }
+  }, [initialEventId]);
 
   // 4. Fetch ESPN Scoreboard (Events List)
   useEffect(() => {
