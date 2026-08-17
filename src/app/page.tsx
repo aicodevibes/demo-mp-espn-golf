@@ -206,6 +206,8 @@ export default function DashboardPage() {
                 </label>
                 <select
                   id="participantSelect"
+                  name="selectedParticipant"
+                  aria-label="Select pool participant"
                   value={selectedParticipantId}
                   onChange={(e) => setSelectedParticipantId(e.target.value)}
                   className="bg-surface-container-lowest border border-outline-variant rounded-lg px-3 py-1.5 text-xs font-bold text-on-surface outline-none focus:border-tertiary shadow-xs cursor-pointer"

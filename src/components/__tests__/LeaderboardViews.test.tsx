@@ -5,6 +5,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { TrackedPlayerHeroGrid } from '../TrackedPlayerHeroGrid';
 import { CompetitorRow } from '../CompetitorRow';
+import { FullFieldLeaderboard } from '../FullFieldLeaderboard';
 import { NormalizedCompetitor } from '@/lib/espn';
 
 describe('Leaderboard Views with Normalized Competitors', () => {
@@ -118,4 +119,25 @@ describe('Leaderboard Views with Normalized Competitors', () => {
       expect(onSelect).toHaveBeenCalledWith('4604625');
     });
   });
+
+  describe('FullFieldLeaderboard', () => {
+    it('renders search input with explicit id, name, and aria-label accessibility attributes', () => {
+      const onSelect = vi.fn();
+      render(
+        <FullFieldLeaderboard
+          competitors={[]}
+          participants={[]}
+          selectedPlayerId="4604625"
+          onSelectPlayer={onSelect}
+        />
+      );
+
+      const searchInput = screen.getByRole('textbox', { name: /search golfer/i });
+      expect(searchInput).toBeInTheDocument();
+      expect(searchInput).toHaveAttribute('id', 'fullfield-search-input');
+      expect(searchInput).toHaveAttribute('name', 'searchQuery');
+      expect(searchInput).toHaveAttribute('aria-label', 'Search golfer by name');
+    });
+  });
 });
+

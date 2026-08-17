@@ -60,7 +60,10 @@ export function FullFieldLeaderboard({
         <div className="relative w-full sm:w-64">
           <Search className="w-4 h-4 text-on-surface-variant absolute left-3 top-1/2 -translate-y-1/2" />
           <input
+            id="fullfield-search-input"
+            name="searchQuery"
             type="text"
+            aria-label="Search golfer by name"
             placeholder="Search golfer..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
