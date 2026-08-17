@@ -6,10 +6,7 @@ export interface CachedScoreboardData {
   lastActiveEventId?: string;
 }
 
-export interface CachedScoreboardResult {
-  events: ESPNEvent[];
-  lastActiveEventId?: string;
-}
+export type CachedScoreboardResult = Omit<CachedScoreboardData, 'timestamp'>;
 
 export const SCOREBOARD_CACHE_KEY = 'mp_espn_scoreboard_cache';
 export const SCOREBOARD_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
@@ -70,15 +67,6 @@ export function writeCachedActiveEventId(
   now: number = Date.now()
 ): void {
   if (typeof window === 'undefined' || !lastActiveEventId) return;
-  try {
-    const existing = readScoreboardCache(now);
-    const data: CachedScoreboardData = {
-      timestamp: now,
-      events: existing?.events || [],
-      lastActiveEventId,
-    };
-    localStorage.setItem(SCOREBOARD_CACHE_KEY, JSON.stringify(data));
-  } catch {
-    // Ignore quota or storage errors
-  }
+  const existing = readScoreboardCache(now);
+  writeScoreboardCache(existing?.events || [], lastActiveEventId, now);
 }

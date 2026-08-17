@@ -185,14 +185,14 @@ export function EventContextProvider({ children, initialEventId = '' }: EventCon
           const data = await res.json();
           const fetchedEvents: ESPNEvent[] = data.events || [];
           setEvents(fetchedEvents);
-          writeScoreboardCache(fetchedEvents, activeConfigId || undefined);
+          writeScoreboardCache(fetchedEvents);
         }
       } catch (err) {
         console.error('Failed to fetch ESPN Scoreboard:', err);
       }
     }
     fetchScoreboard();
-  }, [activeConfigId]);
+  }, []);
 
   // 5. Subscribe to /config/app
   useEffect(() => {
