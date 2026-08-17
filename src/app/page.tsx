@@ -201,11 +201,11 @@ export default function DashboardPage() {
             {/* Participant Dropdown View Selector & Ribbon Collapse Button */}
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2">
-                <label htmlFor="participantSelect" className="text-xs font-bold text-on-surface-variant">
+                <label htmlFor="participant-selector" className="text-xs font-bold text-on-surface-variant">
                   Participant View:
                 </label>
                 <select
-                  id="participantSelect"
+                  id="participant-selector"
                   name="selectedParticipant"
                   aria-label="Select pool participant"
                   value={selectedParticipantId}
