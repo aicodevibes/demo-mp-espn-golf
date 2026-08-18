@@ -80,15 +80,19 @@ export function FullFieldLeaderboard({
           const draftedBy = playerDraftedByMap.get(playerId) || comp.profile?.draftedBy || [];
 
           return (
-            <CompetitorRow
+            <div
               key={`field-active-${playerId}-${idx}`}
-              competitor={comp}
-              draftedBy={draftedBy}
-              rankDisplay={comp.formattedRank}
-              isSelected={isSelected}
-              eventStatus={eventObj?.status}
-              onSelectPlayer={onSelectPlayer}
-            />
+              style={{ contentVisibility: 'auto', containIntrinsicSize: '0 54px' }}
+            >
+              <CompetitorRow
+                competitor={comp}
+                draftedBy={draftedBy}
+                rankDisplay={comp.formattedRank}
+                isSelected={isSelected}
+                eventStatus={eventObj?.status}
+                onSelectPlayer={onSelectPlayer}
+              />
+            </div>
           );
         })}
 
@@ -112,15 +116,19 @@ export function FullFieldLeaderboard({
           const draftedBy = playerDraftedByMap.get(playerId) || comp.profile?.draftedBy || [];
 
           return (
-            <CompetitorRow
+            <div
               key={`field-cut-${playerId}-${idx}`}
-              competitor={comp}
-              draftedBy={draftedBy}
-              rankDisplay={comp.formattedRank}
-              isSelected={isSelected}
-              eventStatus={eventObj?.status}
-              onSelectPlayer={onSelectPlayer}
-            />
+              style={{ contentVisibility: 'auto', containIntrinsicSize: '0 54px' }}
+            >
+              <CompetitorRow
+                competitor={comp}
+                draftedBy={draftedBy}
+                rankDisplay={comp.formattedRank}
+                isSelected={isSelected}
+                eventStatus={eventObj?.status}
+                onSelectPlayer={onSelectPlayer}
+              />
+            </div>
           );
         })}
       </div>

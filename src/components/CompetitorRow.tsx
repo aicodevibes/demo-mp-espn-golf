@@ -13,7 +13,7 @@ export interface CompetitorRowProps {
   onSelectPlayer?: (playerId: string) => void;
 }
 
-export function CompetitorRow({
+export function CompetitorRowComponent({
   competitor,
   draftedBy = [],
   rankDisplay,
@@ -135,3 +135,6 @@ export function CompetitorRow({
     </div>
   );
 }
+
+export const CompetitorRow = React.memo(CompetitorRowComponent);
+CompetitorRow.displayName = 'CompetitorRow';

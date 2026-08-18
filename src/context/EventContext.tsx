@@ -469,32 +469,58 @@ export function EventContextProvider({ children, initialEventId = '' }: EventCon
     [fetchLeaderboard]
   );
 
+  // Vercel Performance: rerender-memo on global context value
+  const contextValue: EventContextState = useMemo(
+    () => ({
+      activeEventId: effectiveActiveEventId,
+      activeSeason,
+      activeConfig,
+      contestConfig,
+      participants,
+      firestorePlayerMap,
+      selectedEventId: selectedViewerEventId,
+      isHistoricalView,
+      setEventOverride: setViewerEventIdOverride,
+      events,
+      activeEvent,
+      competitors,
+      tournament,
+      fieldEvaluation,
+      contestEvaluation,
+      isStaleData,
+      loading,
+      isRefreshing,
+      lastRefreshedAt,
+      error,
+      refreshLeaderboard: handleRefresh,
+    }),
+    [
+      effectiveActiveEventId,
+      activeSeason,
+      activeConfig,
+      contestConfig,
+      participants,
+      firestorePlayerMap,
+      selectedViewerEventId,
+      isHistoricalView,
+      setViewerEventIdOverride,
+      events,
+      activeEvent,
+      competitors,
+      tournament,
+      fieldEvaluation,
+      contestEvaluation,
+      isStaleData,
+      loading,
+      isRefreshing,
+      lastRefreshedAt,
+      error,
+      handleRefresh,
+    ]
+  );
+
   return (
-    <EventContext.Provider
-      value={{
-        activeEventId: effectiveActiveEventId,
-        activeSeason,
-        activeConfig,
-        contestConfig,
-        participants,
-        firestorePlayerMap,
-        selectedEventId: selectedViewerEventId,
-        isHistoricalView,
-        setEventOverride: setViewerEventIdOverride,
-        events,
-        activeEvent,
-        competitors,
-        tournament,
-        fieldEvaluation,
-        contestEvaluation,
-        isStaleData,
-        loading,
-        isRefreshing,
-        lastRefreshedAt,
-        error,
-        refreshLeaderboard: handleRefresh,
-      }}
-    >
+    <EventContext.Provider value={contextValue}>
       {children}
     </EventContext.Provider>
   );
