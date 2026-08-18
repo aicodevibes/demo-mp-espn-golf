@@ -1,13 +1,16 @@
 import React from 'react';
 import { NormalizedCompetitor } from '@/lib/espn';
+import { ESPNEventStatus } from '@/types/espn';
 import { GolferHeadshot } from './GolferHeadshot';
+
+export const EMPTY_DRAFTED_BY: string[] = [];
 
 export interface CompetitorRowProps {
   competitor: NormalizedCompetitor;
   draftedBy?: string[];
   rankDisplay?: string | number;
   isSelected?: boolean;
-  eventStatus?: any;
+  eventStatus?: ESPNEventStatus;
   priorityHeadshot?: boolean;
   isFourthGolfer?: boolean;
   onSelectPlayer?: (playerId: string) => void;
@@ -15,7 +18,7 @@ export interface CompetitorRowProps {
 
 export function CompetitorRowComponent({
   competitor,
-  draftedBy = [],
+  draftedBy = EMPTY_DRAFTED_BY,
   rankDisplay,
   isSelected = false,
   priorityHeadshot = false,

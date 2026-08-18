@@ -5,7 +5,7 @@ import { ESPNCompetitor, ESPNEvent } from '@/types/espn';
 import { Search, Scissors } from 'lucide-react';
 import { Participant } from '@/types/contest';
 import { evaluateLeaderboard, EnrichedCompetitor } from '@/lib/domain';
-import { CompetitorRow } from './CompetitorRow';
+import { CompetitorRow, EMPTY_DRAFTED_BY } from './CompetitorRow';
 
 interface FullFieldLeaderboardProps {
   competitors: ESPNCompetitor[];
@@ -77,12 +77,12 @@ export function FullFieldLeaderboard({
         {activeField.map((comp, idx) => {
           const playerId = comp.athlete?.id || comp.id || `active-${idx}`;
           const isSelected = selectedPlayerId === playerId;
-          const draftedBy = playerDraftedByMap.get(playerId) || comp.profile?.draftedBy || [];
+          const draftedBy = playerDraftedByMap.get(playerId) || comp.profile?.draftedBy || EMPTY_DRAFTED_BY;
 
           return (
             <div
               key={`field-active-${playerId}-${idx}`}
-              style={{ contentVisibility: 'auto', containIntrinsicSize: '0 54px' }}
+              style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 54px' }}
             >
               <CompetitorRow
                 competitor={comp}
@@ -113,12 +113,12 @@ export function FullFieldLeaderboard({
         {cutField.map((comp, idx) => {
           const playerId = comp.athlete?.id || comp.id || `cut-${idx}`;
           const isSelected = selectedPlayerId === playerId;
-          const draftedBy = playerDraftedByMap.get(playerId) || comp.profile?.draftedBy || [];
+          const draftedBy = playerDraftedByMap.get(playerId) || comp.profile?.draftedBy || EMPTY_DRAFTED_BY;
 
           return (
             <div
               key={`field-cut-${playerId}-${idx}`}
-              style={{ contentVisibility: 'auto', containIntrinsicSize: '0 54px' }}
+              style={{ contentVisibility: 'auto', containIntrinsicSize: 'auto 54px' }}
             >
               <CompetitorRow
                 competitor={comp}

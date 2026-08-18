@@ -5,7 +5,7 @@ import { ESPNCompetitor, ESPNEvent } from '@/types/espn';
 import { Users } from 'lucide-react';
 import { Participant } from '@/types/contest';
 import { evaluateLeaderboard, EnrichedCompetitor } from '@/lib/domain';
-import { CompetitorRow } from './CompetitorRow';
+import { CompetitorRow, EMPTY_DRAFTED_BY } from './CompetitorRow';
 
 interface DraftedPlayersLeaderboardProps {
   competitors: ESPNCompetitor[];
@@ -26,21 +26,22 @@ export function DraftedPlayersLeaderboard({
   selectedPlayerId,
   onSelectPlayer,
 }: DraftedPlayersLeaderboardProps) {
-  const evaluated = useMemo(() => {
+  const { otherDrafted, playerDraftedByMap } = useMemo(() => {
     if (propOtherDrafted) {
       return {
-        draftedGolfers: propOtherDrafted,
+        otherDrafted: propOtherDrafted,
         playerDraftedByMap: propPlayerDraftedByMap || new Map<string, string[]>(),
       };
     }
-    return evaluateLeaderboard(competitors, {
+    const evalResult = evaluateLeaderboard(competitors, {
       participants,
       eventStatus: eventObj?.status,
     });
+    return {
+      otherDrafted: evalResult.draftedGolfers,
+      playerDraftedByMap: evalResult.playerDraftedByMap,
+    };
   }, [competitors, participants, eventObj, propOtherDrafted, propPlayerDraftedByMap]);
-
-  const otherDrafted = evaluated.draftedGolfers;
-  const playerDraftedByMap = evaluated.playerDraftedByMap;
 
   if (otherDrafted.length === 0) {
     return (
@@ -71,7 +72,7 @@ export function DraftedPlayersLeaderboard({
         {otherDrafted.map((comp: EnrichedCompetitor, idx: number) => {
           const playerId = comp.athlete?.id || comp.id || `drafted-${idx}`;
           const isSelected = selectedPlayerId === playerId;
-          const draftedBy = playerDraftedByMap.get(playerId) || comp.profile?.draftedBy || [];
+          const draftedBy = playerDraftedByMap.get(playerId) || comp.profile?.draftedBy || EMPTY_DRAFTED_BY;
 
           const isFourthGolfer = participants.some(p => p.draftedPlayerIds && p.draftedPlayerIds[3] === playerId);
 

@@ -5,7 +5,7 @@ import { ESPNCompetitor, ESPNEvent } from '@/types/espn';
 import { Trophy } from 'lucide-react';
 import { Participant } from '@/types/contest';
 import { evaluateLeaderboard, EnrichedCompetitor } from '@/lib/domain';
-import { CompetitorRow } from './CompetitorRow';
+import { CompetitorRow, EMPTY_DRAFTED_BY } from './CompetitorRow';
 
 interface Top10LeaderboardProps {
   competitors: ESPNCompetitor[];
@@ -72,7 +72,7 @@ export function Top10Leaderboard({
         {top10Leaders.map((comp, idx) => {
           const playerId = comp.athlete?.id || comp.id || `top10-${idx}`;
           const isSelected = selectedPlayerId === playerId;
-          const draftedBy = playerDraftedByMap.get(playerId) || comp.profile?.draftedBy || [];
+          const draftedBy = playerDraftedByMap.get(playerId) || comp.profile?.draftedBy || EMPTY_DRAFTED_BY;
 
           return (
             <CompetitorRow

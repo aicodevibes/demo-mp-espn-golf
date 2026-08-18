@@ -267,7 +267,7 @@ export default function DashboardPage() {
               eventStatus={activeEvent?.status}
               rankDisplayMap={fieldEvaluation.rankDisplayMap}
               selectedPlayerId={selectedPlayerId || selectedCompetitor?.athlete?.id || selectedCompetitor?.id}
-              onSelectPlayer={(id) => setSelectedPlayerId(id)}
+              onSelectPlayer={setSelectedPlayerId}
             />
           )}
         </section>
@@ -290,8 +290,8 @@ export default function DashboardPage() {
             standings={contestEvaluation.standings}
             contestConfig={contestConfig}
             loading={eventContextLoading}
-            onSelectParticipant={(pId) => setSelectedParticipantId(pId)}
-            onSelectPlayer={(pId) => setSelectedPlayerId(pId)}
+            onSelectParticipant={setSelectedParticipantId}
+            onSelectPlayer={setSelectedPlayerId}
           />
         </section>
 
@@ -304,7 +304,7 @@ export default function DashboardPage() {
             top10Leaders={fieldEvaluation.top10Leaders}
             playerDraftedByMap={fieldEvaluation.playerDraftedByMap}
             selectedPlayerId={selectedPlayerId}
-            onSelectPlayer={(id) => setSelectedPlayerId(id)}
+            onSelectPlayer={setSelectedPlayerId}
           />
 
           <DraftedPlayersLeaderboard
@@ -314,7 +314,7 @@ export default function DashboardPage() {
             otherDrafted={fieldEvaluation.draftedGolfers}
             playerDraftedByMap={fieldEvaluation.playerDraftedByMap}
             selectedPlayerId={selectedPlayerId}
-            onSelectPlayer={(id) => setSelectedPlayerId(id)}
+            onSelectPlayer={setSelectedPlayerId}
           />
         </section>
 
@@ -328,7 +328,7 @@ export default function DashboardPage() {
             cutField={fieldEvaluation.cutField}
             playerDraftedByMap={fieldEvaluation.playerDraftedByMap}
             selectedPlayerId={selectedPlayerId}
-            onSelectPlayer={(id) => setSelectedPlayerId(id)}
+            onSelectPlayer={setSelectedPlayerId}
           />
         </section>
 
