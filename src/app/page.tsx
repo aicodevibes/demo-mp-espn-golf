@@ -64,19 +64,14 @@ export default function DashboardPage() {
   };
 
   // Auto-select 1st participant when loaded if needed
-  useEffect(() => {
-    if (participants.length > 0 && !selectedParticipantId) {
-      setSelectedParticipantId(participants[0].id);
-    }
-  }, [participants, selectedParticipantId]);
-
-  const isTopView = selectedParticipantId === 'top_view' || !selectedParticipantId;
+  const effectiveParticipantId = selectedParticipantId || (participants.length > 0 ? participants[0].id : 'top_view');
+  const isTopView = effectiveParticipantId === 'top_view';
 
   // Find active selected participant
   const activeParticipant = useMemo(() => {
     if (isTopView) return null;
-    return participants.find((p) => p.id === selectedParticipantId) || null;
-  }, [participants, selectedParticipantId, isTopView]);
+    return participants.find((p) => p.id === effectiveParticipantId) || null;
+  }, [participants, effectiveParticipantId, isTopView]);
 
   // Vercel Performance Rule: rerender-memo & js-index-maps
   const displayCompetitors = useMemo(() => {
@@ -124,33 +119,18 @@ export default function DashboardPage() {
     return tournament.competitors.slice(0, 4);
   }, [tournament, activeParticipant, isTopView, fieldEvaluation, firestorePlayerMap, activeEvent]);
 
-  // Auto-select 1st golfer when participant view changes or tournament event changes
-  useEffect(() => {
-    if (displayCompetitors.length > 0) {
-      const firstId = displayCompetitors[0]?.athlete?.id || displayCompetitors[0]?.id;
-      if (firstId) {
-        setSelectedPlayerId(firstId);
-      }
-    }
-  }, [selectedParticipantId, selectedEventId]);
-
-  // Fallback: If selectedPlayerId is empty on cold-start, select 1st displayed golfer
-  useEffect(() => {
-    if (!selectedPlayerId && displayCompetitors.length > 0) {
-      const firstId = displayCompetitors[0]?.athlete?.id || displayCompetitors[0]?.id;
-      if (firstId) setSelectedPlayerId(firstId);
-    }
-  }, [selectedPlayerId, displayCompetitors]);
+  const defaultPlayerId = displayCompetitors[0]?.athlete?.id || displayCompetitors[0]?.id || '';
+  const effectiveSelectedPlayerId = selectedPlayerId || defaultPlayerId;
 
   const selectedCompetitor = useMemo(() => {
-    if (!selectedPlayerId) return displayCompetitors[0] || null;
+    if (!effectiveSelectedPlayerId) return displayCompetitors[0] || null;
     return (
-      tournament.competitorMap.get(selectedPlayerId) ||
-      displayCompetitors.find((c) => (c.athlete?.id || c.id) === selectedPlayerId) ||
+      tournament.competitorMap.get(effectiveSelectedPlayerId) ||
+      displayCompetitors.find((c) => (c.athlete?.id || c.id) === effectiveSelectedPlayerId) ||
       displayCompetitors[0] ||
       null
     );
-  }, [tournament, selectedPlayerId, displayCompetitors]);
+  }, [tournament, effectiveSelectedPlayerId, displayCompetitors]);
 
   // Fetch Hole-by-Hole Player Summary via usePlayerSummary custom hook
   const {
