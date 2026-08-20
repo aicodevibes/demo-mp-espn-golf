@@ -14,6 +14,7 @@ import {
   LIVE_POLL_INTERVAL_MS,
   RELAXED_POLL_INTERVAL_MS,
 } from '@/hooks/useLeaderboardPolling';
+import { clearPlayerSummaryCache } from '@/hooks/usePlayerSummary';
 
 export { LIVE_POLL_INTERVAL_MS, RELAXED_POLL_INTERVAL_MS };
 
@@ -86,6 +87,8 @@ export function LiveSyncProvider({
           return;
         }
         lastForcedRefreshRef.current = now;
+        // Bust client player summary memory cache on user-initiated force refresh
+        clearPlayerSummaryCache();
       }
       setIsRefreshing(true);
       try {

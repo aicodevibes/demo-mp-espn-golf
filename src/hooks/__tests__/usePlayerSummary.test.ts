@@ -277,5 +277,104 @@ describe('usePlayerSummary Hook', () => {
     expect(result.current.summary?.player.displayName).toBe('Scottie Scheffler');
     expect(fetchSpy).not.toHaveBeenCalled();
   });
+
+  it('invalidates cache immediately when golfer live score or thru updates', async () => {
+    const compHole7: ESPNCompetitor = {
+      id: '5409',
+      score: 'E',
+      athlete: { id: '5409', displayName: 'Russell Henley' },
+      status: { period: 1, thru: 7, type: { state: 'in' } },
+    } as any;
+
+    const fetchSpy = vi.fn().mockImplementation((url: string) => {
+      const isHole17 = url.includes('&force=true') || fetchSpy.mock.calls.length > 1;
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          profile: { id: '5409', displayName: 'Russell Henley' },
+          rounds: [
+            {
+              period: 1,
+              displayValue: isHole17 ? '-3' : 'E',
+              linescores: Array.from({ length: isHole17 ? 17 : 7 }, (_, i) => ({
+                period: i + 1,
+                value: 4,
+                scoreType: { displayValue: 'E' },
+              })),
+            },
+          ],
+        }),
+      });
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const { result, rerender } = renderHook(
+      ({ comp }) => usePlayerSummary({ eventId: '401811963', competitor: comp }),
+      { initialProps: { comp: compHole7 } }
+    );
+
+    await waitFor(() => {
+      expect(result.current.isFetching).toBe(false);
+    });
+
+    expect(result.current.summary?.rounds[0]?.holes.filter((h) => h.isPlayed).length).toBe(7);
+
+    // Henley finishes hole 17 and is now -3 thru 17
+    const compHole17: ESPNCompetitor = {
+      id: '5409',
+      score: 'E',
+      scoreDisplay: '-3',
+      thruDisplay: '17',
+      athlete: { id: '5409', displayName: 'Russell Henley' },
+      status: { period: 1, thru: 17, type: { state: 'in' } },
+    } as any;
+
+    rerender({ comp: compHole17 });
+
+    // Triggers network fetch because fingerprint changed with updated thru/scoreDisplay
+    await waitFor(() => {
+      expect(result.current.isFetching).toBe(false);
+    });
+
+    expect(result.current.summary?.rounds[0]?.holes.filter((h) => h.isPlayed).length).toBe(17);
+  });
+
+  it('bypasses cache when forceRefreshKey is passed', async () => {
+    const mockApiData = {
+      profile: { id: '12345', displayName: 'Tiger Woods' },
+      rounds: [{ period: 1, displayValue: '70', linescores: [] }],
+    };
+
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => mockApiData,
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { result, rerender } = renderHook(
+      ({ key }) =>
+        usePlayerSummary({
+          eventId: '401234',
+          competitor: mockCompetitor,
+          forceRefreshKey: key,
+        }),
+      { initialProps: { key: undefined as number | undefined } }
+    );
+
+    await waitFor(() => {
+      expect(result.current.isFetching).toBe(false);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // Re-render with forceRefreshKey
+    rerender({ key: Date.now() });
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining('&force=true'),
+        expect.anything()
+      );
+    });
+  });
 });
 

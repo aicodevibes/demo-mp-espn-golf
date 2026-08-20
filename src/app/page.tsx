@@ -140,6 +140,7 @@ export default function DashboardPage() {
   } = usePlayerSummary({
     eventId: selectedEventId,
     competitor: selectedCompetitor,
+    forceRefreshKey: isRefreshing ? Date.now() : lastRefreshedAt?.getTime(),
   });
 
   return (
