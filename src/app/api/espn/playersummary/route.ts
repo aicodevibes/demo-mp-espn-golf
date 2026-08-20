@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
         }
       : ({
           next: {
-            revalidate: 60,
+            revalidate: 15,
             tags: ['espn-playersummary'],
           },
           headers,
@@ -96,7 +96,7 @@ export async function GET(req: NextRequest) {
 
     const cacheControl = isForce
       ? 'no-store'
-      : 'public, s-maxage=60, stale-while-revalidate=120';
+      : 'public, s-maxage=15, stale-while-revalidate=30';
 
     return NextResponse.json(data, {
       headers: {

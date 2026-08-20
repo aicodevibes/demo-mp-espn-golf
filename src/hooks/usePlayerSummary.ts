@@ -29,15 +29,17 @@ export function buildPlayerSummaryCacheKey(eventId: string | undefined, competit
 
 export function buildPlayerFingerprint(
   eventId: string | undefined,
-  competitor: ESPNCompetitor | null | undefined
+  competitor: (ESPNCompetitor & { scoreDisplay?: string; thruDisplay?: string }) | null | undefined
 ): string {
   const competitorId = competitor?.athlete?.id || competitor?.id;
   const cacheKey = buildPlayerSummaryCacheKey(eventId, competitorId);
   if (!cacheKey) return '';
 
   const period = competitor?.status?.period ?? 1;
-  const thru = competitor?.status?.thru ?? 0;
-  const rawScore = competitor?.score;
+  const thru = competitor?.status?.thru ?? competitor?.thruDisplay ?? 0;
+  
+  // Prefer pre-evaluated scoreDisplay (e.g. "-3", "+1", "E") over raw score object
+  const rawScore = competitor?.scoreDisplay || competitor?.score;
   const scoreDisplay =
     typeof rawScore === 'string' || typeof rawScore === 'number'
       ? String(rawScore)
@@ -61,9 +63,12 @@ export async function prefetchPlayerSummary(
 
   const fingerprint = buildPlayerFingerprint(eventId, competitor);
   const cached = playerSummaryCache.get(cacheKey);
-  const isLive = competitor?.status?.type?.state === 'in';
+  const rawThru = competitor?.status?.thru !== undefined ? Number(competitor.status.thru) : NaN;
+  const isLive =
+    competitor?.status?.type?.state === 'in' ||
+    (!isNaN(rawThru) && rawThru > 0 && rawThru < 18);
   const now = Date.now();
-  const isFresh = cached && cached.fingerprint === fingerprint && now - cached.timestamp < (isLive ? 30000 : 300000);
+  const isFresh = cached && cached.fingerprint === fingerprint && now - cached.timestamp < (isLive ? 15000 : 300000);
 
   if (isFresh && cached) {
     return cached.summary;
@@ -131,7 +136,8 @@ export async function prefetchPlayerSummaries(
 
 export interface UsePlayerSummaryOptions {
   eventId: string | undefined;
-  competitor: ESPNCompetitor | null | undefined;
+  competitor: (ESPNCompetitor & { scoreDisplay?: string; thruDisplay?: string }) | null | undefined;
+  forceRefreshKey?: number | string;
 }
 
 export interface UsePlayerSummaryResult {
@@ -147,9 +153,16 @@ export interface UsePlayerSummaryResult {
  * Provides 0ms instant cache retrieval and synchronous competitor fallback hydration,
  * with AbortController cancellation and 404 cooldown caching to prevent network storms.
  */
-export function usePlayerSummary({ eventId, competitor }: UsePlayerSummaryOptions): UsePlayerSummaryResult {
+export function usePlayerSummary({
+  eventId,
+  competitor,
+  forceRefreshKey,
+}: UsePlayerSummaryOptions): UsePlayerSummaryResult {
   const competitorId = competitor?.athlete?.id || competitor?.id;
-  const isLive = competitor?.status?.type?.state === 'in';
+  const rawThru = competitor?.status?.thru !== undefined ? Number(competitor.status.thru) : NaN;
+  const isLive =
+    competitor?.status?.type?.state === 'in' ||
+    (!isNaN(rawThru) && rawThru > 0 && rawThru < 18);
 
   const cacheKey = buildPlayerSummaryCacheKey(eventId, competitorId);
   const fingerprint = buildPlayerFingerprint(eventId, competitor);
@@ -181,7 +194,11 @@ export function usePlayerSummary({ eventId, competitor }: UsePlayerSummaryOption
 
     const cached = playerSummaryCache.get(cacheKey);
     const now = Date.now();
-    const isFresh = cached && cached.fingerprint === fingerprint && (now - cached.timestamp < (isLive ? 30000 : 300000));
+    const isFresh =
+      !forceRefreshKey &&
+      cached &&
+      cached.fingerprint === fingerprint &&
+      now - cached.timestamp < (isLive ? 15000 : 300000);
 
     // If cache is fresh and fingerprint matches, skip background network fetch
     if (isFresh) {
@@ -196,8 +213,9 @@ export function usePlayerSummary({ eventId, competitor }: UsePlayerSummaryOption
     async function fetchSummary() {
       try {
         const season = new Date().getFullYear();
+        const forceParam = forceRefreshKey ? '&force=true' : '';
         const res = await fetch(
-          `/api/espn/playersummary?eventId=${eventId}&playerId=${competitorId}&season=${season}`,
+          `/api/espn/playersummary?eventId=${eventId}&playerId=${competitorId}&season=${season}${forceParam}`,
           { signal: controller.signal }
         );
         if (res.ok) {
@@ -245,7 +263,7 @@ export function usePlayerSummary({ eventId, competitor }: UsePlayerSummaryOption
       isMounted = false;
       controller.abort();
     };
-  }, [eventId, competitorId, cacheKey, fingerprint, isLive]);
+  }, [eventId, competitorId, cacheKey, fingerprint, isLive, forceRefreshKey]);
 
   // isLoading is true on cold-start when no player summary exists yet
   const isLoading = summary === null;

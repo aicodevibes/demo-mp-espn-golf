@@ -15,6 +15,8 @@ import {
   Users,
 } from 'lucide-react';
 
+import { GreedyStanding } from '@/types/contest';
+
 const GREEDY_ENTRY_FEE = 50;
 
 export default function GreedyPage() {
@@ -33,13 +35,13 @@ export default function GreedyPage() {
     if (greedyStandings.length === 0) return [];
 
     const topRank = greedyStandings[0]?.rank || 1;
-    const winners = greedyStandings.filter((s) => s.rank === topRank);
+    const winners = greedyStandings.filter((s: GreedyStanding) => s.rank === topRank);
     const splitPayout =
       isEventFinalized && winners.length > 0
         ? Math.round((totalPool / winners.length) * 100) / 100
         : 0;
 
-    return greedyStandings.map((s) => ({
+    return greedyStandings.map((s: GreedyStanding) => ({
       ...s,
       payout: s.rank === topRank ? splitPayout : 0,
     }));

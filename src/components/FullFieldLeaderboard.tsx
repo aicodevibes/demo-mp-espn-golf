@@ -1,6 +1,4 @@
-'use client';
-
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useDeferredValue } from 'react';
 import { ESPNCompetitor, ESPNEvent } from '@/types/espn';
 import { Search, Scissors } from 'lucide-react';
 import { Participant } from '@/types/contest';
@@ -29,10 +27,11 @@ export function FullFieldLeaderboard({
   onSelectPlayer,
 }: FullFieldLeaderboardProps) {
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const deferredSearchQuery = useDeferredValue(searchQuery);
 
   const { activeField, cutField, playerDraftedByMap } = useMemo(() => {
     // If no search query and pre-evaluated lists are provided, return them directly
-    if (!searchQuery && propActiveField && propCutField) {
+    if (!deferredSearchQuery && propActiveField && propCutField) {
       return {
         activeField: propActiveField,
         cutField: propCutField,
@@ -42,9 +41,9 @@ export function FullFieldLeaderboard({
     return evaluateLeaderboard(competitors, {
       participants,
       eventStatus: eventObj?.status,
-      searchQuery,
+      searchQuery: deferredSearchQuery,
     });
-  }, [competitors, participants, eventObj, searchQuery, propActiveField, propCutField, propPlayerDraftedByMap]);
+  }, [competitors, participants, eventObj, deferredSearchQuery, propActiveField, propCutField, propPlayerDraftedByMap]);
 
   return (
     <div className="bg-surface-container-low border border-outline-variant rounded-xl p-4 sm:p-5 space-y-4 shadow-xs">

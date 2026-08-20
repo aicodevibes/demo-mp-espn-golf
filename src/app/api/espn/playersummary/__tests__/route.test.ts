@@ -63,7 +63,7 @@ describe('/api/espn/playersummary Route Handler', () => {
     const res = await GET(req);
 
     expect(res.status).toBe(200);
-    expect(res.headers.get('Cache-Control')).toBe('public, s-maxage=60, stale-while-revalidate=120');
+    expect(res.headers.get('Cache-Control')).toBe('public, s-maxage=15, stale-while-revalidate=30');
 
     const json = await res.json();
     expect(json.player.displayName).toBe('Tiger Woods');
@@ -74,7 +74,7 @@ describe('/api/espn/playersummary Route Handler', () => {
     expect(fetchSpy).toHaveBeenCalledWith(
       expect.stringContaining('playersummary?season=2026&player=12345'),
       expect.objectContaining({
-        next: { revalidate: 60, tags: ['espn-playersummary'] },
+        next: { revalidate: 15, tags: ['espn-playersummary'] },
       })
     );
   });
