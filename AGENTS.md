@@ -28,3 +28,15 @@ This version has breaking changes — APIs, conventions, and file structure may 
 * **TDD Loop:** Write a failing test first (Red), implement code to pass (Green), then refactor.
 * **Domain Vocabulary:** Refer to `CONTEXT.md` for project-specific terms and definitions before writing feature code.
 
+---
+
+## 🚀 4. DEPLOYMENT SEQUENCE (FIREBASE APP HOSTING)
+* **Direct Local Deploy:** Deploy the local codebase directly via Firebase CLI without requiring GitHub rollouts:
+  ```bash
+  npx firebase-tools deploy --only apphosting
+  ```
+* **Full Backend & Rules Deploy:**
+  ```bash
+  npx firebase-tools deploy --only firestore,apphosting
+  ```
+
