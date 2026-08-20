@@ -79,8 +79,10 @@ export function AdminEventConfigSection({
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="space-y-1.5 md:col-span-2">
-          <label className="text-xs font-bold text-on-surface-variant">Select Calendar Event</label>
+          <label htmlFor="admin-calendar-event-select" className="text-xs font-bold text-on-surface-variant">Select Calendar Event</label>
           <select
+            id="admin-calendar-event-select"
+            aria-label="Select Calendar Event"
             value={selectedEventId}
             onChange={(e) => onSelectEvent(e.target.value)}
             className="w-full bg-surface-container border border-outline-variant rounded-lg px-3 py-2 text-sm font-medium text-on-surface outline-none focus:border-outline"

@@ -115,13 +115,19 @@ export default function AdminPage() {
     fetchScoreboard();
   }, []);
 
-  // Update selected event ID once active config or events are loaded
+  // Update selected event ID once on initial load (defaults to activeEventId or first calendar event)
   const activeEventId = appConfig?.activeEventId;
+  const initialEventSetRef = React.useRef<boolean>(false);
+
   useEffect(() => {
-    if (activeEventId) {
-      setSelectedEventId(activeEventId);
-    } else if (events.length > 0 && !selectedEventId) {
-      setSelectedEventId(events[0].id);
+    if (!initialEventSetRef.current) {
+      if (activeEventId) {
+        setSelectedEventId(activeEventId);
+        initialEventSetRef.current = true;
+      } else if (events.length > 0 && !selectedEventId) {
+        setSelectedEventId(events[0].id);
+        initialEventSetRef.current = true;
+      }
     }
   }, [activeEventId, events, selectedEventId]);
 
