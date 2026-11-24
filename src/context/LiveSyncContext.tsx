@@ -27,6 +27,8 @@ export interface LiveSyncContextState {
   staleCacheAgeSeconds: number | null;
   /** Timestamp of the last successful leaderboard refresh. */
   lastRefreshedAt: Date | null;
+  /** Monotonic counter incremented only when a manual forced refresh actually executes. */
+  manualRefreshNonce: number;
   /** Error object if any subscription or fetch failed. */
   error: Error | null;
   /** Manual trigger to force re-fetch latest ESPN leaderboard. */
@@ -38,6 +40,7 @@ const LiveSyncContext = createContext<LiveSyncContextState>({
   isStaleData: false,
   staleCacheAgeSeconds: null,
   lastRefreshedAt: null,
+  manualRefreshNonce: 0,
   error: null,
   refreshLeaderboard: async () => {},
 });
@@ -64,7 +67,8 @@ export function LiveSyncProvider({
   onFetchLeaderboard,
 }: LiveSyncProviderProps) {
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
-  const lastForcedRefreshRef = useRef<number>(0);
+  const [manualRefreshNonce, setManualRefreshNonce] = useState<number>(0);
+  const lastForcedRefreshRef = useRef<number>(-Infinity);
 
   // Background poller handler
   const handlePoll = useCallback(async () => {
@@ -94,6 +98,7 @@ export function LiveSyncProvider({
         lastForcedRefreshRef.current = now;
         // Bust client player summary memory cache on user-initiated force refresh
         clearPlayerSummaryCache();
+        setManualRefreshNonce((prev) => prev + 1);
       }
       setIsRefreshing(true);
       try {
@@ -111,10 +116,19 @@ export function LiveSyncProvider({
       isStaleData,
       staleCacheAgeSeconds,
       lastRefreshedAt,
+      manualRefreshNonce,
       error,
       refreshLeaderboard: handleManualRefresh,
     }),
-    [isRefreshing, isStaleData, staleCacheAgeSeconds, lastRefreshedAt, error, handleManualRefresh]
+    [
+      isRefreshing,
+      isStaleData,
+      staleCacheAgeSeconds,
+      lastRefreshedAt,
+      manualRefreshNonce,
+      error,
+      handleManualRefresh,
+    ]
   );
 
   return <LiveSyncContext.Provider value={value}>{children}</LiveSyncContext.Provider>;

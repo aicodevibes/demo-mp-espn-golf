@@ -568,4 +568,31 @@ describe('EventContextProvider Deep Domain Seam', () => {
     expect(golfer?.thruDisplay).toBe('F');
     expect(golfer?.scoreDisplay).toBe('+4');
   });
+
+  it('exposes manualRefreshNonce through EventContext and increments only on forced refresh', async () => {
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <EventContextProvider initialEventId="401705663">{children}</EventContextProvider>
+    );
+
+    const { result } = renderHook(() => useEventContext(), { wrapper });
+
+    await waitFor(
+      () => {
+        expect(result.current.loading).toBe(false);
+      },
+      { container: document.body }
+    );
+
+    expect(result.current.manualRefreshNonce).toBe(0);
+
+    await act(async () => {
+      await result.current.refreshLeaderboard({ force: false });
+    });
+    expect(result.current.manualRefreshNonce).toBe(0);
+
+    await act(async () => {
+      await result.current.refreshLeaderboard({ force: true });
+    });
+    expect(result.current.manualRefreshNonce).toBe(1);
+  });
 });

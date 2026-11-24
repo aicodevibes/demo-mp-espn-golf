@@ -14,9 +14,13 @@ const playerSummaryCache = new Map<string, CacheEntry>();
 // Track in-flight promises to deduplicate concurrent pre-fetches for the same player
 const inFlightRequests = new Map<string, Promise<NormalizedPlayerSummary | null>>();
 
+// Track consumed manual refresh nonces so each forced refresh triggers &force=true at most once
+const consumedForceRefreshKeys = new Set<number | string>();
+
 export function clearPlayerSummaryCache() {
   playerSummaryCache.clear();
   inFlightRequests.clear();
+  consumedForceRefreshKeys.clear();
 }
 
 export function getCachedPlayerSummary(cacheKey: string): CacheEntry | undefined {
@@ -169,7 +173,9 @@ export function usePlayerSummary({
 
   // Keep ref to latest competitor to avoid unstable object references in useEffect
   const competitorRef = useRef(competitor);
-  competitorRef.current = competitor;
+  useEffect(() => {
+    competitorRef.current = competitor;
+  }, [competitor]);
 
   // Synchronously compute cached summary or fallback summary during render to prevent 1-frame stale state tearing
   const currentSummary = useMemo(() => {
@@ -181,39 +187,49 @@ export function usePlayerSummary({
 
   const [fetchedSummary, setFetchedSummary] = useState<NormalizedPlayerSummary | null>(null);
   const [fetchedFingerprint, setFetchedFingerprint] = useState<string>('');
-  const [isFetching, setIsFetching] = useState<boolean>(false);
+  const [fetchingTarget, setFetchingTarget] = useState<string | null>(null);
 
   // Use fetched summary if it matches current fingerprint, otherwise use currentSummary
   const summary = (fetchedFingerprint === fingerprint && fetchedSummary) ? fetchedSummary : currentSummary;
 
+  const hasValidTarget = Boolean(eventId && competitorId && cacheKey);
+  const currentTarget = hasValidTarget ? `${cacheKey}:${fingerprint}` : null;
+
   useEffect(() => {
-    if (!eventId || !competitorId || !cacheKey) {
-      setIsFetching(false);
+    if (!eventId || !competitorId || !cacheKey || !currentTarget) {
       return;
     }
+
+    const shouldForceFetch =
+      Boolean(forceRefreshKey) &&
+      !consumedForceRefreshKeys.has(forceRefreshKey as number | string);
 
     const cached = playerSummaryCache.get(cacheKey);
     const now = Date.now();
     const isFresh =
-      !forceRefreshKey &&
+      !shouldForceFetch &&
       cached &&
       cached.fingerprint === fingerprint &&
       now - cached.timestamp < (isLive ? 15000 : 300000);
 
     // If cache is fresh and fingerprint matches, skip background network fetch
     if (isFresh) {
-      setIsFetching(false);
       return;
+    }
+
+    if (shouldForceFetch && forceRefreshKey !== undefined) {
+      consumedForceRefreshKeys.add(forceRefreshKey);
     }
 
     const controller = new AbortController();
     let isMounted = true;
-    setIsFetching(true);
+    const activeTarget = currentTarget;
 
     async function fetchSummary() {
+      setFetchingTarget(activeTarget);
       try {
         const season = new Date().getFullYear();
-        const forceParam = forceRefreshKey ? '&force=true' : '';
+        const forceParam = shouldForceFetch ? '&force=true' : '';
         const res = await fetch(
           `/api/espn/playersummary?eventId=${eventId}&playerId=${competitorId}&season=${season}${forceParam}`,
           { signal: controller.signal }
@@ -252,7 +268,7 @@ export function usePlayerSummary({
         console.error('[usePlayerSummary] Failed to fetch player summary from ESPN API:', err);
       } finally {
         if (isMounted && !controller.signal.aborted) {
-          setIsFetching(false);
+          setFetchingTarget((prev) => (prev === activeTarget ? null : prev));
         }
       }
     }
@@ -263,10 +279,11 @@ export function usePlayerSummary({
       isMounted = false;
       controller.abort();
     };
-  }, [eventId, competitorId, cacheKey, fingerprint, isLive, forceRefreshKey]);
+  }, [eventId, competitorId, cacheKey, fingerprint, currentTarget, isLive, forceRefreshKey]);
 
   // isLoading is true on cold-start when no player summary exists yet
   const isLoading = summary === null;
+  const isFetching = Boolean(currentTarget && fetchingTarget === currentTarget);
 
   return {
     summary,

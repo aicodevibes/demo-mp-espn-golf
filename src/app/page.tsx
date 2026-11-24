@@ -36,6 +36,7 @@ export default function DashboardPage() {
     loading: eventContextLoading,
     isRefreshing,
     lastRefreshedAt,
+    manualRefreshNonce = 0,
     error,
     refreshLeaderboard,
   } = useEventContext();
@@ -142,7 +143,7 @@ export default function DashboardPage() {
   } = usePlayerSummary({
     eventId: selectedEventId,
     competitor: selectedCompetitor,
-    forceRefreshKey: isRefreshing ? Date.now() : lastRefreshedAt?.getTime(),
+    forceRefreshKey: manualRefreshNonce || undefined,
   });
 
   return (

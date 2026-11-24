@@ -1,11 +1,18 @@
 import { NextResponse } from 'next/server';
 import { ESPNEventStatus } from '@/types/espn';
-import { SnapshotResult } from './serverCache';
+import {
+  SnapshotResult,
+  getRecentMemorySnapshot,
+  getInFlightForceRequest,
+  setInFlightForceRequest,
+  deleteInFlightForceRequest,
+} from './serverCache';
 
 export const ESPN_ID_REGEX = /^\d{1,12}$/;
 export const SEASON_REGEX = /^\d{4}$/;
 
 export const UPSTREAM_TIMEOUT_MS = 8000;
+export const FORCE_COOLDOWN_MS = 10 * 1000;
 export const LIVE_MAX_STALE_MS = 30 * 60 * 1000;
 export const RELAXED_MAX_STALE_MS = 24 * 60 * 60 * 1000;
 
@@ -151,27 +158,111 @@ export function createUpstreamFetchOptions(options: {
   } as RequestInit;
 }
 
-/**
- * Build a JSON response from a stale cached snapshot with X-Cache-Stale and X-Cache-Age headers.
- */
-export function buildStaleFallbackResponse<T>(snapshot: SnapshotResult<T>): NextResponse {
-  return NextResponse.json(snapshot.data, {
-    headers: {
+export type ProxyJsonResult<T = unknown> =
+  | {
+      ok: true;
+      data: T;
+      cacheControl: string;
+      isStale?: false;
+    }
+  | {
+      ok: true;
+      data: T;
+      cacheControl: string;
+      isStale: true;
+      ageSeconds: number;
+    }
+  | {
+      ok: false;
+      status: number;
+      error: string;
+    };
+
+export function buildUpstreamErrorResult(error: unknown, fallbackMessage: string): ProxyJsonResult<never> {
+  const isTimeout = error instanceof Error && error.name === 'TimeoutError';
+  const message = error instanceof Error ? error.message : fallbackMessage;
+  return {
+    ok: false,
+    status: isTimeout ? 504 : 500,
+    error: message,
+  };
+}
+
+export function buildStaleFallbackResult<T>(snapshot: SnapshotResult<T>): ProxyJsonResult<T> {
+  return {
+    ok: true,
+    data: snapshot.data,
+    cacheControl: NO_STORE_CACHE_CONTROL,
+    isStale: true,
+    ageSeconds: snapshot.ageSeconds,
+  };
+}
+
+function proxyResultToResponse<T>(
+  result: ProxyJsonResult<T>,
+  options: { coalesced: boolean }
+): NextResponse {
+  if (!result.ok) {
+    return NextResponse.json({ error: result.error }, { status: result.status });
+  }
+
+  if (result.isStale) {
+    const headers: Record<string, string> = {
       'Cache-Control': NO_STORE_CACHE_CONTROL,
       'X-Cache-Stale': 'true',
-      'X-Cache-Age': String(snapshot.ageSeconds),
-    },
-  });
+      'X-Cache-Age': String(result.ageSeconds),
+    };
+    if (options.coalesced) {
+      headers['X-Force-Coalesced'] = 'true';
+    }
+    return NextResponse.json(result.data, { headers });
+  }
+
+  const headers: Record<string, string> = {
+    'Cache-Control': options.coalesced ? NO_STORE_CACHE_CONTROL : result.cacheControl,
+  };
+  if (options.coalesced) {
+    headers['X-Force-Coalesced'] = 'true';
+    headers['X-Cache-Age'] = '0';
+  }
+  return NextResponse.json(result.data, { headers });
 }
 
 /**
- * Build a structured JSON error response for caught upstream fetch failures (504 on timeout, 500 otherwise).
+ * Execute an ESPN proxy fetch with 10-second per-key force=true cooldown and in-flight coalescing.
  */
-export function buildUpstreamErrorResponse(error: unknown, fallbackMessage: string): NextResponse {
-  const isTimeout = error instanceof Error && error.name === 'TimeoutError';
-  const message = error instanceof Error ? error.message : fallbackMessage;
-  return NextResponse.json(
-    { error: message },
-    { status: isTimeout ? 504 : 500 }
-  );
+export async function executeWithForceCooldown<T>(options: {
+  cacheKey: string;
+  isForce: boolean;
+  fetchUpstream: () => Promise<ProxyJsonResult<T>>;
+}): Promise<NextResponse> {
+  if (!options.isForce) {
+    const result = await options.fetchUpstream();
+    return proxyResultToResponse(result, { coalesced: false });
+  }
+
+  const existing = getInFlightForceRequest<ProxyJsonResult<T>>(options.cacheKey);
+  if (existing) {
+    const result = await existing;
+    return proxyResultToResponse(result, { coalesced: true });
+  }
+
+  const recentSnapshot = getRecentMemorySnapshot<T>(options.cacheKey, FORCE_COOLDOWN_MS);
+  if (recentSnapshot) {
+    return NextResponse.json(recentSnapshot.data, {
+      headers: {
+        'Cache-Control': NO_STORE_CACHE_CONTROL,
+        'X-Force-Coalesced': 'true',
+        'X-Cache-Age': String(recentSnapshot.ageSeconds),
+      },
+    });
+  }
+
+  const promise = options.fetchUpstream().finally(() => {
+    deleteInFlightForceRequest(options.cacheKey);
+  });
+  setInFlightForceRequest(options.cacheKey, promise);
+
+  const result = await promise;
+  return proxyResultToResponse(result, { coalesced: false });
 }
