@@ -15,7 +15,11 @@ import { ChevronDown, ChevronUp, Trophy } from 'lucide-react';
 import { useEventContext } from '@/context/EventContext';
 import { DEFAULT_PLAYER_DIRECTORY_MAP, EspnTournamentAdapter } from '@/lib/espn';
 import { ESPNCompetitor } from '@/types/espn';
-import { usePlayerSummary } from '@/hooks/usePlayerSummary';
+import {
+  usePlayerSummary,
+  prefetchPlayerSummaries,
+  resolveEventSeason,
+} from '@/hooks/usePlayerSummary';
 
 export default function DashboardPage() {
   const {
@@ -135,6 +139,8 @@ export default function DashboardPage() {
     );
   }, [tournament, effectiveSelectedPlayerId, displayCompetitors]);
 
+  const eventSeason = useMemo(() => resolveEventSeason(activeEvent), [activeEvent]);
+
   // Fetch Hole-by-Hole Player Summary via usePlayerSummary custom hook
   const {
     summary: playerSummary,
@@ -143,8 +149,22 @@ export default function DashboardPage() {
   } = usePlayerSummary({
     eventId: selectedEventId,
     competitor: selectedCompetitor,
+    season: eventSeason,
     forceRefreshKey: manualRefreshNonce || undefined,
   });
+
+  // Bounded Watchlist Scorecard Pre-fetch for the first 4 visible Hero Watchlist golfers
+  useEffect(() => {
+    if (!selectedEventId || displayCompetitors.length === 0) return;
+
+    const watchlistTargets = displayCompetitors
+      .slice(0, 4)
+      .filter((comp) => (comp.athlete?.id || comp.id) !== effectiveSelectedPlayerId);
+
+    if (watchlistTargets.length === 0) return;
+
+    void prefetchPlayerSummaries(selectedEventId, watchlistTargets, eventSeason);
+  }, [selectedEventId, displayCompetitors, effectiveSelectedPlayerId, eventSeason, manualRefreshNonce]);
 
   return (
     <div className="min-h-screen bg-surface text-on-surface flex flex-col">

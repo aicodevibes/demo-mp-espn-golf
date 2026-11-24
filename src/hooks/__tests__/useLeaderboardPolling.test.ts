@@ -6,6 +6,8 @@ import {
   useLeaderboardPolling,
   LIVE_POLL_INTERVAL_MS,
   RELAXED_POLL_INTERVAL_MS,
+  LIVE_VISIBILITY_COOLDOWN_MS,
+  RELAXED_VISIBILITY_COOLDOWN_MS,
 } from '@/hooks/useLeaderboardPolling';
 
 describe('useLeaderboardPolling', () => {
@@ -149,5 +151,73 @@ describe('useLeaderboardPolling', () => {
     expect(setIntervalSpy).not.toHaveBeenCalled();
     expect(addListenerSpy).not.toHaveBeenCalledWith('visibilitychange', expect.any(Function));
     expect(onPoll).not.toHaveBeenCalled();
+  });
+
+  it('exports expected visibility cooldown constants (15s live, 60s relaxed)', () => {
+    expect(LIVE_VISIBILITY_COOLDOWN_MS).toBe(15000);
+    expect(RELAXED_VISIBILITY_COOLDOWN_MS).toBe(60000);
+  });
+
+  it('enforces a 15s visibilitychange cooldown when isLive is true', () => {
+    vi.setSystemTime(new Date('2026-04-10T12:00:00Z'));
+    const onPoll = vi.fn();
+    renderHook(() => useLeaderboardPolling({ activeEventId: 'evt-1', isLive: true, onPoll }));
+
+    // First tab return fires immediately
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(onPoll).toHaveBeenCalledTimes(1);
+
+    // Rapid tab switches within 15s cooldown do not trigger duplicate polls
+    vi.advanceTimersByTime(5000);
+    document.dispatchEvent(new Event('visibilitychange'));
+    vi.advanceTimersByTime(9999);
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(onPoll).toHaveBeenCalledTimes(1);
+
+    // Once 15s cooldown has elapsed, visibilitychange triggers a poll again
+    vi.advanceTimersByTime(1);
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(onPoll).toHaveBeenCalledTimes(2);
+  });
+
+  it('enforces a 60s visibilitychange cooldown when isLive is false', () => {
+    vi.setSystemTime(new Date('2026-04-10T12:00:00Z'));
+    const onPoll = vi.fn();
+    renderHook(() => useLeaderboardPolling({ activeEventId: 'evt-1', isLive: false, onPoll }));
+
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(onPoll).toHaveBeenCalledTimes(1);
+
+    // Still suppressed at 30s and 59.999s
+    vi.advanceTimersByTime(30000);
+    document.dispatchEvent(new Event('visibilitychange'));
+    vi.advanceTimersByTime(29999);
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(onPoll).toHaveBeenCalledTimes(1);
+
+    // Allowed at 60s
+    vi.advanceTimersByTime(1);
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(onPoll).toHaveBeenCalledTimes(2);
+  });
+
+  it('suppresses visibilitychange poll if a scheduled interval poll recently executed within cooldown', () => {
+    vi.setSystemTime(new Date('2026-04-10T12:00:00Z'));
+    const onPoll = vi.fn();
+    renderHook(() => useLeaderboardPolling({ activeEventId: 'evt-1', isLive: true, onPoll }));
+
+    // Scheduled interval tick fires at 35s
+    vi.advanceTimersByTime(LIVE_POLL_INTERVAL_MS);
+    expect(onPoll).toHaveBeenCalledTimes(1);
+
+    // Tab switch 5s later (40s) is inside 15s cooldown from the interval poll
+    vi.advanceTimersByTime(5000);
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(onPoll).toHaveBeenCalledTimes(1);
+
+    // Tab switch 10s later (50s = 15s after interval poll) is allowed
+    vi.advanceTimersByTime(10000);
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(onPoll).toHaveBeenCalledTimes(2);
   });
 });

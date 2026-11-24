@@ -7,6 +7,7 @@ import React, {
   useState,
   useMemo,
   useCallback,
+  useRef,
   ReactNode,
 } from 'react';
 import { ESPNEvent, ESPNCompetitor } from '@/types/espn';
@@ -117,6 +118,16 @@ export function TournamentProvider({
   const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null);
   const [error, setError] = useState<Error | null>(null);
 
+  const leaderboardRequestSeqRef = useRef<number>(0);
+  const leaderboardAbortControllerRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      leaderboardAbortControllerRef.current?.abort();
+      leaderboardRequestSeqRef.current += 1;
+    };
+  }, []);
+
   // Safe client-side hydration from local cache
   useEffect(() => {
     const cached = readScoreboardCache();
@@ -179,21 +190,34 @@ export function TournamentProvider({
     async (isForce: boolean = false): Promise<boolean> => {
       if (!selectedViewerEventId) return false;
 
+      // Cancel any prior in-flight leaderboard request and advance sequence ID
+      leaderboardAbortControllerRef.current?.abort();
+      const controller = new AbortController();
+      leaderboardAbortControllerRef.current = controller;
+      const requestSeq = ++leaderboardRequestSeqRef.current;
+
+      const isStaleRequest = () =>
+        controller.signal.aborted || requestSeq !== leaderboardRequestSeqRef.current;
+
       try {
         const url = isForce
           ? `/api/espn/leaderboard?event=${selectedViewerEventId}&force=true`
           : `/api/espn/leaderboard?event=${selectedViewerEventId}`;
-        const res = await fetch(url);
+        const res = await fetch(url, { signal: controller.signal });
+        if (isStaleRequest()) return false;
+
         if (!res.ok) {
           let errorMessage = `ESPN Leaderboard API returned status ${res.status}`;
           try {
             const errorData = await res.json();
+            if (isStaleRequest()) return false;
             if (errorData && (errorData.error || errorData.message)) {
               errorMessage = errorData.error || errorData.message;
             }
           } catch {
             // Fall back to status string
           }
+          if (isStaleRequest()) return false;
           setError(new Error(errorMessage));
           return false;
         }
@@ -204,10 +228,13 @@ export function TournamentProvider({
           isStale && rawCacheAge !== null && /^\d+$/.test(rawCacheAge.trim())
             ? Number(rawCacheAge.trim())
             : null;
+
+        const data = await res.json();
+        if (isStaleRequest()) return false;
+
         setIsStaleData(isStale);
         setStaleCacheAgeSeconds(parsedCacheAge);
 
-        const data = await res.json();
         if (data.events && data.events[0]) {
           setActiveEventObj(data.events[0]);
           const comps = data.events[0]?.competitions?.[0]?.competitors || [];
@@ -219,11 +246,16 @@ export function TournamentProvider({
         }
         return false;
       } catch (err: unknown) {
+        if (isStaleRequest() || (err instanceof Error && err.name === 'AbortError')) {
+          return false;
+        }
         console.error('Failed to fetch ESPN Leaderboard:', err);
         setError(err instanceof Error ? err : new Error(String(err)));
         return false;
       } finally {
-        setLoading(false);
+        if (requestSeq === leaderboardRequestSeqRef.current) {
+          setLoading(false);
+        }
       }
     },
     [selectedViewerEventId]

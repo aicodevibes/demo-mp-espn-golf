@@ -1,6 +1,51 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { ESPNCompetitor } from '@/types/espn';
+import { ESPNCompetitor, ESPNEvent } from '@/types/espn';
 import { EspnTournamentAdapter, NormalizedPlayerSummary } from '@/lib/espn';
+
+const MIN_VALID_SEASON_YEAR = 1900;
+const MAX_VALID_SEASON_YEAR = 9999;
+
+function normalizeSeason(season?: number): number {
+  if (
+    typeof season === 'number' &&
+    Number.isInteger(season) &&
+    season >= MIN_VALID_SEASON_YEAR &&
+    season <= MAX_VALID_SEASON_YEAR
+  ) {
+    return season;
+  }
+  return new Date().getFullYear();
+}
+
+/**
+ * Resolve the 4-digit PGA Tour season year from an ESPN event, falling back to
+ * UTC year of `event.date` and finally the current calendar year.
+ */
+export function resolveEventSeason(
+  event?: Pick<ESPNEvent, 'season' | 'date'> | null
+): number {
+  const explicitYear = event?.season?.year;
+  if (
+    typeof explicitYear === 'number' &&
+    Number.isInteger(explicitYear) &&
+    explicitYear >= MIN_VALID_SEASON_YEAR &&
+    explicitYear <= MAX_VALID_SEASON_YEAR
+  ) {
+    return explicitYear;
+  }
+
+  if (event?.date) {
+    const parsed = new Date(event.date);
+    if (!Number.isNaN(parsed.getTime())) {
+      const utcYear = parsed.getUTCFullYear();
+      if (utcYear >= MIN_VALID_SEASON_YEAR && utcYear <= MAX_VALID_SEASON_YEAR) {
+        return utcYear;
+      }
+    }
+  }
+
+  return new Date().getFullYear();
+}
 
 export interface CacheEntry {
   summary: NormalizedPlayerSummary;
@@ -27,16 +72,22 @@ export function getCachedPlayerSummary(cacheKey: string): CacheEntry | undefined
   return playerSummaryCache.get(cacheKey);
 }
 
-export function buildPlayerSummaryCacheKey(eventId: string | undefined, competitorId: string | undefined): string {
-  return eventId && competitorId ? `${eventId}_${competitorId}` : '';
+export function buildPlayerSummaryCacheKey(
+  eventId: string | undefined,
+  competitorId: string | undefined,
+  season?: number
+): string {
+  if (!eventId || !competitorId) return '';
+  return `${eventId}_${competitorId}_${normalizeSeason(season)}`;
 }
 
 export function buildPlayerFingerprint(
   eventId: string | undefined,
-  competitor: (ESPNCompetitor & { scoreDisplay?: string; thruDisplay?: string }) | null | undefined
+  competitor: (ESPNCompetitor & { scoreDisplay?: string; thruDisplay?: string }) | null | undefined,
+  season?: number
 ): string {
   const competitorId = competitor?.athlete?.id || competitor?.id;
-  const cacheKey = buildPlayerSummaryCacheKey(eventId, competitorId);
+  const cacheKey = buildPlayerSummaryCacheKey(eventId, competitorId, season);
   if (!cacheKey) return '';
 
   const period = competitor?.status?.period ?? 1;
@@ -59,13 +110,15 @@ export function buildPlayerFingerprint(
  */
 export async function prefetchPlayerSummary(
   eventId: string,
-  competitor: ESPNCompetitor | null | undefined
+  competitor: ESPNCompetitor | null | undefined,
+  season?: number
 ): Promise<NormalizedPlayerSummary | null> {
   const competitorId = competitor?.athlete?.id || competitor?.id;
-  const cacheKey = buildPlayerSummaryCacheKey(eventId, competitorId);
+  const resolvedSeason = normalizeSeason(season);
+  const cacheKey = buildPlayerSummaryCacheKey(eventId, competitorId, resolvedSeason);
   if (!cacheKey || !competitor) return null;
 
-  const fingerprint = buildPlayerFingerprint(eventId, competitor);
+  const fingerprint = buildPlayerFingerprint(eventId, competitor, resolvedSeason);
   const cached = playerSummaryCache.get(cacheKey);
   const rawThru = competitor?.status?.thru !== undefined ? Number(competitor.status.thru) : NaN;
   const isLive =
@@ -84,11 +137,10 @@ export async function prefetchPlayerSummary(
     return inFlight;
   }
 
-  const season = new Date().getFullYear();
   const promise = (async () => {
     try {
       const res = await fetch(
-        `/api/espn/playersummary?eventId=${eventId}&playerId=${competitorId}&season=${season}`
+        `/api/espn/playersummary?eventId=${eventId}&playerId=${competitorId}&season=${resolvedSeason}`
       );
       if (res.ok) {
         const data = await res.json();
@@ -109,7 +161,7 @@ export async function prefetchPlayerSummary(
         return fallback;
       }
       return null;
-    } catch (err: unknown) {
+    } catch {
       // Background prefetch should fail silently without crashing
       return null;
     } finally {
@@ -121,26 +173,47 @@ export async function prefetchPlayerSummary(
   return promise;
 }
 
+export const PREFETCH_MAX_CONCURRENCY = 3;
+
 /**
- * Concurrently pre-fetch player summaries for a list of competitors (e.g. drafted golfers).
+ * Concurrently pre-fetch player summaries for a list of competitors (e.g. drafted golfers),
+ * bounded to at most 3 concurrent network requests.
  */
 export async function prefetchPlayerSummaries(
   eventId: string,
-  competitors: Array<ESPNCompetitor | null | undefined>
+  competitors: Array<ESPNCompetitor | null | undefined>,
+  season?: number
 ): Promise<void> {
   if (!eventId || !competitors.length) return;
-  const validCompetitors = competitors.filter(
-    (c): c is ESPNCompetitor => Boolean(c && (c.athlete?.id || c.id))
-  );
 
-  await Promise.allSettled(
-    validCompetitors.map((comp) => prefetchPlayerSummary(eventId, comp))
-  );
+  const seenIds = new Set<string>();
+  const uniqueCompetitors: ESPNCompetitor[] = [];
+  for (const comp of competitors) {
+    const id = comp?.athlete?.id || comp?.id;
+    if (comp && id && !seenIds.has(id)) {
+      seenIds.add(id);
+      uniqueCompetitors.push(comp);
+    }
+  }
+
+  if (uniqueCompetitors.length === 0) return;
+
+  let nextIndex = 0;
+  const workerCount = Math.min(PREFETCH_MAX_CONCURRENCY, uniqueCompetitors.length);
+  const workers = Array.from({ length: workerCount }, async () => {
+    while (nextIndex < uniqueCompetitors.length) {
+      const currentIndex = nextIndex++;
+      await prefetchPlayerSummary(eventId, uniqueCompetitors[currentIndex], season);
+    }
+  });
+
+  await Promise.allSettled(workers);
 }
 
 export interface UsePlayerSummaryOptions {
   eventId: string | undefined;
   competitor: (ESPNCompetitor & { scoreDisplay?: string; thruDisplay?: string }) | null | undefined;
+  season?: number;
   forceRefreshKey?: number | string;
 }
 
@@ -160,16 +233,18 @@ export interface UsePlayerSummaryResult {
 export function usePlayerSummary({
   eventId,
   competitor,
+  season,
   forceRefreshKey,
 }: UsePlayerSummaryOptions): UsePlayerSummaryResult {
   const competitorId = competitor?.athlete?.id || competitor?.id;
+  const resolvedSeason = normalizeSeason(season);
   const rawThru = competitor?.status?.thru !== undefined ? Number(competitor.status.thru) : NaN;
   const isLive =
     competitor?.status?.type?.state === 'in' ||
     (!isNaN(rawThru) && rawThru > 0 && rawThru < 18);
 
-  const cacheKey = buildPlayerSummaryCacheKey(eventId, competitorId);
-  const fingerprint = buildPlayerFingerprint(eventId, competitor);
+  const cacheKey = buildPlayerSummaryCacheKey(eventId, competitorId, resolvedSeason);
+  const fingerprint = buildPlayerFingerprint(eventId, competitor, resolvedSeason);
 
   // Keep ref to latest competitor to avoid unstable object references in useEffect
   const competitorRef = useRef(competitor);
@@ -228,10 +303,19 @@ export function usePlayerSummary({
     async function fetchSummary() {
       setFetchingTarget(activeTarget);
       try {
-        const season = new Date().getFullYear();
+        const existingInFlight = !shouldForceFetch ? inFlightRequests.get(cacheKey) : undefined;
+        if (existingInFlight) {
+          const awaitedSummary = await existingInFlight;
+          if (isMounted && awaitedSummary) {
+            setFetchedFingerprint(fingerprint);
+            setFetchedSummary(awaitedSummary);
+          }
+          return;
+        }
+
         const forceParam = shouldForceFetch ? '&force=true' : '';
         const res = await fetch(
-          `/api/espn/playersummary?eventId=${eventId}&playerId=${competitorId}&season=${season}${forceParam}`,
+          `/api/espn/playersummary?eventId=${eventId}&playerId=${competitorId}&season=${resolvedSeason}${forceParam}`,
           { signal: controller.signal }
         );
         if (res.ok) {
@@ -279,7 +363,7 @@ export function usePlayerSummary({
       isMounted = false;
       controller.abort();
     };
-  }, [eventId, competitorId, cacheKey, fingerprint, currentTarget, isLive, forceRefreshKey]);
+  }, [eventId, competitorId, resolvedSeason, cacheKey, fingerprint, currentTarget, isLive, forceRefreshKey]);
 
   // isLoading is true on cold-start when no player summary exists yet
   const isLoading = summary === null;

@@ -204,7 +204,8 @@ describe('EventContextProvider Deep Domain Seam', () => {
     await waitFor(
       () => {
         expect(fetchSpy).toHaveBeenCalledWith(
-          expect.stringContaining('/api/espn/leaderboard?event=401580384')
+          expect.stringContaining('/api/espn/leaderboard?event=401580384'),
+          expect.objectContaining({ signal: expect.any(AbortSignal) })
         );
       },
       { container: document.body }
