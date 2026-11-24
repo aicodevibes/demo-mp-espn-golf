@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import React from 'react';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { doc, onSnapshot } from 'firebase/firestore';
 import {
   EventContextProvider,
   useEventContext,
@@ -466,5 +467,105 @@ describe('EventContextProvider Deep Domain Seam', () => {
     expect(result.current.isStaleData).toBe(false);
     expect(result.current.staleCacheAgeSeconds).toBeNull();
     expect(result.current.error).toBeNull();
+  });
+
+  it('threads contestConfig.hasCut into normalizeTournamentSnapshot so no-cut events do not infer CUT from 2 linescores', async () => {
+    vi.mocked(doc).mockImplementation(((_db: unknown, ...segments: string[]) => ({
+      path: segments.join('/'),
+    })) as never);
+
+    vi.mocked(onSnapshot).mockImplementation(((ref: unknown, onNext: unknown) => {
+      const path = (ref as { path?: string } | undefined)?.path;
+      if (path === 'events/401705663/contestConfig/default' && typeof onNext === 'function') {
+        onNext({
+          exists: () => true,
+          data: () => ({
+            espnEventId: '401705663',
+            eventName: 'The Sentry',
+            season: 2026,
+            mainPayouts: [600, 320, 180, 100],
+            dayMoneyPool: 75,
+            coursePar: 72,
+            hasCut: false,
+          }),
+        });
+      }
+      return vi.fn();
+    }) as never);
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        if (url.includes('/api/espn/scoreboard')) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({
+              events: [
+                {
+                  id: '401705663',
+                  name: 'The Sentry',
+                  status: { period: 4, type: { state: 'post', completed: true, detail: 'Final' } },
+                },
+              ],
+            }),
+          });
+        }
+        if (url.includes('/api/espn/leaderboard')) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({
+              events: [
+                {
+                  id: '401705663',
+                  name: 'The Sentry',
+                  status: { period: 4, type: { state: 'post', completed: true, detail: 'Final' } },
+                  competitions: [
+                    {
+                      id: '401705663',
+                      competitors: [
+                        {
+                          id: '5360550',
+                          athlete: { id: '5360550', displayName: 'Ben Silverman' },
+                          score: '+4',
+                          status: {
+                            period: 4,
+                            position: { displayName: 'T55' },
+                            type: { name: 'STATUS_FINAL', state: 'post', completed: true },
+                          },
+                          linescores: [
+                            { period: 1, value: 74, displayValue: '+2' },
+                            { period: 2, value: 74, displayValue: '+2' },
+                          ],
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            }),
+          });
+        }
+        return Promise.resolve({ ok: true, json: async () => ({}) });
+      })
+    );
+
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <EventContextProvider initialEventId="401705663">{children}</EventContextProvider>
+    );
+
+    const { result } = renderHook(() => useEventContext(), { wrapper });
+
+    await waitFor(
+      () => {
+        expect(result.current.contestConfig?.hasCut).toBe(false);
+        expect(result.current.tournament.competitorMap.get('5360550')).toBeDefined();
+      },
+      { container: document.body }
+    );
+
+    const golfer = result.current.tournament.competitorMap.get('5360550');
+    expect(golfer?.statusInfo.isCut).toBe(false);
+    expect(golfer?.thruDisplay).toBe('F');
+    expect(golfer?.scoreDisplay).toBe('+4');
   });
 });

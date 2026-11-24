@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { ESPNCompetitor } from '@/types/espn';
 import { formatEventDates, getWinnerStatus, formatScoreDisplay, getScoreMeta, formatThruDisplay, getGolferCumulativeScoreToPar } from '../eventHelpers';
 
 describe('formatEventDates', () => {
@@ -113,6 +114,40 @@ describe('getWinnerStatus', () => {
     expect(runnerUpInfo.isWinner).toBe(false);
     expect(runnerUpInfo.isPlayoff).toBe(true);
     expect(runnerUpInfo.badgeLabel).toBe('2nd (Playoff)');
+  });
+
+  it('detects playoff with distinct object score references and rejects Round 1 ties', () => {
+    const objectPlayoffCompetitors: ESPNCompetitor[] = [
+      {
+        id: '3470',
+        order: 1,
+        score: { displayValue: '-18', value: 270 },
+        status: { position: { displayName: '1' } },
+        athlete: { id: '3470', displayName: 'Scottie Scheffler' },
+      },
+      {
+        id: '1810',
+        order: 2,
+        score: { displayValue: '-18', value: 270 },
+        status: { position: { displayName: 'P2' } },
+        athlete: { id: '1810', displayName: 'Rory McIlroy' },
+      },
+    ];
+
+    const finalStatus = { type: { state: 'post', completed: true, detail: 'Final' } };
+    const winner = getWinnerStatus(objectPlayoffCompetitors[0], finalStatus, objectPlayoffCompetitors);
+    expect(winner.isWinner).toBe(true);
+    expect(winner.isPlayoff).toBe(true);
+    expect(winner.badgeLabel).toBe('🏆 Champion (Playoff)');
+
+    const runnerUp = getWinnerStatus(objectPlayoffCompetitors[1], finalStatus, objectPlayoffCompetitors);
+    expect(runnerUp.isPlayoff).toBe(true);
+    expect(runnerUp.badgeLabel).toBe('2nd (Playoff)');
+
+    const r1Status = { period: 1, type: { state: 'in', completed: false, detail: 'Round 1' } };
+    const r1Tie = getWinnerStatus(objectPlayoffCompetitors[0], r1Status, objectPlayoffCompetitors);
+    expect(r1Tie.isWinner).toBe(false);
+    expect(r1Tie.isPlayoff).toBe(false);
   });
 });
 

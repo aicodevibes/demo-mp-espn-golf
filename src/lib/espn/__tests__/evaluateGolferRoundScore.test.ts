@@ -57,6 +57,47 @@ describe('evaluateGolferRoundScore', () => {
     expect(res.statusDetail).toBe('Missed Cut');
   });
 
+  it('handles DQ player with no round strokes as inactive DQ', () => {
+    const comp: ESPNCompetitor = {
+      id: '5',
+      score: 'DQ',
+      status: { position: { displayName: 'DQ' }, type: { name: 'STATUS_DQ' } },
+      linescores: [
+        { period: 1, value: 71 },
+      ],
+      athlete: { id: '5', displayName: 'DQ Player' },
+    };
+
+    const res = evaluateGolferRoundScore(comp, 2);
+    expect(res.roundStrokes).toBeNull();
+    expect(res.scoreToPar).toBeNull();
+    expect(res.formattedScore).toBe('DQ');
+    expect(res.isInactive).toBe(true);
+    expect(res.statusDetail).toBe('Disqualified');
+  });
+
+  it('respects eventStatus and hasCut when evaluating Round 3 score for 2-round players', () => {
+    const comp: ESPNCompetitor = {
+      id: '6',
+      score: '+2',
+      status: { period: 4, position: { displayName: 'T50' }, type: { name: 'STATUS_FINAL' } },
+      linescores: [
+        { period: 1, value: 73 },
+        { period: 2, value: 73 },
+      ],
+      athlete: { id: '6', displayName: 'Two Round Player' },
+    };
+    const postEventStatus = { period: 4, type: { state: 'post', completed: true } };
+
+    const cutRes = evaluateGolferRoundScore(comp, 3, 72, undefined, postEventStatus, true);
+    expect(cutRes.formattedScore).toBe('CUT');
+    expect(cutRes.isInactive).toBe(true);
+
+    const noCutRes = evaluateGolferRoundScore(comp, 3, 72, undefined, postEventStatus, false);
+    expect(noCutRes.formattedScore).toBe('-');
+    expect(noCutRes.isInactive).toBe(false);
+  });
+
   it('uses 18-hole event course holes array sum to compute exact course par', () => {
     const comp: ESPNCompetitor = {
       id: '4',

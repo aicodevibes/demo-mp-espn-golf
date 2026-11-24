@@ -65,7 +65,8 @@ export function evaluateContest(
     safeCompetitors,
     contestConfig?.coursePar,
     playerDirectoryMap,
-    eventStatus
+    eventStatus,
+    contestConfig?.hasCut !== false
   );
 
   // 5. Compute Wager Settlement Summary

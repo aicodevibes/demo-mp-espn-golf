@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, ReactNode, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, ReactNode, useMemo, useCallback, useEffect } from 'react';
 import { TournamentProvider, useTournament } from './TournamentContext';
 import { ContestProvider, useContest } from './ContestContext';
 import { LiveSyncProvider, useLiveSync, LIVE_POLL_INTERVAL_MS, RELAXED_POLL_INTERVAL_MS } from './LiveSyncContext';
@@ -107,6 +107,11 @@ interface EventContextProviderInnerProps {
 function EventContextProviderInner({ children }: { children: ReactNode }) {
   const tournamentState = useTournament();
   const contestState = useContest();
+  const { setHasCut } = tournamentState;
+
+  useEffect(() => {
+    setHasCut(contestState.contestConfig?.hasCut !== false);
+  }, [contestState.contestConfig?.hasCut, setHasCut]);
 
   // Keep tournament active config ID synchronized when contest config loads
   const handleActiveEventIdResolved = useCallback(

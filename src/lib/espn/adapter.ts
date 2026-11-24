@@ -15,6 +15,8 @@ import {
   getGolferCumulativeScoreToPar,
   getPlayerStatusInfo,
   getWinnerStatus,
+  isEventFinal,
+  isTournamentPlayoff,
   PlayerStatusInfo,
   WinnerStatusInfo,
   DEFAULT_PLAYER_DIRECTORY_MAP,
@@ -119,6 +121,7 @@ export interface NormalizedPlayerSummary {
 export interface NormalizeTournamentOptions {
   activeEventId?: string | null;
   playerDirectoryMap?: Record<string, { id: string; name: string; headshotUrl?: string; countryFlagUrl?: string }>;
+  hasCut?: boolean;
 }
 
 /**
@@ -169,13 +172,14 @@ export function normalizeCompetitor(
   comp: ESPNCompetitor,
   eventStatus?: ESPNEventStatus,
   allCompetitors: ESPNCompetitor[] = [],
-  playerDirectoryMap: Record<string, { id: string; name: string; headshotUrl?: string; countryFlagUrl?: string }> = DEFAULT_PLAYER_DIRECTORY_MAP
+  playerDirectoryMap: Record<string, { id: string; name: string; headshotUrl?: string; countryFlagUrl?: string }> = DEFAULT_PLAYER_DIRECTORY_MAP,
+  hasCut: boolean = true
 ): NormalizedCompetitor {
   const athleteId = comp.athlete?.id || comp.id || '';
   const dirPlayer = playerDirectoryMap[athleteId];
 
   // Derive player status info (CUT, WD, DQ, etc.)
-  const playerStatus = getPlayerStatusInfo(comp, eventStatus);
+  const playerStatus = getPlayerStatusInfo(comp, eventStatus, hasCut);
 
   // Derive winner / playoff status if tournament is completed
   const winnerStatus = getWinnerStatus(comp, eventStatus, allCompetitors);
@@ -201,7 +205,7 @@ export function normalizeCompetitor(
   };
 
   // Pre-compute score and score meta
-  const scoreMeta = getGolferCumulativeScoreToPar(comp, eventStatus);
+  const scoreMeta = getGolferCumulativeScoreToPar(comp, eventStatus, hasCut);
   const scoreDisplay = scoreMeta.formattedScore;
   let scoreToPar: number | null = null;
   if (scoreDisplay === 'E' || scoreDisplay === 'EVEN') {
@@ -212,7 +216,7 @@ export function normalizeCompetitor(
   }
 
   // Pre-compute thru display
-  const thruDisplay = formatThruDisplay(comp, eventStatus);
+  const thruDisplay = formatThruDisplay(comp, eventStatus, hasCut);
 
   // Resolve headshot fallback chain
   const rawHeadshot = comp.athlete?.headshot?.href;
@@ -289,18 +293,10 @@ export function normalizeTournamentSnapshot(
   const statusState = eventStatus.type?.state || 'pre';
   const statusDetail = eventStatus.type?.detail || eventStatus.type?.description || 'Scheduled';
   const period = eventStatus.period || 0;
-  const isCompleted = eventStatus.type?.completed === true || statusState === 'post' || statusDetail.toLowerCase().includes('final');
+  const isCompleted = isEventFinal(eventStatus);
 
-  // Check playoff flag
-  const isPlayoff = Boolean(
-    statusDetail.toLowerCase().includes('playoff') ||
-      statusDetail.toLowerCase().includes('extra') ||
-      (rawComps.length >= 2 &&
-        rawComps[0]?.score === rawComps[1]?.score &&
-        rawComps[0]?.score !== undefined &&
-        (rawComps[1]?.status?.position?.displayName?.includes('P') ||
-          rawComps[1]?.status?.position?.displayName?.includes('T')))
-  );
+  // Check playoff flag (strictly gated on completed/final event status)
+  const isPlayoff = isCompleted && isTournamentPlayoff(eventStatus, rawComps);
 
   const datesFormatted = formatEventDates(activeEvent?.date, activeEvent?.endDate);
   const dirMap = options.playerDirectoryMap || DEFAULT_PLAYER_DIRECTORY_MAP;
@@ -327,8 +323,9 @@ export function normalizeTournamentSnapshot(
   }
 
   // Normalize all competitors
+  const hasCut = options.hasCut !== false;
   const normalizedCompetitors: NormalizedCompetitor[] = compsToNormalize.map((c) =>
-    normalizeCompetitor(c, eventStatus, compsToNormalize, dirMap)
+    normalizeCompetitor(c, eventStatus, compsToNormalize, dirMap, hasCut)
   );
 
   // Build pre-indexed O(1) competitor map

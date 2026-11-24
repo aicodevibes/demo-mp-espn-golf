@@ -52,6 +52,8 @@ export interface TournamentContextState {
   lastRefreshedAt: Date | null;
   /** Set the active event ID from global app config. */
   setActiveConfigId: (id: string) => void;
+  /** Set whether the active tournament enforces a 36-hole cut. */
+  setHasCut: (hasCut: boolean) => void;
 }
 
 const DEFAULT_TOURNAMENT: NormalizedTournament = {
@@ -85,20 +87,25 @@ const TournamentContext = createContext<TournamentContextState>({
   staleCacheAgeSeconds: null,
   lastRefreshedAt: null,
   setActiveConfigId: () => {},
+  setHasCut: () => {},
 });
 
 export interface TournamentProviderProps {
   children: ReactNode;
   initialEventId?: string;
+  hasCut?: boolean;
   firestorePlayerMap?: Record<string, { id: string; name: string; headshotUrl?: string }>;
 }
 
 export function TournamentProvider({
   children,
   initialEventId = '',
+  hasCut: initialHasCut = true,
   firestorePlayerMap = DEFAULT_PLAYER_DIRECTORY_MAP,
 }: TournamentProviderProps) {
   const [activeConfigId, setActiveConfigId] = useState<string>(initialEventId || '');
+  const [hasCutOverride, setHasCut] = useState<boolean | undefined>(undefined);
+  const hasCut = hasCutOverride ?? initialHasCut;
   const [events, setEvents] = useState<ESPNEvent[]>([]);
   const [activeEventObj, setActiveEventObj] = useState<ESPNEvent | null>(null);
   const [competitors, setCompetitors] = useState<ESPNCompetitor[]>([]);
@@ -237,9 +244,9 @@ export function TournamentProvider({
     return EspnTournamentAdapter.normalizeTournamentSnapshot(
       { events },
       activeEventObj,
-      { activeEventId: selectedViewerEventId, playerDirectoryMap: firestorePlayerMap }
+      { activeEventId: selectedViewerEventId, playerDirectoryMap: firestorePlayerMap, hasCut }
     );
-  }, [events, activeEventObj, selectedViewerEventId, firestorePlayerMap]);
+  }, [events, activeEventObj, selectedViewerEventId, firestorePlayerMap, hasCut]);
 
   const value: TournamentContextState = useMemo(
     () => ({
@@ -258,6 +265,7 @@ export function TournamentProvider({
       staleCacheAgeSeconds,
       lastRefreshedAt,
       setActiveConfigId,
+      setHasCut,
     }),
     [
       selectedViewerEventId,
