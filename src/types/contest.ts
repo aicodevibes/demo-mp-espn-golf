@@ -14,6 +14,7 @@ export interface DraftedGolferStatus {
   name: string;
   isCut: boolean;
   isWD: boolean;
+  isDQ?: boolean;
   totalScoreToPar: string;
   roundStrokes: { [round: number]: number | null };
   /** Per-round score-to-par values (null = not played, 999 = CUT penalty) */
@@ -60,6 +61,7 @@ export interface ContestConfig {
   mainPayouts: number[];
   dayMoneyPool: number;
   coursePar: number | null;
+  hasCut?: boolean;
   isFinalized?: boolean;
   createdAt?: any;
   updatedAt?: any;

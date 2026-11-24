@@ -17,6 +17,7 @@ export interface AdminEventConfigSectionProps {
   formDataDayMoneyPool: number | '';
   formDataMainPayoutsStr: string;
   formDataIsFinalized: boolean;
+  formDataHasCut?: boolean;
   onSelectEvent: (eventId: string) => void;
   onChangeName: (name: string) => void;
   onChangeCoursePar: (par: number | '') => void;
@@ -24,6 +25,7 @@ export interface AdminEventConfigSectionProps {
   onChangeDayMoneyPool: (pool: number | '') => void;
   onChangeMainPayoutsStr: (payouts: string) => void;
   onChangeIsFinalized: (isFinalized: boolean) => void;
+  onChangeHasCut?: (hasCut: boolean) => void;
   onSaveConfig: (e: React.FormEvent) => void;
   onSetActive: () => void;
   onDeleteEvent: () => void;
@@ -43,6 +45,7 @@ export function AdminEventConfigSection({
   formDataDayMoneyPool,
   formDataMainPayoutsStr,
   formDataIsFinalized,
+  formDataHasCut = true,
   onSelectEvent,
   onChangeName,
   onChangeCoursePar,
@@ -50,6 +53,7 @@ export function AdminEventConfigSection({
   onChangeDayMoneyPool,
   onChangeMainPayoutsStr,
   onChangeIsFinalized,
+  onChangeHasCut,
   onSaveConfig,
   onSetActive,
   onDeleteEvent,
@@ -159,6 +163,23 @@ export function AdminEventConfigSection({
                 onChange={(e) => onChangeMainPayoutsStr(e.target.value)}
                 className="w-full bg-surface-container border border-outline-variant rounded-lg px-3 py-2 text-sm font-mono text-on-surface outline-none focus:border-outline"
               />
+            </div>
+
+            {/* 36-Hole Cut Checkbox */}
+            <div className="flex items-center gap-2 md:col-span-2 pt-2">
+              <input
+                type="checkbox"
+                id="hasCutCheckbox"
+                checked={formDataHasCut}
+                onChange={(e) => onChangeHasCut?.(e.target.checked)}
+                className="rounded border-outline-variant bg-surface text-primary focus:ring-primary w-4 h-4"
+              />
+              <label
+                htmlFor="hasCutCheckbox"
+                className="text-xs font-bold text-on-surface cursor-pointer select-none"
+              >
+                Event has 36-hole cut
+              </label>
             </div>
 
             {/* Finalize Checkbox */}

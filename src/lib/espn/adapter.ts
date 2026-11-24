@@ -16,6 +16,8 @@ import {
   getGolferCumulativeScoreToPar,
   getPlayerStatusInfo,
   getWinnerStatus,
+  isEventFinal,
+  isTournamentPlayoff,
   PlayerStatusInfo,
   WinnerStatusInfo,
   DEFAULT_PLAYER_DIRECTORY_MAP,
@@ -120,12 +122,14 @@ export interface NormalizedPlayerSummary {
 export interface NormalizeCompetitorOptions {
   coursePar?: number | null;
   eventCourses?: ESPNCourse[] | null;
+  hasCut?: boolean;
 }
 
 export interface NormalizeTournamentOptions {
   activeEventId?: string | null;
   playerDirectoryMap?: Record<string, { id: string; name: string; headshotUrl?: string; countryFlagUrl?: string }>;
   coursePar?: number | null;
+  hasCut?: boolean;
 }
 
 /**
@@ -177,13 +181,16 @@ export function normalizeCompetitor(
   eventStatus?: ESPNEventStatus,
   allCompetitors: ESPNCompetitor[] = [],
   playerDirectoryMap: Record<string, { id: string; name: string; headshotUrl?: string; countryFlagUrl?: string }> = DEFAULT_PLAYER_DIRECTORY_MAP,
-  options?: NormalizeCompetitorOptions
+  optionsOrHasCut?: NormalizeCompetitorOptions | boolean
 ): NormalizedCompetitor {
+  const options = typeof optionsOrHasCut === 'object' ? optionsOrHasCut : undefined;
+  const hasCut = typeof optionsOrHasCut === 'boolean' ? optionsOrHasCut : (options?.hasCut ?? true);
+
   const athleteId = comp.athlete?.id || comp.id || '';
   const dirPlayer = playerDirectoryMap[athleteId];
 
   // Derive player status info (CUT, WD, DQ, etc.)
-  const playerStatus = getPlayerStatusInfo(comp, eventStatus);
+  const playerStatus = getPlayerStatusInfo(comp, eventStatus, hasCut);
 
   // Derive winner / playoff status if tournament is completed
   const winnerStatus = getWinnerStatus(comp, eventStatus, allCompetitors);
@@ -208,9 +215,10 @@ export function normalizeCompetitor(
     statusBadge,
   };
 
-  // Pre-compute score and score meta respecting course par precedence
+  // Pre-compute score and score meta respecting course par precedence and cut config
   const scoreMeta = getGolferCumulativeScoreToPar(comp, eventStatus, options?.coursePar, {
     eventCourses: options?.eventCourses,
+    hasCut,
   });
   const scoreDisplay = scoreMeta.formattedScore;
   let scoreToPar: number | null = null;
@@ -222,7 +230,7 @@ export function normalizeCompetitor(
   }
 
   // Pre-compute thru display
-  const thruDisplay = formatThruDisplay(comp, eventStatus);
+  const thruDisplay = formatThruDisplay(comp, eventStatus, hasCut);
 
   // Resolve headshot fallback chain
   const rawHeadshot = comp.athlete?.headshot?.href;
@@ -299,18 +307,10 @@ export function normalizeTournamentSnapshot(
   const statusState = eventStatus.type?.state || 'pre';
   const statusDetail = eventStatus.type?.detail || eventStatus.type?.description || 'Scheduled';
   const period = eventStatus.period || 0;
-  const isCompleted = eventStatus.type?.completed === true || statusState === 'post' || statusDetail.toLowerCase().includes('final');
+  const isCompleted = isEventFinal(eventStatus);
 
-  // Check playoff flag
-  const isPlayoff = Boolean(
-    statusDetail.toLowerCase().includes('playoff') ||
-      statusDetail.toLowerCase().includes('extra') ||
-      (rawComps.length >= 2 &&
-        rawComps[0]?.score === rawComps[1]?.score &&
-        rawComps[0]?.score !== undefined &&
-        (rawComps[1]?.status?.position?.displayName?.includes('P') ||
-          rawComps[1]?.status?.position?.displayName?.includes('T')))
-  );
+  // Check playoff flag (strictly gated on completed/final event status)
+  const isPlayoff = isCompleted && isTournamentPlayoff(eventStatus, rawComps);
 
   const datesFormatted = formatEventDates(activeEvent?.date, activeEvent?.endDate);
   const dirMap = options.playerDirectoryMap || DEFAULT_PLAYER_DIRECTORY_MAP;
@@ -342,10 +342,12 @@ export function normalizeTournamentSnapshot(
     typeof options.coursePar === 'number' && options.coursePar > 50 ? options.coursePar : null;
 
   // Normalize all competitors
+  const hasCut = options.hasCut !== false;
   const normalizedCompetitors: NormalizedCompetitor[] = compsToNormalize.map((c) =>
     normalizeCompetitor(c, eventStatus, compsToNormalize, dirMap, {
       coursePar: adminCoursePar,
       eventCourses,
+      hasCut,
     })
   );
 

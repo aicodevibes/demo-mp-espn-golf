@@ -4,6 +4,7 @@ export interface CourseParResolutionOptions {
   eventCourses?: ESPNCourse[] | null;
   eventCourseHoles?: number[];
   eventStatus?: ESPNEventStatus | null;
+  hasCut?: boolean;
 }
 
 /**
@@ -148,9 +149,13 @@ export function getScoreMeta(score: ESPNCompetitorScore, eventStatus?: any): Sco
 /**
  * Formats a competitor's Thru display string ('-', '14', 'F', 'CUT', 'WD', 'DQ')
  */
-export function formatThruDisplay(comp?: ESPNCompetitor | null, eventStatus?: any): string {
+export function formatThruDisplay(
+  comp?: ESPNCompetitor | null,
+  eventStatus?: ESPNEventStatus | null,
+  hasCut: boolean = true
+): string {
   if (!comp) return '-';
-  const statusInfo = getPlayerStatusInfo(comp, eventStatus);
+  const statusInfo = getPlayerStatusInfo(comp, eventStatus, hasCut);
   if (statusInfo.isCut) return 'CUT';
   if (statusInfo.isWD) return 'WD';
   if (statusInfo.isDQ) return 'DQ';
@@ -194,15 +199,20 @@ export function formatThruDisplay(comp?: ESPNCompetitor | null, eventStatus?: an
  */
 export function getGolferCumulativeScoreToPar(
   comp: ESPNCompetitor,
-  eventStatus?: any,
-  coursePar?: number | null,
+  eventStatus?: ESPNEventStatus | null,
+  courseParOrHasCut?: number | boolean | null,
   options?: CourseParResolutionOptions
 ): ScoreMeta {
   if (!comp) return getScoreMeta('-', eventStatus);
 
-  const statusInfo = getPlayerStatusInfo(comp, eventStatus);
+  const coursePar = typeof courseParOrHasCut === 'number' ? courseParOrHasCut : null;
+  const hasCut =
+    typeof courseParOrHasCut === 'boolean' ? courseParOrHasCut : (options?.hasCut ?? true);
+
+  const statusInfo = getPlayerStatusInfo(comp, eventStatus, hasCut);
   if (statusInfo.isCut) return { formattedScore: 'CUT', isUnderPar: false, isOverPar: false };
   if (statusInfo.isWD) return { formattedScore: 'WD', isUnderPar: false, isOverPar: false };
+  if (statusInfo.isDQ) return { formattedScore: 'DQ', isUnderPar: false, isOverPar: false };
 
   const adminCoursePar = typeof coursePar === 'number' && coursePar > 50 ? coursePar : null;
   const eventCourses = options?.eventCourses ?? null;
@@ -248,6 +258,7 @@ export function getGolferCumulativeScoreToPar(
         const res = evaluateGolferRoundScore(comp, rd, adminCoursePar, eventCourseHoles, {
           eventCourses,
           eventStatus,
+          hasCut,
         });
         if (res.scoreToPar !== null) {
           cumulative += res.scoreToPar;
@@ -382,33 +393,80 @@ export interface WinnerStatusInfo {
   badgeLabel: string;
 }
 
+/**
+ * Returns true if the event status indicates the tournament is final/completed.
+ */
+export function isEventFinal(eventStatus?: ESPNEventStatus | null): boolean {
+  return Boolean(
+    eventStatus?.type?.state === 'post' ||
+      eventStatus?.type?.completed === true ||
+      eventStatus?.type?.detail?.toLowerCase().includes('final')
+  );
+}
+
+function hasPlayableRawScore(score: ESPNCompetitorScore): boolean {
+  if (score === undefined || score === null || score === '' || score === '-') return false;
+  if (typeof score === 'object') {
+    const dv = score.displayValue !== undefined && score.displayValue !== null ? String(score.displayValue).trim() : '';
+    const hasDv = dv !== '' && dv !== '-';
+    const hasNum = score.value !== undefined && score.value !== null && !Number.isNaN(Number(score.value));
+    return hasDv || hasNum;
+  }
+  return true;
+}
+
+/**
+ * Compares two competitors' normalized score values rather than raw object references.
+ */
+export function areCompetitorScoresEqual(
+  compA?: ESPNCompetitor | null,
+  compB?: ESPNCompetitor | null,
+  eventStatus?: ESPNEventStatus | null
+): boolean {
+  if (!compA || !compB) return false;
+  if (!hasPlayableRawScore(compA.score) || !hasPlayableRawScore(compB.score)) {
+    return false;
+  }
+  const fmtA = formatScoreDisplay(compA.score, eventStatus);
+  const fmtB = formatScoreDisplay(compB.score, eventStatus);
+  if (!fmtA || !fmtB || fmtA === '-' || fmtB === '-' || fmtA === 'CUT' || fmtA === 'WD' || fmtA === 'DQ') {
+    return false;
+  }
+  return fmtA === fmtB;
+}
+
+/**
+ * Determines whether a completed tournament was decided by a playoff.
+ * Strictly gated on final/completed status so Round 1-3 ties are never marked as playoffs.
+ */
+export function isTournamentPlayoff(
+  eventStatus?: ESPNEventStatus | null,
+  allCompetitors: ESPNCompetitor[] = []
+): boolean {
+  if (!isEventFinal(eventStatus)) return false;
+
+  const detailText = (eventStatus?.type?.detail || eventStatus?.type?.description || '').toLowerCase();
+  const hasPlayoffText = detailText.includes('playoff') || detailText.includes('extra');
+  const runnerUpPos = allCompetitors[1]?.status?.position?.displayName || '';
+  const runnerUpHasSameScore =
+    allCompetitors.length >= 2 &&
+    areCompetitorScoresEqual(allCompetitors[0], allCompetitors[1], eventStatus) &&
+    (runnerUpPos.includes('P') || runnerUpPos.includes('T'));
+
+  return hasPlayoffText || runnerUpHasSameScore;
+}
+
 export function getWinnerStatus(
   comp: ESPNCompetitor,
-  eventStatus?: any,
+  eventStatus?: ESPNEventStatus | null,
   allCompetitors: ESPNCompetitor[] = []
 ): WinnerStatusInfo {
-  const isFinal =
-    eventStatus?.type?.state === 'post' ||
-    eventStatus?.type?.completed === true ||
-    eventStatus?.type?.detail?.toLowerCase().includes('final');
-
-  if (!isFinal) {
+  if (!isEventFinal(eventStatus)) {
     return { isWinner: false, isPlayoff: false, badgeLabel: '' };
   }
 
-  const detailText = (eventStatus?.type?.detail || '').toLowerCase();
   const positionStr = comp.status?.position?.displayName || `${comp.order || ''}`;
-
-  // Playoff detection
-  const hasPlayoffText = detailText.includes('playoff') || detailText.includes('extra');
-  const runnerUpHasSameScore =
-    allCompetitors.length >= 2 &&
-    allCompetitors[0]?.score === allCompetitors[1]?.score &&
-    allCompetitors[0]?.score !== undefined &&
-    (allCompetitors[1]?.status?.position?.displayName?.includes('P') ||
-     allCompetitors[1]?.status?.position?.displayName?.includes('T'));
-
-  const isPlayoff = hasPlayoffText || runnerUpHasSameScore;
+  const isPlayoff = isTournamentPlayoff(eventStatus, allCompetitors);
 
   const isFirst = comp.order === 1 || positionStr === '1';
   const isSecond = comp.order === 2 || positionStr === 'P2' || positionStr === '2';
@@ -441,29 +499,24 @@ export interface PlayerStatusInfo {
   badgeLabel: string;
 }
 
-export function getPlayerStatusInfo(comp: ESPNCompetitor, eventStatus?: any): PlayerStatusInfo {
+/**
+ * Evaluates a competitor's tournament status (CUT, WD, DQ, MDF) using explicit
+ * ESPN status fields and context-aware 36-hole cut inference.
+ */
+export function getPlayerStatusInfo(
+  comp: ESPNCompetitor,
+  eventStatus?: ESPNEventStatus | null,
+  hasCut: boolean = true
+): PlayerStatusInfo {
   if (!comp) {
     return { isCut: false, isWD: false, isDQ: false, isMDF: false, isInactive: false, badgeLabel: '' };
   }
-
-  // NOTE: ESPN sends a null/empty status object for players who missed the 36-hole cut.
-  // We must compute the linescore-based check BEFORE any early returns on status fields.
-  const currentPeriod = eventStatus?.period || (comp.status as any)?.period || 0;
-  const isFinalOrLateRound =
-    eventStatus?.type?.state === 'post' ||
-    eventStatus?.type?.completed === true ||
-    currentPeriod >= 3;
-
-  // Cut detection via round count: active players have 4 linescores (rounds), cut players have 2.
-  const missedCutByRounds =
-    isFinalOrLateRound &&
-    Array.isArray(comp.linescores) &&
-    comp.linescores.length === 2;
 
   // String-based status checks (only meaningful when ESPN does populate status fields)
   const pos = (comp.status?.position?.displayName || '').toUpperCase();
   const displayVal = (comp.status?.displayValue || '').toUpperCase();
   const typeName = (comp.status?.type?.name || '').toUpperCase();
+  const typeState = (comp.status?.type?.state || '').toLowerCase();
   const shortDetail = (comp.status?.type?.shortDetail || '').toUpperCase();
   const detail = (comp.status?.type?.detail || '').toUpperCase();
   const description = (comp.status?.type?.description || '').toUpperCase();
@@ -481,7 +534,11 @@ export function getPlayerStatusInfo(comp: ESPNCompetitor, eventStatus?: any): Pl
     pos === 'DQ' ||
     displayVal === 'DQ' ||
     typeName === 'STATUS_DISQUALIFIED' ||
-    detail.includes('DISQUALIFIED');
+    typeName === 'STATUS_DQ' ||
+    shortDetail === 'DQ' ||
+    /\bDQ\b/.test(detail) ||
+    detail.includes('DISQUALIFIED') ||
+    description.includes('DISQUALIFIED');
 
   const isMDF = pos === 'MDF' || displayVal === 'MDF' || detail.includes('MDF');
 
@@ -498,9 +555,41 @@ export function getPlayerStatusInfo(comp: ESPNCompetitor, eventStatus?: any): Pl
     detail.includes('MISSED CUT') ||
     description.includes('CUT');
 
-  // Combine: a player is CUT if ESPN says so via strings, OR they only have 2 rounds in a completed event
+  // NOTE: ESPN sends a null/empty status object for players who missed the 36-hole cut,
+  // while unstarted Saturday-morning Round 3 leaders also still have 2 linescores.
+  const compThru = Number(comp.status?.thru);
+  const isScheduledOrInProgress =
+    typeName === 'STATUS_SCHEDULED' ||
+    typeName === 'STATUS_IN_PROGRESS' ||
+    typeState === 'pre' ||
+    typeState === 'in' ||
+    (!Number.isNaN(compThru) && compThru > 0);
+
+  const hasEmptyStatusForR3 =
+    !comp.status ||
+    (!comp.status.position?.displayName && !isScheduledOrInProgress);
+
+  const eventPeriod = eventStatus?.period ?? 0;
+  const isFinalOrLateRound =
+    eventStatus?.type?.state === 'post' ||
+    eventStatus?.type?.completed === true ||
+    eventPeriod >= 4 ||
+    (eventPeriod === 3 && hasEmptyStatusForR3);
+
+  // Cut detection via round count: only infer CUT when event has a cut, player is not WD/DQ,
+  // competitor is not scheduled/in-progress, and event is post/completed, R4+, or R3 with empty status.
+  const missedCutByRounds =
+    hasCut !== false &&
+    !isWD &&
+    !isDQ &&
+    !isScheduledOrInProgress &&
+    isFinalOrLateRound &&
+    Array.isArray(comp.linescores) &&
+    comp.linescores.length === 2;
+
+  // Combine: a player is CUT if ESPN says so via strings, OR they only have 2 rounds post-cut
   // (and they're not WD/DQ, which have their own distinct treatment)
-  const finalIsCut = !isWD && !isDQ && (isCutByString || (missedCutByRounds && !isWD && !isDQ));
+  const finalIsCut = !isWD && !isDQ && (isCutByString || missedCutByRounds);
   const isInactive = finalIsCut || isWD || isDQ || isMDF;
 
   let badgeLabel = '';
@@ -524,16 +613,27 @@ export interface GolferRoundScoreResult {
   statusDetail: string;
 }
 
+function isCourseParResolutionOptions(
+  val: ESPNEventStatus | CourseParResolutionOptions | null | undefined
+): val is CourseParResolutionOptions {
+  return Boolean(
+    val &&
+      typeof val === 'object' &&
+      ('eventCourses' in val || 'eventCourseHoles' in val || 'eventStatus' in val || 'hasCut' in val)
+  );
+}
+
 /**
  * Single deep module function at the @/lib/espn seam to evaluate a competitor's round score,
- * score-to-par, formatting, and WD/CUT status.
+ * score-to-par, formatting, and WD/DQ/CUT status.
  */
 export function evaluateGolferRoundScore(
   comp: ESPNCompetitor,
   round: number,
   coursePar?: number | null,
   eventCourseHoles?: number[],
-  options?: CourseParResolutionOptions
+  eventStatusOrOptions?: ESPNEventStatus | CourseParResolutionOptions | null,
+  hasCut: boolean = true
 ): GolferRoundScoreResult {
   if (!comp) {
     return {
@@ -548,10 +648,19 @@ export function evaluateGolferRoundScore(
     };
   }
 
-  const statusInfo = getPlayerStatusInfo(comp, options?.eventStatus);
+  const options = isCourseParResolutionOptions(eventStatusOrOptions)
+    ? eventStatusOrOptions
+    : undefined;
+  const resolvedEventStatus = options
+    ? options.eventStatus
+    : (eventStatusOrOptions as ESPNEventStatus | null | undefined);
+  const resolvedHasCut = options?.hasCut ?? hasCut;
+
+  const statusInfo = getPlayerStatusInfo(comp, resolvedEventStatus, resolvedHasCut);
   const statusPos = (comp.status?.position?.displayName || '').toUpperCase();
   const statusType = (comp.status?.type?.name || '').toUpperCase();
   const isWD = statusPos === 'WD' || statusType === 'STATUS_WITHDRAWN' || statusInfo.isWD;
+  const isDQ = statusPos === 'DQ' || statusType === 'STATUS_DISQUALIFIED' || statusType === 'STATUS_DQ' || statusInfo.isDQ;
   const isCut = statusPos === 'CUT' || statusPos === 'MC' || statusInfo.isCut;
 
   // Extract strokes for the requested round period
@@ -561,31 +670,22 @@ export function evaluateGolferRoundScore(
     strokes = ls.value;
   }
 
-  // Handle WD or CUT players with no valid round strokes
-  if (isWD && (strokes === null || strokes === 0)) {
-    return {
-      roundStrokes: null,
-      scoreToPar: null,
-      formattedScore: 'WD',
-      isUnderPar: false,
-      isOverPar: false,
-      isEven: false,
-      isInactive: true,
-      statusDetail: 'Withdrawn',
-    };
-  }
+  // Handle WD, DQ, or CUT players with no valid round strokes
+  const inactiveResult = (formattedScore: string, statusDetail: string): GolferRoundScoreResult => ({
+    roundStrokes: null,
+    scoreToPar: null,
+    formattedScore,
+    isUnderPar: false,
+    isOverPar: false,
+    isEven: false,
+    isInactive: true,
+    statusDetail,
+  });
 
-  if (isCut && (strokes === null || strokes === 0)) {
-    return {
-      roundStrokes: null,
-      scoreToPar: null,
-      formattedScore: 'CUT',
-      isUnderPar: false,
-      isOverPar: false,
-      isEven: false,
-      isInactive: true,
-      statusDetail: 'Missed Cut',
-    };
+  if (strokes === null || strokes === 0) {
+    if (isWD) return inactiveResult('WD', 'Withdrawn');
+    if (isDQ) return inactiveResult('DQ', 'Disqualified');
+    if (isCut) return inactiveResult('CUT', 'Missed Cut');
   }
 
   if (strokes === null || strokes === 0) {
@@ -767,13 +867,14 @@ export const DEFAULT_PLAYER_DIRECTORY_MAP: Record<
 export function isRoundCompleted(
   comp: ESPNCompetitor,
   round: number,
-  eventStatus?: any
+  eventStatus?: ESPNEventStatus | null,
+  hasCut: boolean = true
 ): boolean {
   if (!comp || !comp.linescores) return false;
   const ls = comp.linescores.find((l) => l.period === round);
   if (!ls || typeof ls.value !== 'number' || ls.value <= 0) return false;
 
-  const statusInfo = getPlayerStatusInfo(comp, eventStatus);
+  const statusInfo = getPlayerStatusInfo(comp, eventStatus, hasCut);
   if (statusInfo.isCut || statusInfo.isWD || statusInfo.isDQ) {
     if (round > 2 && statusInfo.isCut) return false;
   }
