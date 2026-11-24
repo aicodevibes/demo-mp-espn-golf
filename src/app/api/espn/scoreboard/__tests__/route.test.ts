@@ -128,4 +128,79 @@ describe('/api/espn/scoreboard Route Handler', () => {
     const json = await res.json();
     expect(json.error).toBe('Network offline');
   });
+
+  it('rejects invalid event or season query parameters with 400 and constructs URL safely', async () => {
+    const fetchSpy = vi.fn();
+    global.fetch = fetchSpy;
+
+    const badEventReq = new NextRequest('http://localhost:3000/api/espn/scoreboard?event=123../admin');
+    const badEventRes = await GET(badEventReq);
+    expect(badEventRes.status).toBe(400);
+    expect(fetchSpy).not.toHaveBeenCalled();
+
+    const badSeasonReq = new NextRequest('http://localhost:3000/api/espn/scoreboard?season=26');
+    const badSeasonRes = await GET(badSeasonReq);
+    expect(badSeasonRes.status).toBe(400);
+    expect(fetchSpy).not.toHaveBeenCalled();
+
+    fetchSpy.mockResolvedValue(
+      new Response(JSON.stringify({ events: [] }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    );
+    const validEventReq = new NextRequest('http://localhost:3000/api/espn/scoreboard?event=401580384');
+    const validEventRes = await GET(validEventReq);
+    expect(validEventRes.status).toBe(200);
+    expect(fetchSpy).toHaveBeenCalledWith(
+      'https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard?event=401580384',
+      expect.objectContaining({
+        signal: expect.any(AbortSignal),
+      })
+    );
+  });
+
+  it('enforces 8-second AbortSignal timeout on upstream fetch and emits X-Cache-Age on stale fallback', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-10T12:00:00Z'));
+
+    try {
+      const timeoutSpy = vi.spyOn(AbortSignal, 'timeout');
+      setMemorySnapshot('scoreboard:default', { events: [{ id: 'cached-event', name: 'Cached Event' }] });
+
+      vi.advanceTimersByTime(125_000); // 125 seconds old
+
+      global.fetch = vi.fn().mockRejectedValue(new DOMException('Timed out', 'TimeoutError'));
+
+      const req = new NextRequest('http://localhost:3000/api/espn/scoreboard');
+      const res = await GET(req);
+
+      expect(timeoutSpy).toHaveBeenCalledWith(8000);
+      expect(res.status).toBe(200);
+      expect(res.headers.get('X-Cache-Stale')).toBe('true');
+      expect(res.headers.get('X-Cache-Age')).toBe('125');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('expires scoreboard stale snapshot after 24 hours and returns upstream error', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-10T12:00:00Z'));
+
+    try {
+      setMemorySnapshot('scoreboard:default', { events: [{ id: 'old-event', name: 'Old Event' }] });
+      vi.advanceTimersByTime(24 * 60 * 60 * 1000 + 1000); // 24h + 1s
+
+      global.fetch = vi.fn().mockResolvedValue(new Response('Upstream down', { status: 503 }));
+
+      const req = new NextRequest('http://localhost:3000/api/espn/scoreboard');
+      const res = await GET(req);
+
+      expect(res.status).toBe(503);
+      expect(res.headers.get('X-Cache-Stale')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

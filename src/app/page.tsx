@@ -32,9 +32,11 @@ export default function DashboardPage() {
     contestConfig,
     firestorePlayerMap,
     isStaleData,
+    staleCacheAgeSeconds,
     loading: eventContextLoading,
     isRefreshing,
     lastRefreshedAt,
+    error,
     refreshLeaderboard,
   } = useEventContext();
 
@@ -151,7 +153,9 @@ export default function DashboardPage() {
         eventObj={activeEvent || undefined}
         isRefreshing={isRefreshing}
         isStaleData={isStaleData}
+        staleCacheAgeSeconds={staleCacheAgeSeconds}
         lastRefreshedAt={lastRefreshedAt}
+        error={error}
         onRefresh={refreshLeaderboard}
       />
 

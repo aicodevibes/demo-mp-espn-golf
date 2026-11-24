@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { ShieldCheck, LogOut, Trophy, Calendar, Activity, Award, RotateCw } from 'lucide-react';
+import { ShieldCheck, LogOut, Trophy, Calendar, Activity, Award, RotateCw, AlertTriangle } from 'lucide-react';
 import { ESPNEvent } from '@/types/espn';
 import { NormalizedTournament, formatEventDates } from '@/lib/espn';
 
@@ -23,13 +23,26 @@ export function formatTimestamp(date: Date | null): string {
   return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
+export function formatCacheAge(ageSeconds: number | null | undefined): string {
+  if (ageSeconds === null || ageSeconds === undefined || ageSeconds < 0) return '';
+  if (ageSeconds < 60) return '<1m ago';
+  const mins = Math.floor(ageSeconds / 60);
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
 export interface HeaderProps {
   eventName?: string;
   eventObj?: NormalizedTournament | ESPNEvent | null;
   loading?: boolean;
   isRefreshing?: boolean;
   isStaleData?: boolean;
+  staleCacheAgeSeconds?: number | null;
   lastRefreshedAt?: Date | null;
+  error?: Error | null;
   onRefresh?: (options?: { force?: boolean }) => void | Promise<void>;
 }
 
@@ -39,7 +52,9 @@ export function Header({
   loading: eventLoading,
   isRefreshing = false,
   isStaleData = false,
+  staleCacheAgeSeconds = null,
   lastRefreshedAt = null,
+  error = null,
   onRefresh,
 }: HeaderProps) {
   const [mounted, setMounted] = useState(false);
@@ -165,10 +180,25 @@ export function Header({
                           title="Displaying cached snapshot while upstream data is delayed"
                           data-testid="header-stale-badge"
                         >
-                          Cached
+                          {staleCacheAgeSeconds !== null && staleCacheAgeSeconds !== undefined
+                            ? `Cached · ${formatCacheAge(staleCacheAgeSeconds)}`
+                            : 'Cached'}
                         </span>
                       )}
                     </div>
+                  )}
+
+                  {error && (
+                    <span
+                      role="status"
+                      aria-live="polite"
+                      className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30"
+                      title={error.message || 'Upstream sync failed; displaying retained leaderboard'}
+                      data-testid="header-error-warning"
+                    >
+                      <AlertTriangle className="w-3 h-3 shrink-0" />
+                      <span>Sync delayed</span>
+                    </span>
                   )}
                 </>
               )}

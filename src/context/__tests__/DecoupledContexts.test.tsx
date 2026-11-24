@@ -148,12 +148,30 @@ describe('Decoupled Domain Contexts', () => {
 
     expect(result.current.isRefreshing).toBe(false);
     expect(result.current.isStaleData).toBe(false);
+    expect(result.current.staleCacheAgeSeconds).toBeNull();
 
     await act(async () => {
       await result.current.refreshLeaderboard({ force: true });
     });
 
     expect(fetchSpy).toHaveBeenCalledWith(true);
+  });
+
+  it('LiveSyncProvider exposes passed staleCacheAgeSeconds', () => {
+    const fetchSpy = vi.fn().mockResolvedValue(true);
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <LiveSyncProvider
+        onFetchLeaderboard={fetchSpy}
+        isStaleData={true}
+        staleCacheAgeSeconds={300}
+      >
+        {children}
+      </LiveSyncProvider>
+    );
+
+    const { result } = renderHook(() => useLiveSync(), { wrapper });
+    expect(result.current.isStaleData).toBe(true);
+    expect(result.current.staleCacheAgeSeconds).toBe(300);
   });
 
   it('ContestProvider manages participants and contest configurations', () => {

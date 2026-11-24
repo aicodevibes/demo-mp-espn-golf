@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
-import { Header, formatRelativeTime, formatTimestamp } from '../Header';
+import { Header, formatRelativeTime, formatTimestamp, formatCacheAge } from '../Header';
 
 vi.mock('@/context/AuthContext', () => ({
   useAuth: () => ({
@@ -153,6 +153,56 @@ describe('Header Component', () => {
     expect(refreshBtn).toBeDisabled();
     const icon = refreshBtn.querySelector('svg');
     expect(icon).toHaveClass('animate-spin');
+  });
+
+  it('formats cache age via formatCacheAge and renders age on Cached badge', () => {
+    expect(formatCacheAge(0)).toBe('<1m ago');
+    expect(formatCacheAge(45)).toBe('<1m ago');
+    expect(formatCacheAge(240)).toBe('4m ago');
+    expect(formatCacheAge(7200)).toBe('2h ago');
+
+    const { rerender } = render(
+      <Header
+        eventName="PGA Championship"
+        eventObj={mockEvent}
+        lastRefreshedAt={new Date()}
+        isStaleData={true}
+        staleCacheAgeSeconds={240}
+        onRefresh={vi.fn()}
+      />
+    );
+
+    const badge = screen.getByTestId('header-stale-badge');
+    expect(badge.textContent?.trim()).toBe('Cached · 4m ago');
+
+    rerender(
+      <Header
+        eventName="PGA Championship"
+        eventObj={mockEvent}
+        lastRefreshedAt={new Date()}
+        isStaleData={true}
+        staleCacheAgeSeconds={20}
+        onRefresh={vi.fn()}
+      />
+    );
+    expect(screen.getByTestId('header-stale-badge').textContent?.trim()).toBe('Cached · <1m ago');
+  });
+
+  it('displays subtle non-destructive warning indicator when error is present alongside retained data', () => {
+    render(
+      <Header
+        eventName="PGA Championship"
+        eventObj={mockEvent}
+        lastRefreshedAt={new Date()}
+        error={new Error('ESPN Leaderboard API returned status 503')}
+        onRefresh={vi.fn()}
+      />
+    );
+
+    expect(screen.getByTestId('header-event-name').textContent).toContain('PGA Championship');
+    const warning = screen.getByTestId('header-error-warning');
+    expect(warning).toBeTruthy();
+    expect(warning.getAttribute('title')).toContain('503');
   });
 });
 

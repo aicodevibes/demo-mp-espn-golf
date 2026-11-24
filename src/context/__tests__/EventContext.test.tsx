@@ -333,4 +333,138 @@ describe('EventContextProvider Deep Domain Seam', () => {
       { container: document.body }
     );
   });
+
+  it('parses X-Cache-Age header into staleCacheAgeSeconds, retains valid state on 5xx refresh, and clears state on event switch', async () => {
+    let phase: 'stale' | '503' | 'switch' = 'stale';
+    const fetchSpy = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/api/espn/scoreboard')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            events: [
+              {
+                id: '401705663',
+                name: 'Masters Tournament',
+                status: { type: { state: 'in', description: 'In Progress' } },
+              },
+            ],
+          }),
+        });
+      }
+      if (url.includes('/api/espn/leaderboard')) {
+        if (phase === 'stale') {
+          return Promise.resolve({
+            ok: true,
+            headers: new Headers({
+              'X-Cache-Stale': 'true',
+              'X-Cache-Age': '240',
+            }),
+            json: async () => ({
+              events: [
+                {
+                  id: '401705663',
+                  name: 'Masters Tournament',
+                  status: { type: { state: 'in', description: 'In Progress' } },
+                  competitions: [
+                    {
+                      id: '401705663',
+                      competitors: [
+                        {
+                          id: '4397140',
+                          athlete: { id: '4397140', displayName: 'Scottie Scheffler' },
+                          score: '-9',
+                          status: { thru: 18, position: { displayName: '1' } },
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            }),
+          });
+        }
+        if (phase === '503') {
+          return Promise.resolve({
+            ok: false,
+            status: 503,
+            json: async () => ({ error: 'ESPN Leaderboard API returned status 503' }),
+          });
+        }
+        // phase === 'switch'
+        return Promise.resolve({
+          ok: true,
+          headers: new Headers(),
+          json: async () => ({
+            events: [
+              {
+                id: '401580340',
+                name: 'PGA Championship',
+                status: { type: { state: 'post', description: 'Final' } },
+                competitions: [
+                  {
+                    id: '401580340',
+                    competitors: [
+                      {
+                        id: '3470',
+                        athlete: { id: '3470', displayName: 'Rory McIlroy' },
+                        score: '-12',
+                        status: { thru: 18, position: { displayName: '1' } },
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          }),
+        });
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) });
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <EventContextProvider initialEventId="401705663">{children}</EventContextProvider>
+    );
+
+    const { result } = renderHook(() => useEventContext(), { wrapper });
+
+    await waitFor(
+      () => {
+        expect(result.current.competitors).toHaveLength(1);
+        expect(result.current.isStaleData).toBe(true);
+      },
+      { container: document.body }
+    );
+
+    expect(result.current.staleCacheAgeSeconds).toBe(240);
+
+    // 5xx refresh on same event retains competitors and activeEvent while surfacing error
+    phase = '503';
+    await act(async () => {
+      await result.current.refreshLeaderboard();
+    });
+
+    expect(result.current.error?.message).toBe('ESPN Leaderboard API returned status 503');
+    expect(result.current.competitors).toHaveLength(1);
+    expect(result.current.competitors[0].athlete?.displayName).toBe('Scottie Scheffler');
+    expect(result.current.activeEvent?.id).toBe('401705663');
+
+    // Switching to a different event clears old competitors/stale/error and loads new event
+    phase = 'switch';
+    act(() => {
+      result.current.setEventOverride('401580340');
+    });
+
+    await waitFor(
+      () => {
+        expect(result.current.competitors).toHaveLength(1);
+        expect(result.current.competitors[0].athlete?.displayName).toBe('Rory McIlroy');
+      },
+      { container: document.body }
+    );
+
+    expect(result.current.isStaleData).toBe(false);
+    expect(result.current.staleCacheAgeSeconds).toBeNull();
+    expect(result.current.error).toBeNull();
+  });
 });

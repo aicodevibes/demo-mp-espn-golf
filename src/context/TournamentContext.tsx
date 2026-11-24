@@ -46,6 +46,8 @@ export interface TournamentContextState {
   error: Error | null;
   /** Whether last response was served from stale cache. */
   isStaleData: boolean;
+  /** Age in seconds of the stale snapshot from X-Cache-Age, or null when fresh/unknown. */
+  staleCacheAgeSeconds: number | null;
   /** Timestamp of last successful refresh. */
   lastRefreshedAt: Date | null;
   /** Set the active event ID from global app config. */
@@ -80,6 +82,7 @@ const TournamentContext = createContext<TournamentContextState>({
   fetchLeaderboard: async () => false,
   error: null,
   isStaleData: false,
+  staleCacheAgeSeconds: null,
   lastRefreshedAt: null,
   setActiveConfigId: () => {},
 });
@@ -102,6 +105,7 @@ export function TournamentProvider({
   const [viewerEventIdOverride, setViewerEventIdOverride] = useState<string>('');
 
   const [isStaleData, setIsStaleData] = useState<boolean>(false);
+  const [staleCacheAgeSeconds, setStaleCacheAgeSeconds] = useState<number | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null);
   const [error, setError] = useState<Error | null>(null);
@@ -188,7 +192,13 @@ export function TournamentProvider({
         }
 
         const isStale = Boolean(res.headers?.get && res.headers.get('X-Cache-Stale') === 'true');
+        const rawCacheAge = res.headers?.get ? res.headers.get('X-Cache-Age') : null;
+        const parsedCacheAge =
+          isStale && rawCacheAge !== null && /^\d+$/.test(rawCacheAge.trim())
+            ? Number(rawCacheAge.trim())
+            : null;
         setIsStaleData(isStale);
+        setStaleCacheAgeSeconds(parsedCacheAge);
 
         const data = await res.json();
         if (data.events && data.events[0]) {
@@ -216,6 +226,9 @@ export function TournamentProvider({
   useEffect(() => {
     setCompetitors([]);
     setActiveEventObj(null);
+    setIsStaleData(false);
+    setStaleCacheAgeSeconds(null);
+    setError(null);
     setLoading(true);
     fetchLeaderboard();
   }, [selectedViewerEventId, fetchLeaderboard]);
@@ -242,6 +255,7 @@ export function TournamentProvider({
       fetchLeaderboard,
       error,
       isStaleData,
+      staleCacheAgeSeconds,
       lastRefreshedAt,
       setActiveConfigId,
     }),
@@ -258,6 +272,7 @@ export function TournamentProvider({
       fetchLeaderboard,
       error,
       isStaleData,
+      staleCacheAgeSeconds,
       lastRefreshedAt,
     ]
   );

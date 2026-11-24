@@ -275,5 +275,84 @@ describe('/api/espn/leaderboard Route Handler', () => {
     const json = await res.json();
     expect(json.error).toBe('Network connectivity lost');
   });
+
+  it('rejects invalid event query parameter with 400 without calling upstream fetch', async () => {
+    const fetchSpy = vi.fn();
+    global.fetch = fetchSpy;
+
+    for (const badParam of ['', 'abc', '401580384&foo=bar', '1234567890123']) {
+      const req = new NextRequest(
+        `http://localhost:3000/api/espn/leaderboard?event=${encodeURIComponent(badParam)}`
+      );
+      const res = await GET(req);
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json.error).toBeTruthy();
+    }
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('enforces 8-second AbortSignal timeout and emits X-Cache-Age on stale fallback', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-10T12:00:00Z'));
+
+    try {
+      const timeoutSpy = vi.spyOn(AbortSignal, 'timeout');
+      setMemorySnapshot('leaderboard:401580384', {
+        id: '401580384',
+        events: [{ id: '401580384', status: { type: { state: 'in', name: 'STATUS_IN_PROGRESS' } } }],
+      });
+
+      vi.advanceTimersByTime(240_000); // 4 minutes
+
+      global.fetch = vi.fn().mockRejectedValue(new DOMException('Timed out', 'TimeoutError'));
+
+      const req = new NextRequest('http://localhost:3000/api/espn/leaderboard?event=401580384');
+      const res = await GET(req);
+
+      expect(timeoutSpy).toHaveBeenCalledWith(8000);
+      expect(res.status).toBe(200);
+      expect(res.headers.get('X-Cache-Stale')).toBe('true');
+      expect(res.headers.get('X-Cache-Age')).toBe('240');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('expires live leaderboard stale snapshot after 30 minutes but retains post snapshot up to 24 hours', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-10T12:00:00Z'));
+
+    try {
+      setMemorySnapshot('leaderboard:401580384', {
+        id: '401580384',
+        events: [{ id: '401580384', status: { type: { state: 'in', name: 'STATUS_IN_PROGRESS' } } }],
+      });
+      setMemorySnapshot('leaderboard:401580385', {
+        id: '401580385',
+        events: [{ id: '401580385', status: { type: { state: 'post', name: 'STATUS_FINAL' } } }],
+      });
+
+      vi.advanceTimersByTime(31 * 60 * 1000); // 31 minutes
+
+      global.fetch = vi.fn().mockImplementation(() => Promise.resolve(new Response('Down', { status: 502 })));
+
+      const liveRes = await GET(new NextRequest('http://localhost:3000/api/espn/leaderboard?event=401580384'));
+      expect(liveRes.status).toBe(502);
+      expect(liveRes.headers.get('X-Cache-Stale')).toBeNull();
+
+      const postRes = await GET(new NextRequest('http://localhost:3000/api/espn/leaderboard?event=401580385'));
+      expect(postRes.status).toBe(200);
+      expect(postRes.headers.get('X-Cache-Stale')).toBe('true');
+      expect(postRes.headers.get('X-Cache-Age')).toBe(String(31 * 60));
+
+      // Advance past 24 hours total (31m + 23h 30m = 24h 01m)
+      vi.advanceTimersByTime(23 * 60 * 60 * 1000 + 30 * 60 * 1000);
+      const expiredPostRes = await GET(new NextRequest('http://localhost:3000/api/espn/leaderboard?event=401580385'));
+      expect(expiredPostRes.status).toBe(502);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 

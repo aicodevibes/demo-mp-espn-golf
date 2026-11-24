@@ -31,6 +31,7 @@ export interface EventContextState {
   fieldEvaluation: FieldLeaderboardEvaluation;
   contestEvaluation: ContestEvaluationResult;
   isStaleData: boolean;
+  staleCacheAgeSeconds: number | null;
   loading: boolean;
   isRefreshing: boolean;
   lastRefreshedAt: Date | null;
@@ -79,6 +80,7 @@ function EventContextBridge({ children }: { children: ReactNode }) {
       fieldEvaluation,
       contestEvaluation,
       isStaleData: liveSyncState.isStaleData,
+      staleCacheAgeSeconds: liveSyncState.staleCacheAgeSeconds,
       loading: tournamentState.loading,
       isRefreshing: liveSyncState.isRefreshing,
       lastRefreshedAt: liveSyncState.lastRefreshedAt,
@@ -119,6 +121,7 @@ function EventContextProviderInner({ children }: { children: ReactNode }) {
       activeEventId={tournamentState.selectedEventId}
       isLive={tournamentState.tournament.statusState === 'in'}
       isStaleData={tournamentState.isStaleData}
+      staleCacheAgeSeconds={tournamentState.staleCacheAgeSeconds}
       lastRefreshedAt={tournamentState.lastRefreshedAt}
       error={tournamentState.error}
       onFetchLeaderboard={tournamentState.fetchLeaderboard}

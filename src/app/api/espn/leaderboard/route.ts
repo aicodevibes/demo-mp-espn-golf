@@ -1,95 +1,70 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { ESPNEventStatus } from '@/types/espn';
-import { getMemorySnapshot, setMemorySnapshot } from '../serverCache';
+import {
+  getMemorySnapshot,
+  peekMemorySnapshotLiveState,
+  setMemorySnapshot,
+} from '../serverCache';
+import {
+  LIVE_CACHE_CONTROL,
+  RELAXED_CACHE_CONTROL,
+  NO_STORE_CACHE_CONTROL,
+  LIVE_MAX_STALE_MS,
+  RELAXED_MAX_STALE_MS,
+  LIVE_REVALIDATE_SECONDS,
+  RELAXED_REVALIDATE_SECONDS,
+  validateEspnQueryParams,
+  isEventActive,
+  createUpstreamFetchOptions,
+  buildStaleFallbackResponse,
+  buildUpstreamErrorResponse,
+} from '../proxyUtils';
 
-const LIVE_CACHE_CONTROL = 'public, s-maxage=15, stale-while-revalidate=30';
-const RELAXED_CACHE_CONTROL = 'public, s-maxage=300, stale-while-revalidate=600';
-const NO_STORE_CACHE_CONTROL = 'no-store';
-
-interface LeaderboardPayload {
-  status?: ESPNEventStatus;
-  events?: Array<{
-    status?: ESPNEventStatus;
-  }>;
-}
+const LEADERBOARD_UPSTREAM_BASE = 'https://site.web.api.espn.com/apis/site/v2/sports/golf/leaderboard';
+const SCOREBOARD_UPSTREAM_BASE = 'https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard';
 
 interface UpstreamErrorPayload {
   message?: string;
   error?: string;
 }
 
-function isStatusActive(status?: ESPNEventStatus): boolean {
-  if (!status) return false;
-
-  const state = status.type?.state;
-  const name = status.type?.name;
-  if (state === 'in' || name === 'STATUS_IN_PROGRESS' || name === 'STATUS_PLAYOFF') {
-    return true;
-  }
-
-  const detail = (status.type?.detail || status.type?.description || '').toLowerCase();
-  return detail.includes('in progress') || detail.includes('playoff');
-}
-
-function isEventActive(data: unknown): boolean {
-  if (!data || typeof data !== 'object') return false;
-
-  const payload = data as LeaderboardPayload;
-
-  // 1. Direct status object on payload
-  if (isStatusActive(payload.status)) {
-    return true;
-  }
-
-  // 2. Events array
-  if (Array.isArray(payload.events) && payload.events.length > 0) {
-    return payload.events.some((event) => isStatusActive(event?.status));
-  }
-
-  return false;
+function resolveLeaderboardMaxAgeMs(data: unknown, isLive?: boolean): number {
+  const active = isLive ?? isEventActive(data);
+  return active ? LIVE_MAX_STALE_MS : RELAXED_MAX_STALE_MS;
 }
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
+  const validationError = validateEspnQueryParams(searchParams);
+  if (validationError) return validationError;
+
   const eventId = searchParams.get('event');
   const isForce = searchParams.get('force') === 'true';
   const cacheKey = `leaderboard:${eventId || 'default'}`;
 
   try {
-    const url = eventId
-      ? `https://site.web.api.espn.com/apis/site/v2/sports/golf/leaderboard?event=${eventId}`
-      : 'https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard';
+    const upstreamUrl = eventId
+      ? new URL(LEADERBOARD_UPSTREAM_BASE)
+      : new URL(SCOREBOARD_UPSTREAM_BASE);
+    if (eventId) {
+      upstreamUrl.searchParams.set('event', eventId);
+    }
 
-    const headers = {
-      'User-Agent':
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    };
+    const priorLive = peekMemorySnapshotLiveState(cacheKey);
+    const revalidate =
+      priorLive === false ? RELAXED_REVALIDATE_SECONDS : LIVE_REVALIDATE_SECONDS;
 
-    const fetchOptions: RequestInit = isForce
-      ? {
-          cache: 'no-store',
-          headers,
-        }
-      : ({
-          next: {
-            revalidate: 15,
-            tags: ['espn-leaderboard'],
-          },
-          headers,
-        } as RequestInit);
+    const fetchOptions = createUpstreamFetchOptions({
+      isForce,
+      revalidate,
+      tags: ['espn-leaderboard'],
+    });
 
-    const res = await fetch(url, fetchOptions);
+    const res = await fetch(upstreamUrl.toString(), fetchOptions);
 
     if (!res.ok) {
-      // Check for stale snapshot fallback on upstream error
-      const staleSnapshot = getMemorySnapshot(cacheKey);
+      const staleSnapshot = getMemorySnapshot(cacheKey, resolveLeaderboardMaxAgeMs);
       if (staleSnapshot) {
-        return NextResponse.json(staleSnapshot.data, {
-          headers: {
-            'Cache-Control': NO_STORE_CACHE_CONTROL,
-            'X-Cache-Stale': 'true',
-          },
-        });
+        return buildStaleFallbackResponse(staleSnapshot);
       }
 
       let errorMessage = `ESPN Leaderboard API returned status ${res.status}`;
@@ -108,13 +83,14 @@ export async function GET(req: NextRequest) {
     }
 
     const data: unknown = await res.json();
-    setMemorySnapshot(cacheKey, data);
+    const active = isEventActive(data);
+    setMemorySnapshot(cacheKey, data, { isLive: active });
 
-    let cacheControl = NO_STORE_CACHE_CONTROL;
-    if (!isForce) {
-      const active = isEventActive(data);
-      cacheControl = active ? LIVE_CACHE_CONTROL : RELAXED_CACHE_CONTROL;
-    }
+    const cacheControl = isForce
+      ? NO_STORE_CACHE_CONTROL
+      : active
+        ? LIVE_CACHE_CONTROL
+        : RELAXED_CACHE_CONTROL;
 
     return NextResponse.json(data, {
       headers: {
@@ -122,21 +98,11 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (error: unknown) {
-    const staleSnapshot = getMemorySnapshot(cacheKey);
+    const staleSnapshot = getMemorySnapshot(cacheKey, resolveLeaderboardMaxAgeMs);
     if (staleSnapshot) {
-      return NextResponse.json(staleSnapshot.data, {
-        headers: {
-          'Cache-Control': NO_STORE_CACHE_CONTROL,
-          'X-Cache-Stale': 'true',
-        },
-      });
+      return buildStaleFallbackResponse(staleSnapshot);
     }
 
-    const message = error instanceof Error ? error.message : 'Failed to fetch ESPN Leaderboard';
-    return NextResponse.json(
-      { error: message },
-      { status: 500 }
-    );
+    return buildUpstreamErrorResponse(error, 'Failed to fetch ESPN Leaderboard');
   }
 }
-

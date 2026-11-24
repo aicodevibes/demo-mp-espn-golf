@@ -23,6 +23,8 @@ export interface LiveSyncContextState {
   isRefreshing: boolean;
   /** True when the latest data snapshot was served from a stale-while-error cache. */
   isStaleData: boolean;
+  /** Age in seconds of the stale snapshot from X-Cache-Age, or null when fresh/unknown. */
+  staleCacheAgeSeconds: number | null;
   /** Timestamp of the last successful leaderboard refresh. */
   lastRefreshedAt: Date | null;
   /** Error object if any subscription or fetch failed. */
@@ -34,6 +36,7 @@ export interface LiveSyncContextState {
 const LiveSyncContext = createContext<LiveSyncContextState>({
   isRefreshing: false,
   isStaleData: false,
+  staleCacheAgeSeconds: null,
   lastRefreshedAt: null,
   error: null,
   refreshLeaderboard: async () => {},
@@ -44,6 +47,7 @@ export interface LiveSyncProviderProps {
   activeEventId?: string;
   isLive?: boolean;
   isStaleData?: boolean;
+  staleCacheAgeSeconds?: number | null;
   lastRefreshedAt?: Date | null;
   error?: Error | null;
   onFetchLeaderboard: (isForce?: boolean) => Promise<boolean | void>;
@@ -54,6 +58,7 @@ export function LiveSyncProvider({
   activeEventId,
   isLive = false,
   isStaleData = false,
+  staleCacheAgeSeconds = null,
   lastRefreshedAt = null,
   error = null,
   onFetchLeaderboard,
@@ -104,11 +109,12 @@ export function LiveSyncProvider({
     () => ({
       isRefreshing,
       isStaleData,
+      staleCacheAgeSeconds,
       lastRefreshedAt,
       error,
       refreshLeaderboard: handleManualRefresh,
     }),
-    [isRefreshing, isStaleData, lastRefreshedAt, error, handleManualRefresh]
+    [isRefreshing, isStaleData, staleCacheAgeSeconds, lastRefreshedAt, error, handleManualRefresh]
   );
 
   return <LiveSyncContext.Provider value={value}>{children}</LiveSyncContext.Provider>;

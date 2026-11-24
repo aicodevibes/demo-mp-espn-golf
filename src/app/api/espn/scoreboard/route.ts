@@ -1,46 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseESPNScoreboardResponse } from '@/lib/espn';
 import { getMemorySnapshot, setMemorySnapshot } from '../serverCache';
+import {
+  RELAXED_MAX_STALE_MS,
+  NO_STORE_CACHE_CONTROL,
+  validateEspnQueryParams,
+  createUpstreamFetchOptions,
+  buildStaleFallbackResponse,
+  buildUpstreamErrorResponse,
+} from '../proxyUtils';
 
-const SCOREBOARD_CACHE_KEY = 'scoreboard:default';
+const SCOREBOARD_UPSTREAM_BASE = 'https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard';
+const SCOREBOARD_REVALIDATE_SECONDS = 60;
+const SCOREBOARD_CACHE_CONTROL = 'public, s-maxage=60, stale-while-revalidate=120';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
+  const validationError = validateEspnQueryParams(searchParams);
+  if (validationError) return validationError;
+
+  const eventId = searchParams.get('event');
   const isForce = searchParams.get('force') === 'true';
+  const cacheKey = `scoreboard:${eventId || 'default'}`;
 
   try {
-    const headers = {
-      'User-Agent':
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    };
+    const upstreamUrl = new URL(SCOREBOARD_UPSTREAM_BASE);
+    if (eventId) {
+      upstreamUrl.searchParams.set('event', eventId);
+    }
 
-    const fetchOptions: RequestInit = isForce
-      ? {
-          cache: 'no-store',
-          headers,
-        }
-      : ({
-          next: {
-            revalidate: 60,
-            tags: ['espn-scoreboard'],
-          },
-          headers,
-        } as RequestInit);
+    const fetchOptions = createUpstreamFetchOptions({
+      isForce,
+      revalidate: SCOREBOARD_REVALIDATE_SECONDS,
+      tags: ['espn-scoreboard'],
+    });
 
-    const res = await fetch(
-      'https://site.api.espn.com/apis/site/v2/sports/golf/pga/scoreboard',
-      fetchOptions
-    );
+    const res = await fetch(upstreamUrl.toString(), fetchOptions);
 
     if (!res.ok) {
-      const staleSnapshot = getMemorySnapshot(SCOREBOARD_CACHE_KEY);
+      const staleSnapshot = getMemorySnapshot(cacheKey, RELAXED_MAX_STALE_MS);
       if (staleSnapshot) {
-        return NextResponse.json(staleSnapshot.data, {
-          headers: {
-            'Cache-Control': 'no-store',
-            'X-Cache-Stale': 'true',
-          },
-        });
+        return buildStaleFallbackResponse(staleSnapshot);
       }
 
       return NextResponse.json(
@@ -49,15 +49,13 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const data = await res.json();
+    const data: unknown = await res.json();
     const events = parseESPNScoreboardResponse(data);
     const result = { events };
 
-    setMemorySnapshot(SCOREBOARD_CACHE_KEY, result);
+    setMemorySnapshot(cacheKey, result);
 
-    const cacheControl = isForce
-      ? 'no-store'
-      : 'public, s-maxage=60, stale-while-revalidate=120';
+    const cacheControl = isForce ? NO_STORE_CACHE_CONTROL : SCOREBOARD_CACHE_CONTROL;
 
     return NextResponse.json(result, {
       headers: {
@@ -65,21 +63,11 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (error: unknown) {
-    const staleSnapshot = getMemorySnapshot(SCOREBOARD_CACHE_KEY);
+    const staleSnapshot = getMemorySnapshot(cacheKey, RELAXED_MAX_STALE_MS);
     if (staleSnapshot) {
-      return NextResponse.json(staleSnapshot.data, {
-        headers: {
-          'Cache-Control': 'no-store',
-          'X-Cache-Stale': 'true',
-        },
-      });
+      return buildStaleFallbackResponse(staleSnapshot);
     }
 
-    const message = error instanceof Error ? error.message : 'Failed to fetch ESPN Scoreboard';
-    return NextResponse.json(
-      { error: message },
-      { status: 500 }
-    );
+    return buildUpstreamErrorResponse(error, 'Failed to fetch ESPN Scoreboard');
   }
 }
-
