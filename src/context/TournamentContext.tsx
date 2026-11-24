@@ -20,7 +20,6 @@ import {
   NormalizedTournament,
   DEFAULT_PLAYER_DIRECTORY_MAP,
 } from '@/lib/espn';
-import { syncPlayersToFirestore } from '@/lib/firebase/firestore';
 
 export interface TournamentContextState {
   /** Selected event ID currently being viewed (accounts for viewer override). */
@@ -197,7 +196,6 @@ export function TournamentProvider({
           const comps = data.events[0]?.competitions?.[0]?.competitors || [];
           const resolvedComps = resolveEventCompetitorsWithFallback(comps, []);
           setCompetitors(resolvedComps);
-          syncPlayersToFirestore(resolvedComps);
           setError(null);
           setLastRefreshedAt(new Date());
           return true;
