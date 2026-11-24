@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { ESPNCompetitor } from '@/types/espn';
 import { formatEventDates, getWinnerStatus, formatScoreDisplay, getScoreMeta, formatThruDisplay, getGolferCumulativeScoreToPar } from '../eventHelpers';
 
 describe('formatEventDates', () => {
@@ -220,6 +221,51 @@ describe('getGolferCumulativeScoreToPar', () => {
   it('returns CUT or WD when status indicates cut or withdrawn', () => {
     const cutComp = { status: { position: { displayName: 'CUT' } } } as any;
     expect(getGolferCumulativeScoreToPar(cutComp).formattedScore).toBe('CUT');
+  });
+
+  it('respects strict course par precedence for Par 70/71 majors instead of hardcoding 72', () => {
+    const strokeOnlyComp: ESPNCompetitor = {
+      id: '100',
+      athlete: { id: '100', displayName: 'Golfer 100' },
+      status: { period: 2, thru: 18, type: { state: 'post', completed: true } },
+      linescores: [
+        { period: 1, value: 68 },
+        { period: 2, value: 69 },
+      ],
+    };
+
+    // 1. Admin coursePar override (70) beats eventCourses (72)
+    expect(
+      getGolferCumulativeScoreToPar(strokeOnlyComp, undefined, 70, {
+        eventCourses: [{ id: '1', shotsToPar: 72 }],
+      }).formattedScore
+    ).toBe('-3'); // (68-70) + (69-70)
+
+    // 2. ESPN eventCourses shotsToPar (71) when Admin coursePar is null
+    expect(
+      getGolferCumulativeScoreToPar(strokeOnlyComp, undefined, null, {
+        eventCourses: [{ id: '1', shotsToPar: 71 }],
+      }).formattedScore
+    ).toBe('-5'); // (68-71) + (69-71)
+
+    // 3. Admin coursePar (70) overrides stale ESPN Par-72 statistics & linescore displayValue
+    const compWithStaleEspnPar72: ESPNCompetitor = {
+      id: '101',
+      athlete: { id: '101', displayName: 'Golfer 101' },
+      status: { period: 2, thru: 18, type: { state: 'post', completed: true } },
+      statistics: [{ name: 'scoreToPar', displayValue: '-7', value: -7 }],
+      linescores: [
+        { period: 1, value: 68, displayValue: '-4' },
+        { period: 2, value: 69, displayValue: '-3' },
+      ],
+    };
+    expect(getGolferCumulativeScoreToPar(compWithStaleEspnPar72, undefined, 70).formattedScore).toBe('-3');
+
+    // 4. Without coursePar or eventCourses, direct statistics/displayValue beats 72 fallback
+    expect(getGolferCumulativeScoreToPar(compWithStaleEspnPar72).formattedScore).toBe('-7');
+
+    // 5. Without coursePar, eventCourses, or displayValue, falls back to 72 as last resort
+    expect(getGolferCumulativeScoreToPar(strokeOnlyComp).formattedScore).toBe('-7');
   });
 });
 

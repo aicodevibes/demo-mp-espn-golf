@@ -409,7 +409,7 @@ export function calculateGreedyStandings(
     let numericScoreToPar = 0;
     let rawScoreStr = 'E';
     if (comp) {
-      const cum = getGolferCumulativeScoreToPar(comp, eventStatus);
+      const cum = getGolferCumulativeScoreToPar(comp, eventStatus, coursePar);
       rawScoreStr = cum.formattedScore;
       if (rawScoreStr === 'E' || rawScoreStr === 'EVEN' || rawScoreStr === '-') {
         numericScoreToPar = 0;

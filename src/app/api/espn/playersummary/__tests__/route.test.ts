@@ -272,4 +272,103 @@ describe('/api/espn/playersummary Route Handler', () => {
       vi.useRealTimers();
     }
   });
+
+  it('matches multi-course event courses by round or payload courseId (Torrey Pines North vs South) and falls back to courses[0]', async () => {
+    const mockCoreEvent = {
+      courses: [
+        {
+          id: '101',
+          name: 'Torrey Pines (North Course)',
+          shotsToPar: 72,
+          holes: Array.from({ length: 18 }, () => ({ shotsToPar: 4 })),
+        },
+        {
+          id: '102',
+          name: 'Torrey Pines (South Course)',
+          shotsToPar: 71,
+          holes: [4, 4, 3, 4, 4, 5, 4, 3, 4, 4, 3, 4, 5, 4, 4, 3, 4, 5].map((p) => ({ shotsToPar: p })),
+        },
+      ],
+    };
+
+    const summarySouthRound = {
+      profile: { id: '9478', displayName: 'Scottie Scheffler' },
+      rounds: [
+        { period: 1, courseId: '101', value: 68 },
+        { period: 2, courseId: '102', value: 70 },
+      ],
+    };
+
+    const summaryUnknownCourse = {
+      profile: { id: '3470', displayName: 'Rory McIlroy' },
+      courseId: '999',
+      rounds: [{ period: 1, value: 69 }],
+    };
+
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('player=9478')) {
+        return Promise.resolve(new Response(JSON.stringify(summarySouthRound), { status: 200 }));
+      }
+      if (url.includes('player=3470')) {
+        return Promise.resolve(new Response(JSON.stringify(summaryUnknownCourse), { status: 200 }));
+      }
+      return Promise.resolve(new Response(JSON.stringify(mockCoreEvent), { status: 200 }));
+    });
+
+    // 1. Matches round courseId '102' (Torrey Pines South)
+    const southRes = await GET(
+      new NextRequest('http://localhost:3000/api/espn/playersummary?eventId=401580390&playerId=9478&season=2026')
+    );
+    expect(southRes.status).toBe(200);
+    const southJson = await southRes.json();
+    expect(southJson.courseName).toBe('Torrey Pines (South Course)');
+    expect(southJson.shotsToPar).toBe(71);
+    expect(southJson.courseHoles).toEqual([4, 4, 3, 4, 4, 5, 4, 3, 4, 4, 3, 4, 5, 4, 4, 3, 4, 5]);
+
+    // 2. Query param courseId overrides when explicitly provided
+    const northByQueryRes = await GET(
+      new NextRequest('http://localhost:3000/api/espn/playersummary?eventId=401580390&playerId=9478&season=2026&courseId=101')
+    );
+    expect(northByQueryRes.status).toBe(200);
+    const northByQueryJson = await northByQueryRes.json();
+    expect(northByQueryJson.courseName).toBe('Torrey Pines (North Course)');
+    expect(northByQueryJson.shotsToPar).toBe(72);
+
+    // 3. Unknown courseId falls back cleanly to courses[0]
+    const fallbackRes = await GET(
+      new NextRequest('http://localhost:3000/api/espn/playersummary?eventId=401580390&playerId=3470&season=2026')
+    );
+    expect(fallbackRes.status).toBe(200);
+    const fallbackJson = await fallbackRes.json();
+    expect(fallbackJson.courseName).toBe('Torrey Pines (North Course)');
+    expect(fallbackJson.shotsToPar).toBe(72);
+  });
+
+  it('handles non-JSON core event body cleanly without crashing or reading body twice', async () => {
+    const mockSummary = { profile: { id: '12345', displayName: 'Tiger Woods' }, rounds: [] };
+    global.fetch = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('playersummary')) {
+        return Promise.resolve(
+          new Response(JSON.stringify(mockSummary), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          })
+        );
+      }
+      return Promise.resolve(
+        new Response('<html>Bad Gateway</html>', {
+          status: 200,
+          headers: { 'Content-Type': 'text/html' },
+        })
+      );
+    });
+
+    const res = await GET(
+      new NextRequest('http://localhost:3000/api/espn/playersummary?eventId=401580391&playerId=12345&season=2026')
+    );
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.profile.displayName).toBe('Tiger Woods');
+    expect(json.courseHoles).toBeUndefined();
+  });
 });

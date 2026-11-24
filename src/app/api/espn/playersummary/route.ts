@@ -24,10 +24,12 @@ import {
 const CORE_EVENT_REVALIDATE_SECONDS = 3600;
 
 interface CoreCourseHole {
+  number?: number;
   shotsToPar?: number;
 }
 
 interface CoreCourse {
+  id?: string | number;
   name?: string;
   shotsToPar?: number;
   holes?: CoreCourseHole[];
@@ -41,17 +43,83 @@ interface CoreEventPayload {
 }
 
 interface PlayerSummaryRound {
+  period?: number;
+  value?: number;
   status?: ESPNEventStatus;
+  courseId?: string | number;
+  course?: { id?: string | number };
+  courseHoles?: Array<number | undefined>;
+  courseName?: string;
+  shotsToPar?: number;
 }
 
 interface PlayerSummaryPayload {
   status?: ESPNEventStatus;
   events?: Array<{ status?: ESPNEventStatus }>;
+  courseId?: string | number;
+  course?: { id?: string | number };
+  competitor?: {
+    courseId?: string | number;
+    course?: { id?: string | number };
+  };
   rounds?: PlayerSummaryRound[];
   courseHoles?: Array<number | undefined>;
   courseName?: string;
   shotsToPar?: number;
   [key: string]: unknown;
+}
+
+function extractSummaryCourseId(
+  data: PlayerSummaryPayload,
+  queryCourseId?: string
+): string | number | undefined {
+  if (queryCourseId) return queryCourseId;
+
+  const topLevelId = data.courseId ?? data.course?.id;
+  if (topLevelId !== undefined && topLevelId !== null && String(topLevelId).trim() !== '') {
+    return topLevelId;
+  }
+
+  const competitorCourseId = data.competitor?.courseId ?? data.competitor?.course?.id;
+  if (
+    competitorCourseId !== undefined &&
+    competitorCourseId !== null &&
+    String(competitorCourseId).trim() !== ''
+  ) {
+    return competitorCourseId;
+  }
+
+  if (Array.isArray(data.rounds) && data.rounds.length > 0) {
+    for (let i = data.rounds.length - 1; i >= 0; i--) {
+      const round = data.rounds[i];
+      const roundCourseId = round?.courseId ?? round?.course?.id;
+      if (
+        roundCourseId !== undefined &&
+        roundCourseId !== null &&
+        String(roundCourseId).trim() !== ''
+      ) {
+        return roundCourseId;
+      }
+    }
+  }
+
+  return undefined;
+}
+
+function resolveCourseFromEvent(
+  courses: CoreCourse[] | undefined,
+  courseId?: string | number
+): CoreCourse | undefined {
+  if (!Array.isArray(courses) || courses.length === 0) return undefined;
+
+  if (courseId !== undefined && courseId !== null && String(courseId).trim() !== '') {
+    const matched = courses.find(
+      (c) => c?.id !== undefined && c?.id !== null && String(c.id) === String(courseId)
+    );
+    if (matched) return matched;
+  }
+
+  return courses[0];
 }
 
 function determinePlayerSummaryLiveState(
@@ -107,9 +175,12 @@ export async function GET(req: NextRequest) {
   const eventId = searchParams.get('eventId') as string;
   const playerId = searchParams.get('playerId') as string;
   const season = searchParams.get('season') || new Date().getFullYear().toString();
+  const requestedCourseId = searchParams.get('courseId')?.trim() || '';
   const isForce = searchParams.get('force') === 'true';
 
-  const cacheKey = `playersummary:${eventId}:${playerId}:${season}`;
+  const cacheKey = requestedCourseId
+    ? `playersummary:${eventId}:${playerId}:${season}:${requestedCourseId}`
+    : `playersummary:${eventId}:${playerId}:${season}`;
 
   try {
     const playerSummaryUrl = new URL(
@@ -159,18 +230,46 @@ export async function GET(req: NextRequest) {
     const data = (await res.json()) as PlayerSummaryPayload;
     let parsedCoreEventData: CoreEventPayload | undefined;
 
-    // Extract course hole pars from core event API if available
-    if (eventRes && eventRes.ok) {
+    // Extract course hole pars from core event API if available (guarded against shared/used/non-JSON bodies)
+    if (eventRes && eventRes.ok && eventRes !== res && !eventRes.bodyUsed) {
       try {
-        parsedCoreEventData = (await eventRes.json()) as CoreEventPayload;
-        const course = parsedCoreEventData.courses?.[0];
-        if (course && Array.isArray(course.holes) && course.holes.length > 0) {
-          data.courseHoles = course.holes.map((h) => h.shotsToPar);
+        const rawCoreText = await eventRes.text();
+        if (rawCoreText && rawCoreText.trim().length > 0) {
+          parsedCoreEventData = JSON.parse(rawCoreText) as CoreEventPayload;
+        }
+      } catch {
+        // Ignore non-JSON or unreadable core event bodies cleanly
+      }
+    }
+
+    if (parsedCoreEventData?.courses && parsedCoreEventData.courses.length > 0) {
+      const targetCourseId = extractSummaryCourseId(data, requestedCourseId || undefined);
+      const course = resolveCourseFromEvent(parsedCoreEventData.courses, targetCourseId);
+      if (course) {
+        if (course.name !== undefined) {
           data.courseName = course.name;
+        }
+        if (course.shotsToPar !== undefined) {
           data.shotsToPar = course.shotsToPar;
         }
-      } catch (err) {
-        console.error('Failed to parse core event course info:', err);
+        if (Array.isArray(course.holes) && course.holes.length > 0) {
+          data.courseHoles = course.holes.map((h) => h.shotsToPar);
+        }
+      }
+
+      // Attach per-round course metadata for multi-course rounds when round carries courseId
+      if (Array.isArray(data.rounds)) {
+        data.rounds.forEach((round) => {
+          const roundCourseId = round?.courseId ?? round?.course?.id;
+          if (roundCourseId !== undefined && roundCourseId !== null && String(roundCourseId).trim() !== '') {
+            const matchedRoundCourse = resolveCourseFromEvent(parsedCoreEventData?.courses, roundCourseId);
+            if (matchedRoundCourse && Array.isArray(matchedRoundCourse.holes) && matchedRoundCourse.holes.length > 0) {
+              round.courseHoles = matchedRoundCourse.holes.map((h) => h.shotsToPar);
+              if (matchedRoundCourse.name !== undefined) round.courseName = matchedRoundCourse.name;
+              if (matchedRoundCourse.shotsToPar !== undefined) round.shotsToPar = matchedRoundCourse.shotsToPar;
+            }
+          }
+        });
       }
     }
 
