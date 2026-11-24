@@ -12,15 +12,16 @@
 - **Full PGA Field**: Comprehensive tournament field leaderboard with player search and a project cut line divider.
 - **Golfer Profile Evaluator**: Pure domain evaluation seam that resolves golfer identity, name normalization, participant drafting ownership, and 2-stage headshot URL fallbacks into a synchronous Golfer Profile.
 - **Field Leaderboard Evaluator**: Pure domain evaluation seam that composes with the Golfer Profile Evaluator to categorize competitors into Top 10 leaders (including ties), other drafted golfers, active field, and cut field lists, while computing search query filtering and formatted rank badges in a single pass.
-- **ESPN Tournament Adapter**: Unified deep adapter that encapsulates raw ESPN scoreboard parsing, active event resolution, 36-hole cut detection (`linescores.length === 2`), 2-stage CDN headshot fallbacks, and pre-indexed O(1) competitor lookups into a single snapshot pipeline.
+- **ESPN Tournament Adapter**: Unified deep adapter that encapsulates raw ESPN scoreboard parsing, active event resolution, context-aware 36-hole cut detection (respecting per-event cut settings, an empty-status guard for unstarted Round 3 leaders, and DQ alongside CUT/WD), multi-course par resolution, 2-stage CDN headshot fallbacks, and pre-indexed O(1) competitor lookups into a single snapshot pipeline.
 - **Normalized Competitor Snapshot**: Pre-evaluated competitor model with embedded status metadata (`isCut`, `isWD`, `isDQ`, `isWinner`, `isPlayoff`, `statusBadge`), pre-computed scores to par, formatted thru displays, and resolved multi-stage headshots.
 - **Normalized Player Summary Snapshot**: Structured 18-hole scorecard view model with pre-calculated front/back/total pars, stroke totals, hole relative scores, and badge classifications.
 - **Tournament State Context**: Dedicated provider managing ESPN scoreboard events, selected event resolution, normalized tournament snapshots via `EspnTournamentAdapter`, and historical archive overrides.
 - **Contest State Context**: Dedicated provider managing Firestore pool subscriptions (`participants`, `contestConfig`, and player directory maps).
 - **Live Sync Context**: Dedicated provider managing background polling timers, network refresh status flags (`isRefreshing`, `isStaleData`, `lastRefreshedAt`), and instant cache-bust triggers.
 - **Event State Context Provider (Compatibility Facade)**: Unified provider composing Tournament, Contest, and Live Sync contexts, exposing `useEventContext()` to ensure backward compatibility across admin routes.
-- **Adaptive Leaderboard Poller**: Dynamic polling mechanism within the Live Sync Context that switches between rapid refresh (30–45 seconds) during live tournament play and relaxed polling (5 minutes) for scheduled or completed tournaments.
-- **Instant Cache-Bust Refresh**: On-demand manual refresh action that bypasses server and CDN edge caches (`force=true`) to pull live upstream scores directly from ESPN.
+- **Adaptive Leaderboard Poller**: Dynamic polling mechanism within the Live Sync Context that switches between rapid refresh (30–45 seconds) during live tournament play and relaxed polling (5 minutes) for scheduled or completed tournaments, with tab-refocus cooldowns (15 seconds live / 60 seconds scheduled or completed).
+- **Instant Cache-Bust Refresh**: On-demand manual refresh action guarded by a 10-second per-key server cooldown and request coalescing that bypasses edge caches to refresh the leaderboard and active golfer scorecard once without busting course-hole par caches.
+- **Watchlist Scorecard Pre-fetch**: Bounded background warming of Normalized Player Summary Snapshot entries for the visible Hero Watchlist (up to 4 golfers, max 3 concurrent) to enable instant card switching.
 - **Scoreboard Local Cache**: Client-side storage layer in `localStorage` persisting the latest scoreboard event list and active event ID across page reloads to enable zero-latency cold-start bootstrapping.
 
 
