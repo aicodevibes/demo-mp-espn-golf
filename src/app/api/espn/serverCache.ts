@@ -60,24 +60,31 @@ export function setMemorySnapshot<T>(
   }
 }
 
-/**
- * Retrieve a snapshot from the LRU cache. Returns undefined when missing or older
- * than maxAgeMs (evicting expired entries). Refreshes LRU recency on hit.
- */
-export function getMemorySnapshot<T>(
+function readMemorySnapshotEntry<T>(
   key: string,
-  maxAgeMs?: number | ((data: T, isLive?: boolean) => number)
+  options: {
+    maxAgeMs?: number | ((data: T, isLive?: boolean) => number);
+    evictOnExpire: boolean;
+    strictLessThan?: boolean;
+  }
 ): SnapshotResult<T> | undefined {
   const entry = memorySnapshots.get(key) as StoredSnapshot<T> | undefined;
   if (!entry) return undefined;
 
   const ageMs = Math.max(0, Date.now() - entry.timestamp);
   const resolvedMaxAgeMs =
-    typeof maxAgeMs === 'function' ? maxAgeMs(entry.data, entry.isLive) : maxAgeMs;
+    typeof options.maxAgeMs === 'function'
+      ? options.maxAgeMs(entry.data, entry.isLive)
+      : options.maxAgeMs;
 
-  if (resolvedMaxAgeMs !== undefined && ageMs > resolvedMaxAgeMs) {
-    memorySnapshots.delete(key);
-    return undefined;
+  if (resolvedMaxAgeMs !== undefined) {
+    const isExpired = options.strictLessThan ? ageMs >= resolvedMaxAgeMs : ageMs > resolvedMaxAgeMs;
+    if (isExpired) {
+      if (options.evictOnExpire) {
+        memorySnapshots.delete(key);
+      }
+      return undefined;
+    }
   }
 
   // Refresh LRU recency
@@ -96,6 +103,21 @@ export function getMemorySnapshot<T>(
 }
 
 /**
+ * Retrieve a snapshot from the LRU cache. Returns undefined when missing or older
+ * than maxAgeMs (evicting expired entries). Refreshes LRU recency on hit.
+ */
+export function getMemorySnapshot<T>(
+  key: string,
+  maxAgeMs?: number | ((data: T, isLive?: boolean) => number)
+): SnapshotResult<T> | undefined {
+  return readMemorySnapshotEntry(key, {
+    maxAgeMs,
+    evictOnExpire: true,
+    strictLessThan: false,
+  });
+}
+
+/**
  * Retrieve a snapshot only if strictly younger than maxAgeMs, without evicting older entries.
  * Used for force=true cooldown checks while preserving snapshots for stale-while-error fallback.
  */
@@ -103,26 +125,11 @@ export function getRecentMemorySnapshot<T>(
   key: string,
   maxAgeMs: number
 ): SnapshotResult<T> | undefined {
-  const entry = memorySnapshots.get(key) as StoredSnapshot<T> | undefined;
-  if (!entry) return undefined;
-
-  const ageMs = Math.max(0, Date.now() - entry.timestamp);
-  if (ageMs >= maxAgeMs) {
-    return undefined;
-  }
-
-  memorySnapshots.delete(key);
-  memorySnapshots.set(key, entry);
-
-  const result: SnapshotResult<T> = {
-    data: entry.data,
-    timestamp: entry.timestamp,
-    ageSeconds: Math.floor(ageMs / 1000),
-  };
-  if (entry.isLive !== undefined) {
-    result.isLive = entry.isLive;
-  }
-  return result;
+  return readMemorySnapshotEntry(key, {
+    maxAgeMs,
+    evictOnExpire: false,
+    strictLessThan: true,
+  });
 }
 
 export function getInFlightForceRequest<T>(key: string): Promise<T> | undefined {

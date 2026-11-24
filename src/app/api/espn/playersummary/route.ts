@@ -71,12 +71,7 @@ interface PlayerSummaryPayload {
   [key: string]: unknown;
 }
 
-function extractSummaryCourseId(
-  data: PlayerSummaryPayload,
-  queryCourseId?: string
-): string | number | undefined {
-  if (queryCourseId) return queryCourseId;
-
+function extractSummaryCourseId(data: PlayerSummaryPayload): string | number | undefined {
   const topLevelId = data.courseId ?? data.course?.id;
   if (topLevelId !== undefined && topLevelId !== null && String(topLevelId).trim() !== '') {
     return topLevelId;
@@ -106,6 +101,26 @@ function extractSummaryCourseId(
   }
 
   return undefined;
+}
+
+function attachCourseToTarget(
+  target: {
+    courseName?: string;
+    shotsToPar?: number;
+    courseHoles?: Array<number | undefined>;
+  },
+  course: CoreCourse | undefined
+): void {
+  if (!course) return;
+  if (course.name !== undefined) {
+    target.courseName = course.name;
+  }
+  if (course.shotsToPar !== undefined) {
+    target.shotsToPar = course.shotsToPar;
+  }
+  if (Array.isArray(course.holes) && course.holes.length > 0) {
+    target.courseHoles = course.holes.map((h) => h.shotsToPar);
+  }
 }
 
 function resolveCourseFromEvent(
@@ -177,12 +192,9 @@ export async function GET(req: NextRequest) {
   const eventId = searchParams.get('eventId') as string;
   const playerId = searchParams.get('playerId') as string;
   const season = searchParams.get('season') || new Date().getFullYear().toString();
-  const requestedCourseId = searchParams.get('courseId')?.trim() || '';
   const isForce = searchParams.get('force') === 'true';
 
-  const cacheKey = requestedCourseId
-    ? `playersummary:${eventId}:${playerId}:${season}:${requestedCourseId}`
-    : `playersummary:${eventId}:${playerId}:${season}`;
+  const cacheKey = `playersummary:${eventId}:${playerId}:${season}`;
 
   return executeWithForceCooldown({
     cacheKey,
@@ -254,19 +266,9 @@ export async function GET(req: NextRequest) {
         }
 
         if (parsedCoreEventData?.courses && parsedCoreEventData.courses.length > 0) {
-          const targetCourseId = extractSummaryCourseId(data, requestedCourseId || undefined);
+          const targetCourseId = extractSummaryCourseId(data);
           const course = resolveCourseFromEvent(parsedCoreEventData.courses, targetCourseId);
-          if (course) {
-            if (course.name !== undefined) {
-              data.courseName = course.name;
-            }
-            if (course.shotsToPar !== undefined) {
-              data.shotsToPar = course.shotsToPar;
-            }
-            if (Array.isArray(course.holes) && course.holes.length > 0) {
-              data.courseHoles = course.holes.map((h) => h.shotsToPar);
-            }
-          }
+          attachCourseToTarget(data, course);
 
           // Attach per-round course metadata for multi-course rounds when round carries courseId
           if (Array.isArray(data.rounds)) {
@@ -274,11 +276,7 @@ export async function GET(req: NextRequest) {
               const roundCourseId = round?.courseId ?? round?.course?.id;
               if (roundCourseId !== undefined && roundCourseId !== null && String(roundCourseId).trim() !== '') {
                 const matchedRoundCourse = resolveCourseFromEvent(parsedCoreEventData?.courses, roundCourseId);
-                if (matchedRoundCourse && Array.isArray(matchedRoundCourse.holes) && matchedRoundCourse.holes.length > 0) {
-                  round.courseHoles = matchedRoundCourse.holes.map((h) => h.shotsToPar);
-                  if (matchedRoundCourse.name !== undefined) round.courseName = matchedRoundCourse.name;
-                  if (matchedRoundCourse.shotsToPar !== undefined) round.shotsToPar = matchedRoundCourse.shotsToPar;
-                }
+                attachCourseToTarget(round, matchedRoundCourse);
               }
             });
           }

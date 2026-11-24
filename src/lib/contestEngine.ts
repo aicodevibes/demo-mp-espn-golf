@@ -1,4 +1,4 @@
-import { ESPNCompetitor, ESPNEvent } from '@/types/espn';
+import { ESPNCompetitor, ESPNCourse, ESPNEvent } from '@/types/espn';
 import {
   Participant,
   ContestConfig,
@@ -33,10 +33,12 @@ export function evaluateContest(
   competitors: ESPNCompetitor[] = [],
   contestConfig?: ContestConfig | null,
   eventStatus?: ESPNEvent['status'] | null,
-  playerDirectoryMap?: Record<string, { id: string; name: string; headshotUrl?: string }>
+  playerDirectoryMap?: Record<string, { id: string; name: string; headshotUrl?: string }>,
+  options?: { eventCourses?: ESPNCourse[] | null }
 ): ContestEvaluationResult {
   const safeParticipants = Array.isArray(participants) ? participants : [];
   const safeCompetitors = Array.isArray(competitors) ? competitors : [];
+  const eventCourses = options?.eventCourses ?? null;
 
   // 1. Build fast player drafted by map
   const playerDraftedByMap = createPlayerDraftedByMap(safeParticipants);
@@ -47,7 +49,8 @@ export function evaluateContest(
     safeCompetitors,
     contestConfig,
     eventStatus,
-    playerDirectoryMap
+    playerDirectoryMap,
+    { eventCourses }
   );
 
   // 3. Compute Day Money round results (R1-R4)
@@ -55,7 +58,8 @@ export function evaluateContest(
     safeParticipants,
     safeCompetitors,
     contestConfig,
-    eventStatus
+    eventStatus,
+    { eventCourses }
   );
 
   // 4. Compute Greedy side bet standings
@@ -66,7 +70,8 @@ export function evaluateContest(
     contestConfig?.coursePar,
     playerDirectoryMap,
     eventStatus,
-    contestConfig?.hasCut !== false
+    contestConfig?.hasCut !== false,
+    { eventCourses }
   );
 
   // 5. Compute Wager Settlement Summary

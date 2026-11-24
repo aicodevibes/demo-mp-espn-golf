@@ -1,5 +1,5 @@
-import { ESPNCompetitor, ESPNEventStatus } from '@/types/espn';
-import { getPlayerStatusInfo, formatScoreDisplay, evaluateGolferRoundScore, isRoundCompleted, getGolferCumulativeScoreToPar, DEFAULT_PLAYER_DIRECTORY_MAP } from './espn/eventHelpers';
+import { ESPNCompetitor, ESPNCourse, ESPNEventStatus } from '@/types/espn';
+import { getPlayerStatusInfo, evaluateGolferRoundScore, isRoundCompleted, getGolferCumulativeScoreToPar, DEFAULT_PLAYER_DIRECTORY_MAP } from './espn/eventHelpers';
 import {
   Participant,
   ParticipantStanding,
@@ -53,9 +53,14 @@ export function getGolferRoundScoreToPar(
   round: number,
   coursePar?: number | null,
   eventStatus?: ESPNEventStatus | null,
-  hasCut: boolean = true
+  hasCut: boolean = true,
+  eventCourses?: ESPNCourse[] | null
 ): number | null {
-  return evaluateGolferRoundScore(comp, round, coursePar, undefined, eventStatus, hasCut).scoreToPar;
+  return evaluateGolferRoundScore(comp, round, coursePar, undefined, {
+    eventCourses,
+    eventStatus,
+    hasCut,
+  }).scoreToPar;
 }
 
 
@@ -67,11 +72,13 @@ export function calculateParticipantStandings(
   allCompetitors: ESPNCompetitor[],
   contestConfig?: ContestConfig | null,
   eventStatus?: ESPNEventStatus | null,
-  playerDirectoryMap?: Record<string, { id: string; name: string; headshotUrl?: string }>
+  playerDirectoryMap?: Record<string, { id: string; name: string; headshotUrl?: string }>,
+  options?: { eventCourses?: ESPNCourse[] | null }
 ): ParticipantStanding[] {
   const mainPayouts = contestConfig?.mainPayouts || DEFAULT_MAIN_PAYOUTS;
   const coursePar = contestConfig?.coursePar ?? null;
   const hasCut = contestConfig?.hasCut !== false;
+  const eventCourses = options?.eventCourses ?? null;
 
   const compMap = new Map<string, ESPNCompetitor>(
     allCompetitors.map((c) => [c.athlete?.id || c.id, c])
@@ -112,7 +119,9 @@ export function calculateParticipantStandings(
           roundScoresToPar[rd] = null;
           displayParts.push(inactiveCode);
         } else {
-          const rel = comp ? getGolferRoundScoreToPar(comp, rd, coursePar, eventStatus, hasCut) : null;
+          const rel = comp
+            ? getGolferRoundScoreToPar(comp, rd, coursePar, eventStatus, hasCut, eventCourses)
+            : null;
           roundScoresToPar[rd] = rel;
           if (rel === null) {
             displayParts.push(isInactiveStatus ? inactiveCode : '-');
@@ -130,7 +139,12 @@ export function calculateParticipantStandings(
         isCut: statusInfo.isCut,
         isWD: statusInfo.isWD,
         isDQ: statusInfo.isDQ,
-        totalScoreToPar: comp ? formatScoreDisplay(comp.score, eventStatus) : '-',
+        totalScoreToPar: comp
+          ? getGolferCumulativeScoreToPar(comp, eventStatus, coursePar, {
+              hasCut,
+              eventCourses,
+            }).formattedScore
+          : '-',
 
         roundStrokes,
         roundScoresToPar,
@@ -221,9 +235,11 @@ export function calculateDayMoneyWinners(
   participants: Participant[],
   allCompetitors: ESPNCompetitor[],
   contestConfig?: ContestConfig | null,
-  eventStatus?: ESPNEventStatus | null
+  eventStatus?: ESPNEventStatus | null,
+  options?: { eventCourses?: ESPNCourse[] | null }
 ): DayMoneyRoundResult[] {
   const dayMoneyPool = contestConfig?.dayMoneyPool ?? DEFAULT_DAY_MONEY_POOL;
+  const eventCourses = options?.eventCourses ?? null;
 
   const compMap = new Map<string, ESPNCompetitor>(
     allCompetitors.map((c) => [c.athlete?.id || c.id, c])
@@ -262,7 +278,11 @@ export function calculateDayMoneyWinners(
       const statusInfo = getPlayerStatusInfo(comp, eventStatus, hasCut);
       if ((rd === 3 || rd === 4) && (statusInfo.isCut || statusInfo.isWD || statusInfo.isDQ)) return;
 
-      const roundScoreRes = evaluateGolferRoundScore(comp, rd, contestConfig?.coursePar, undefined, eventStatus, hasCut);
+      const roundScoreRes = evaluateGolferRoundScore(comp, rd, contestConfig?.coursePar, undefined, {
+        eventCourses,
+        eventStatus,
+        hasCut,
+      });
       if (roundScoreRes.scoreToPar === null) return;
 
       const ls = comp.linescores?.find((l) => l.period === rd);
@@ -393,8 +413,10 @@ export function calculateGreedyStandings(
   coursePar?: number | null,
   playerDirectoryMap?: Record<string, { id: string; name: string; headshotUrl?: string }>,
   eventStatus?: ESPNEventStatus | null,
-  hasCut: boolean = true
+  hasCut: boolean = true,
+  options?: { eventCourses?: ESPNCourse[] | null }
 ): GreedyStanding[] {
+  const eventCourses = options?.eventCourses ?? null;
   const compMap = new Map<string, ESPNCompetitor>(
     allCompetitors.map((c) => [c.athlete?.id || c.id, c])
   );
@@ -410,13 +432,18 @@ export function calculateGreedyStandings(
 
     for (let rd = 1; rd <= 4; rd++) {
       roundStrokes[rd] = comp ? getGolferRoundStrokes(comp, rd) : null;
-      roundScoresToPar[rd] = comp ? getGolferRoundScoreToPar(comp, rd, coursePar, eventStatus, hasCut) : null;
+      roundScoresToPar[rd] = comp
+        ? getGolferRoundScoreToPar(comp, rd, coursePar, eventStatus, hasCut, eventCourses)
+        : null;
     }
 
     let numericScoreToPar = 0;
     let rawScoreStr = 'E';
     if (comp) {
-      const cum = getGolferCumulativeScoreToPar(comp, eventStatus, coursePar, { hasCut });
+      const cum = getGolferCumulativeScoreToPar(comp, eventStatus, coursePar, {
+        hasCut,
+        eventCourses,
+      });
       rawScoreStr = cum.formattedScore;
       if (rawScoreStr === 'E' || rawScoreStr === 'EVEN' || rawScoreStr === '-') {
         numericScoreToPar = 0;
@@ -469,10 +496,24 @@ export function calculateWagerSettlement(
   participants: Participant[] = [],
   allCompetitors: ESPNCompetitor[] = [],
   contestConfig?: ContestConfig | null,
-  eventStatus?: ESPNEventStatus | null
+  eventStatus?: ESPNEventStatus | null,
+  options?: { eventCourses?: ESPNCourse[] | null }
 ): WagerSettlementSummary {
-  const standings = calculateParticipantStandings(participants, allCompetitors, contestConfig, eventStatus);
-  const dayMoneyResults = calculateDayMoneyWinners(participants, allCompetitors, contestConfig, eventStatus);
+  const standings = calculateParticipantStandings(
+    participants,
+    allCompetitors,
+    contestConfig,
+    eventStatus,
+    undefined,
+    options
+  );
+  const dayMoneyResults = calculateDayMoneyWinners(
+    participants,
+    allCompetitors,
+    contestConfig,
+    eventStatus,
+    options
+  );
   const greedyParticipants = (participants || []).filter((p) => p.isGreedyParticipant);
   const greedyStandings = calculateGreedyStandings(
     greedyParticipants,
@@ -480,7 +521,8 @@ export function calculateWagerSettlement(
     contestConfig?.coursePar,
     undefined,
     eventStatus,
-    contestConfig?.hasCut !== false
+    contestConfig?.hasCut !== false,
+    options
   );
 
   return calculateWagerSettlementFromSettlement(

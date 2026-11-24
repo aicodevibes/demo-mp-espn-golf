@@ -55,6 +55,8 @@ export interface TournamentContextState {
   setActiveConfigId: (id: string) => void;
   /** Set whether the active tournament enforces a 36-hole cut. */
   setHasCut: (hasCut: boolean) => void;
+  /** Set admin-configured course par override for the active event. */
+  setCoursePar: (coursePar: number | null) => void;
 }
 
 const DEFAULT_TOURNAMENT: NormalizedTournament = {
@@ -89,12 +91,14 @@ const TournamentContext = createContext<TournamentContextState>({
   lastRefreshedAt: null,
   setActiveConfigId: () => {},
   setHasCut: () => {},
+  setCoursePar: () => {},
 });
 
 export interface TournamentProviderProps {
   children: ReactNode;
   initialEventId?: string;
   hasCut?: boolean;
+  coursePar?: number | null;
   firestorePlayerMap?: Record<string, { id: string; name: string; headshotUrl?: string }>;
 }
 
@@ -102,11 +106,14 @@ export function TournamentProvider({
   children,
   initialEventId = '',
   hasCut: initialHasCut = true,
+  coursePar: initialCoursePar = null,
   firestorePlayerMap = DEFAULT_PLAYER_DIRECTORY_MAP,
 }: TournamentProviderProps) {
   const [activeConfigId, setActiveConfigId] = useState<string>(initialEventId || '');
   const [hasCutOverride, setHasCut] = useState<boolean | undefined>(undefined);
   const hasCut = hasCutOverride ?? initialHasCut;
+  const [courseParOverride, setCoursePar] = useState<number | null | undefined>(undefined);
+  const coursePar = courseParOverride !== undefined ? courseParOverride : initialCoursePar;
   const [events, setEvents] = useState<ESPNEvent[]>([]);
   const [activeEventObj, setActiveEventObj] = useState<ESPNEvent | null>(null);
   const [competitors, setCompetitors] = useState<ESPNCompetitor[]>([]);
@@ -276,9 +283,14 @@ export function TournamentProvider({
     return EspnTournamentAdapter.normalizeTournamentSnapshot(
       { events },
       activeEventObj,
-      { activeEventId: selectedViewerEventId, playerDirectoryMap: firestorePlayerMap, hasCut }
+      {
+        activeEventId: selectedViewerEventId,
+        playerDirectoryMap: firestorePlayerMap,
+        hasCut,
+        coursePar,
+      }
     );
-  }, [events, activeEventObj, selectedViewerEventId, firestorePlayerMap, hasCut]);
+  }, [events, activeEventObj, selectedViewerEventId, firestorePlayerMap, hasCut, coursePar]);
 
   const value: TournamentContextState = useMemo(
     () => ({
@@ -298,6 +310,7 @@ export function TournamentProvider({
       lastRefreshedAt,
       setActiveConfigId,
       setHasCut,
+      setCoursePar,
     }),
     [
       selectedViewerEventId,

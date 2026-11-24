@@ -16,7 +16,16 @@ rules_version = '2';
 //
 // Collection: trackedEvents
 // Document ID: {eventId}
-// Fields: Managed by admin (schema open to admin writes)
+// Fields:
+//   - name: string (required, 1..200 chars) - tournament display name
+//   - eventId: string (optional, must match {eventId}, 1..100 chars) - event ID
+//   - espnEventId: string (optional, must match {eventId}, 1..100 chars) - ESPN event ID
+//   - season: number (optional, 2000..2100) - tournament season year
+//   - date: string (optional, 0..64 chars) - tournament date label/ISO string
+//   - isActive: bool (optional) - whether event is active
+//   - createdAt: timestamp (optional) - server timestamp of creation
+//   - updatedAt: timestamp (optional) - server timestamp of last update
+//   - updatedBy: string (optional, 1..150 chars) - email/identifier of updater
 //
 // Collection: trackedPlayers
 // Document ID: {playerId}
@@ -52,7 +61,16 @@ rules_version = '2';
 //
 // Collection: events
 // Document ID: {eventId}
-// Fields: Parent event document (admin-managed)
+// Fields:
+//   - id: string (optional, must match {eventId}, 1..100 chars) - event ID
+//   - espnEventId: string (optional, must match {eventId}, 1..100 chars) - ESPN event ID
+//   - name: string (required unless eventName is present, 1..200 chars) - tournament name
+//   - eventName: string (required unless name is present, 1..200 chars) - tournament name alias
+//   - season: number (optional, 2000..2100) - tournament season year
+//   - date: string (optional, 0..64 chars) - tournament date label/ISO string
+//   - createdAt: timestamp (optional) - server timestamp of creation
+//   - updatedAt: timestamp (optional) - server timestamp of last update
+//   - updatedBy: string (optional, 1..150 chars) - email/identifier of updater
 //
 // Subcollection: events/{eventId}/contestConfig
 // Document ID: {docId} (e.g., 'default')
@@ -240,6 +258,40 @@ service cloud.firestore {
         (!('addedAt' in data) || data.addedAt is timestamp);
     }
 
+    function isValidTrackedEvent(data, eventId) {
+      return hasOnlyAllowedFields([
+          'name', 'eventId', 'espnEventId', 'season', 'date',
+          'isActive', 'createdAt', 'updatedAt', 'updatedBy'
+        ]) &&
+        hasRequiredFields(['name']) &&
+        validStringLength(data.name, 1, 200) &&
+        (!('eventId' in data) || (validStringLength(data.eventId, 1, 100) && data.eventId == eventId)) &&
+        (!('espnEventId' in data) || (validStringLength(data.espnEventId, 1, 100) && data.espnEventId == eventId)) &&
+        (!('season' in data) || (data.season is number && data.season >= 2000 && data.season <= 2100)) &&
+        (!('date' in data) || validStringLength(data.date, 0, 64)) &&
+        (!('isActive' in data) || data.isActive is bool) &&
+        (!('createdAt' in data) || data.createdAt is timestamp) &&
+        (!('updatedAt' in data) || data.updatedAt is timestamp) &&
+        (!('updatedBy' in data) || validStringLength(data.updatedBy, 1, 150));
+    }
+
+    function isValidEvent(data, eventId) {
+      return hasOnlyAllowedFields([
+          'id', 'espnEventId', 'name', 'eventName', 'season',
+          'date', 'createdAt', 'updatedAt', 'updatedBy'
+        ]) &&
+        ('name' in data || 'eventName' in data) &&
+        (!('id' in data) || (validStringLength(data.id, 1, 100) && data.id == eventId)) &&
+        (!('espnEventId' in data) || (validStringLength(data.espnEventId, 1, 100) && data.espnEventId == eventId)) &&
+        (!('name' in data) || validStringLength(data.name, 1, 200)) &&
+        (!('eventName' in data) || validStringLength(data.eventName, 1, 200)) &&
+        (!('season' in data) || (data.season is number && data.season >= 2000 && data.season <= 2100)) &&
+        (!('date' in data) || validStringLength(data.date, 0, 64)) &&
+        (!('createdAt' in data) || data.createdAt is timestamp) &&
+        (!('updatedAt' in data) || data.updatedAt is timestamp) &&
+        (!('updatedBy' in data) || validStringLength(data.updatedBy, 1, 150));
+    }
+
     // ===============================================================
     // Collection Rules
     // ===============================================================
@@ -253,7 +305,8 @@ service cloud.firestore {
 
     match /trackedEvents/{eventId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow create, update: if isAdmin() && isValidTrackedEvent(request.resource.data, eventId);
+      allow delete: if isAdmin();
     }
 
     match /trackedPlayers/{playerId} {
@@ -276,7 +329,8 @@ service cloud.firestore {
 
     match /events/{eventId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow create, update: if isAdmin() && isValidEvent(request.resource.data, eventId);
+      allow delete: if isAdmin();
 
       match /contestConfig/{docId} {
         allow read: if true;

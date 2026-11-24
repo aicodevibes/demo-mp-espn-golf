@@ -299,6 +299,12 @@ describe('/api/espn/playersummary Route Handler', () => {
       ],
     };
 
+    const summaryNorthTopLevel = {
+      profile: { id: '5432', displayName: 'Xander Schauffele' },
+      courseId: '101',
+      rounds: [{ period: 1, value: 67 }],
+    };
+
     const summaryUnknownCourse = {
       profile: { id: '3470', displayName: 'Rory McIlroy' },
       courseId: '999',
@@ -309,30 +315,37 @@ describe('/api/espn/playersummary Route Handler', () => {
       if (url.includes('player=9478')) {
         return Promise.resolve(new Response(JSON.stringify(summarySouthRound), { status: 200 }));
       }
+      if (url.includes('player=5432')) {
+        return Promise.resolve(new Response(JSON.stringify(summaryNorthTopLevel), { status: 200 }));
+      }
       if (url.includes('player=3470')) {
         return Promise.resolve(new Response(JSON.stringify(summaryUnknownCourse), { status: 200 }));
       }
       return Promise.resolve(new Response(JSON.stringify(mockCoreEvent), { status: 200 }));
     });
 
-    // 1. Matches round courseId '102' (Torrey Pines South)
+    // 1. Matches round courseId '102' (Torrey Pines South) and ignores any ?courseId= query param override
     const southRes = await GET(
-      new NextRequest('http://localhost:3000/api/espn/playersummary?eventId=401580390&playerId=9478&season=2026')
+      new NextRequest('http://localhost:3000/api/espn/playersummary?eventId=401580390&playerId=9478&season=2026&courseId=101')
     );
     expect(southRes.status).toBe(200);
     const southJson = await southRes.json();
     expect(southJson.courseName).toBe('Torrey Pines (South Course)');
     expect(southJson.shotsToPar).toBe(71);
     expect(southJson.courseHoles).toEqual([4, 4, 3, 4, 4, 5, 4, 3, 4, 4, 3, 4, 5, 4, 4, 3, 4, 5]);
+    expect(southJson.rounds[0].courseName).toBe('Torrey Pines (North Course)');
+    expect(southJson.rounds[0].shotsToPar).toBe(72);
+    expect(southJson.rounds[1].courseName).toBe('Torrey Pines (South Course)');
+    expect(southJson.rounds[1].shotsToPar).toBe(71);
 
-    // 2. Query param courseId overrides when explicitly provided
-    const northByQueryRes = await GET(
-      new NextRequest('http://localhost:3000/api/espn/playersummary?eventId=401580390&playerId=9478&season=2026&courseId=101')
+    // 2. Top-level payload courseId '101' matches Torrey Pines North
+    const northByPayloadRes = await GET(
+      new NextRequest('http://localhost:3000/api/espn/playersummary?eventId=401580390&playerId=5432&season=2026')
     );
-    expect(northByQueryRes.status).toBe(200);
-    const northByQueryJson = await northByQueryRes.json();
-    expect(northByQueryJson.courseName).toBe('Torrey Pines (North Course)');
-    expect(northByQueryJson.shotsToPar).toBe(72);
+    expect(northByPayloadRes.status).toBe(200);
+    const northByPayloadJson = await northByPayloadRes.json();
+    expect(northByPayloadJson.courseName).toBe('Torrey Pines (North Course)');
+    expect(northByPayloadJson.shotsToPar).toBe(72);
 
     // 3. Unknown courseId falls back cleanly to courses[0]
     const fallbackRes = await GET(

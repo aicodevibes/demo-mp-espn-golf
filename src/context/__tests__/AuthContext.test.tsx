@@ -119,4 +119,23 @@ describe('AuthContext dev mock fallback & memoization', () => {
     expect(observedValues.length).toBeGreaterThanOrEqual(2);
     expect(observedValues[observedValues.length - 1]).toBe(observedValues[observedValues.length - 2]);
   });
+
+  it('requires emailVerified to be true for allowlisted email to receive isAdmin === true', () => {
+    vi.mocked(onAuthStateChanged).mockImplementation(((_auth: unknown, callback: (u: unknown) => void) => {
+      callback({
+        uid: 'unverified-uid',
+        email: 'aicodevibes@gmail.com',
+        emailVerified: false,
+      });
+      return vi.fn();
+    }) as never);
+
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <AuthProvider>{children}</AuthProvider>
+    );
+    const { result } = renderHook(() => useAuth(), { wrapper });
+
+    expect(result.current.user?.email).toBe('aicodevibes@gmail.com');
+    expect(result.current.isAdmin).toBe(false);
+  });
 });

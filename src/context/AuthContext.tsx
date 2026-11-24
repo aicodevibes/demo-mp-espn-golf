@@ -65,7 +65,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const isAdmin = Boolean(user && user.email && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase());
+  const isAdmin = Boolean(
+    user && user.emailVerified && user.email && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()
+  );
 
   const value = useMemo(
     () => ({ user, loading, isAdmin, signInWithGoogle, signOut }),

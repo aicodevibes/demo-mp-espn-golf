@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   clearMemorySnapshots,
   getMemorySnapshot,
+  getRecentMemorySnapshot,
   setMemorySnapshot,
   setMemorySnapshotMaxEntries,
   DEFAULT_MAX_SNAPSHOT_ENTRIES,
@@ -73,5 +74,19 @@ describe('serverCache bounded LRU & staleness cap', () => {
     expect(getMemorySnapshot('stale-key', 30 * 60 * 1000)).toBeUndefined();
     // Subsequent lookup without maxAgeMs should also find it evicted
     expect(getMemorySnapshot('stale-key')).toBeUndefined();
+  });
+
+  it('getRecentMemorySnapshot returns undefined at >= maxAgeMs without evicting the cached snapshot', () => {
+    setMemorySnapshot('recent-key', { score: -3 }, { isLive: true });
+    vi.advanceTimersByTime(10_000);
+
+    expect(getRecentMemorySnapshot('recent-key', 10_000)).toBeUndefined();
+    // Snapshot remains available for stale fallback
+    expect(getMemorySnapshot('recent-key', 30 * 60 * 1000)).toEqual({
+      data: { score: -3 },
+      timestamp: new Date('2026-04-10T12:00:00Z').getTime(),
+      ageSeconds: 10,
+      isLive: true,
+    });
   });
 });

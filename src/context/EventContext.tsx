@@ -61,6 +61,7 @@ function EventContextBridge({ children }: { children: ReactNode }) {
     contestConfig: contestState.contestConfig,
     eventStatus: tournamentState.activeEvent?.status,
     playerDirectoryMap: contestState.firestorePlayerMap,
+    eventCourses: tournamentState.activeEvent?.courses,
   });
 
   const contextValue: EventContextState = useMemo(
@@ -109,11 +110,15 @@ interface EventContextProviderInnerProps {
 function EventContextProviderInner({ children }: { children: ReactNode }) {
   const tournamentState = useTournament();
   const contestState = useContest();
-  const { setHasCut } = tournamentState;
+  const { setHasCut, setCoursePar } = tournamentState;
 
   useEffect(() => {
     setHasCut(contestState.contestConfig?.hasCut !== false);
   }, [contestState.contestConfig?.hasCut, setHasCut]);
+
+  useEffect(() => {
+    setCoursePar(contestState.contestConfig?.coursePar ?? null);
+  }, [contestState.contestConfig?.coursePar, setCoursePar]);
 
   // Keep tournament active config ID synchronized when contest config loads
   const handleActiveEventIdResolved = useCallback(

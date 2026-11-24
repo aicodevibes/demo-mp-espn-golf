@@ -139,6 +139,7 @@ describe.runIf(Boolean(EMULATOR_HOST))('Firestore Security Rules (Emulator)', ()
         { playerId: { stringValue: '3470' }, name: { stringValue: 'Scottie Scheffler' } },
       ],
       ['trackedEvents/401705663', { name: { stringValue: 'Masters' } }],
+      ['events/401705663', { name: { stringValue: 'Masters' } }],
     ];
 
     for (const [path, fields] of targets) {
@@ -306,5 +307,132 @@ describe.runIf(Boolean(EMULATOR_HOST))('Firestore Security Rules (Emulator)', ()
       ADMIN_TOKEN
     );
     expect(unknownSub.status).toBe(403);
+
+    // 7. trackedEvents/{eventId} valid & invalid payloads
+    expect(
+      (
+        await firestorePatch(
+          'trackedEvents/401705663',
+          { name: { stringValue: 'Masters' } },
+          ADMIN_TOKEN
+        )
+      ).status
+    ).toBe(200);
+
+    expect(
+      (
+        await firestorePatch(
+          'trackedEvents/401705663',
+          {
+            name: { stringValue: 'Masters Tournament' },
+            eventId: { stringValue: '401705663' },
+            espnEventId: { stringValue: '401705663' },
+            season: { integerValue: '2026' },
+            date: { stringValue: '2026-04-09' },
+            isActive: { booleanValue: true },
+            updatedAt: { timestampValue: new Date().toISOString() },
+            updatedBy: { stringValue: 'aicodevibes@gmail.com' },
+          },
+          ADMIN_TOKEN
+        )
+      ).status
+    ).toBe(200);
+
+    // Reject missing name, rogue fields, mismatched eventId, oversized name
+    expect(
+      (
+        await firestorePatch(
+          'trackedEvents/401705663',
+          { season: { integerValue: '2026' } },
+          ADMIN_TOKEN
+        )
+      ).status
+    ).toBe(403);
+    expect(
+      (
+        await firestorePatch(
+          'trackedEvents/401705663',
+          { name: { stringValue: 'Masters' }, rogue: { booleanValue: true } },
+          ADMIN_TOKEN
+        )
+      ).status
+    ).toBe(403);
+    expect(
+      (
+        await firestorePatch(
+          'trackedEvents/401705663',
+          { name: { stringValue: 'Masters' }, eventId: { stringValue: '999' } },
+          ADMIN_TOKEN
+        )
+      ).status
+    ).toBe(403);
+    expect(
+      (
+        await firestorePatch(
+          'trackedEvents/401705663',
+          { name: { stringValue: 'x'.repeat(201) } },
+          ADMIN_TOKEN
+        )
+      ).status
+    ).toBe(403);
+    expect((await firestoreDelete('trackedEvents/401705663', ADMIN_TOKEN)).status).toBe(200);
+
+    // 8. events/{eventId} valid & invalid payloads
+    expect(
+      (
+        await firestorePatch(
+          'events/401705663',
+          {
+            id: { stringValue: '401705663' },
+            espnEventId: { stringValue: '401705663' },
+            name: { stringValue: 'Masters Tournament' },
+            season: { integerValue: '2026' },
+          },
+          ADMIN_TOKEN
+        )
+      ).status
+    ).toBe(200);
+
+    expect(
+      (
+        await firestorePatch(
+          'events/401705664',
+          { eventName: { stringValue: 'PGA Championship' } },
+          ADMIN_TOKEN
+        )
+      ).status
+    ).toBe(200);
+
+    // Reject empty map, rogue field, mismatched id, out-of-range season
+    expect((await firestorePatch('events/401705665', {}, ADMIN_TOKEN)).status).toBe(403);
+    expect(
+      (
+        await firestorePatch(
+          'events/401705663',
+          { name: { stringValue: 'Masters' }, rogue: { stringValue: 'bad' } },
+          ADMIN_TOKEN
+        )
+      ).status
+    ).toBe(403);
+    expect(
+      (
+        await firestorePatch(
+          'events/401705663',
+          { id: { stringValue: 'wrong-id' }, name: { stringValue: 'Masters' } },
+          ADMIN_TOKEN
+        )
+      ).status
+    ).toBe(403);
+    expect(
+      (
+        await firestorePatch(
+          'events/401705663',
+          { name: { stringValue: 'Masters' }, season: { integerValue: '1900' } },
+          ADMIN_TOKEN
+        )
+      ).status
+    ).toBe(403);
+    expect((await firestoreDelete('events/401705663', ADMIN_TOKEN)).status).toBe(200);
+    expect((await firestoreDelete('events/401705664', ADMIN_TOKEN)).status).toBe(200);
   });
 });

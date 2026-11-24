@@ -3,7 +3,7 @@ import { Participant, ContestConfig } from '@/types/contest';
 import { ContestEvaluationResult, evaluateContest } from '@/lib/contestEngine';
 import { evaluateFieldLeaderboard, FieldLeaderboardEvaluation } from '@/lib/domain';
 import { NormalizedTournament } from '@/lib/espn';
-import { ESPNCompetitor, ESPNEventStatus } from '@/types/espn';
+import { ESPNCompetitor, ESPNCourse, ESPNEventStatus } from '@/types/espn';
 
 export interface UseFieldEvaluationOptions {
   tournament: NormalizedTournament;
@@ -40,6 +40,7 @@ export interface UseContestEvaluationOptions {
   contestConfig: ContestConfig | null;
   eventStatus?: ESPNEventStatus;
   playerDirectoryMap?: Record<string, { id: string; name: string; headshotUrl?: string }>;
+  eventCourses?: ESPNCourse[] | null;
 }
 
 export function useContestEvaluation({
@@ -48,6 +49,7 @@ export function useContestEvaluation({
   contestConfig,
   eventStatus,
   playerDirectoryMap,
+  eventCourses,
 }: UseContestEvaluationOptions): ContestEvaluationResult {
   return useMemo(() => {
     return evaluateContest(
@@ -55,7 +57,8 @@ export function useContestEvaluation({
       competitors,
       contestConfig,
       eventStatus,
-      playerDirectoryMap
+      playerDirectoryMap,
+      { eventCourses }
     );
-  }, [participants, competitors, contestConfig, eventStatus, playerDirectoryMap]);
+  }, [participants, competitors, contestConfig, eventStatus, playerDirectoryMap, eventCourses]);
 }
