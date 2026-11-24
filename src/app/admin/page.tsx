@@ -80,6 +80,7 @@ export default function AdminPage() {
   const [formDataMainPayoutsStr, setFormDataMainPayoutsStr] = useState('600, 320, 180, 100');
   const [formDataDayMoneyPool, setFormDataDayMoneyPool] = useState<number | ''>(75);
   const [formDataIsFinalized, setFormDataIsFinalized] = useState(false);
+  const [formDataHasCut, setFormDataHasCut] = useState(true);
 
   // Participant Form States
   const [editingParticipant, setEditingParticipant] = useState<Participant | null>(null);
@@ -170,6 +171,7 @@ export default function AdminPage() {
         selectedContestConfig.mainPayouts ? selectedContestConfig.mainPayouts.join(', ') : '600, 320, 180, 100'
       );
       setFormDataDayMoneyPool(selectedContestConfig.dayMoneyPool ?? 75);
+      setFormDataHasCut(selectedContestConfig.hasCut !== false);
     } else {
       const matchedEvent = events.find((e) => e.id === selectedEventId);
       setFormDataName(matchedEvent?.name || '');
@@ -178,6 +180,7 @@ export default function AdminPage() {
       setFormDataMainPayoutsStr('600, 320, 180, 100');
       setFormDataDayMoneyPool(75);
       setFormDataIsFinalized(false);
+      setFormDataHasCut(true);
     }
   }, [selectedContestConfig, selectedEventId, events]);
 
@@ -220,6 +223,7 @@ export default function AdminPage() {
           mainPayouts: parsedPayouts.length > 0 ? parsedPayouts : [600, 320, 180, 100],
           dayMoneyPool: formDataDayMoneyPool === '' ? 75 : Number(formDataDayMoneyPool),
           coursePar: formDataCoursePar === '' ? null : Number(formDataCoursePar),
+          hasCut: formDataHasCut,
           isFinalized: formDataIsFinalized,
           season: new Date().getFullYear(),
         },
@@ -814,6 +818,7 @@ export default function AdminPage() {
             formDataDayMoneyPool={formDataDayMoneyPool}
             formDataMainPayoutsStr={formDataMainPayoutsStr}
             formDataIsFinalized={formDataIsFinalized}
+            formDataHasCut={formDataHasCut}
             onSelectEvent={(id) => setSelectedEventId(id)}
             onChangeName={(name) => setFormDataName(name)}
             onChangeCoursePar={(par) => setFormDataCoursePar(par)}
@@ -821,6 +826,7 @@ export default function AdminPage() {
             onChangeDayMoneyPool={(pool) => setFormDataDayMoneyPool(pool)}
             onChangeMainPayoutsStr={(payouts) => setFormDataMainPayoutsStr(payouts)}
             onChangeIsFinalized={(fin) => setFormDataIsFinalized(fin)}
+            onChangeHasCut={(hasCut) => setFormDataHasCut(hasCut)}
             onSaveConfig={handleSaveConfig}
             onSetActive={handleSetActive}
             onDeleteEvent={handleDeleteEvent}

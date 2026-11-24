@@ -6,6 +6,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import '@testing-library/jest-dom';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import AdminPage from '../page';
+import { setContestConfig } from '@/lib/firebase/firestore';
 
 // Mock Auth
 vi.mock('@/context/AuthContext', () => ({
@@ -19,13 +20,13 @@ vi.mock('@/context/AuthContext', () => ({
 }));
 
 // Mock Firestore hooks & functions
-vi.mock('@/lib/firebase/firestore', () => ({
-  useActiveConfig: () => ({
-    config: { activeEventId: 'event-active-1', activeSeason: 2026 },
-    loading: false,
-  }),
-  useContestConfig: (eventId: string) => ({
-    config: {
+const mockActiveConfig = { activeEventId: 'event-active-1', activeSeason: 2026 };
+const mockEmptyParticipants: unknown[] = [];
+const mockConfigCache: Record<string, Record<string, unknown>> = {};
+function getMockContestConfig(eventId: string) {
+  if (!eventId) return null;
+  if (!mockConfigCache[eventId]) {
+    mockConfigCache[eventId] = {
       espnEventId: eventId,
       eventName: `Contest for ${eventId}`,
       entryFee: 50,
@@ -33,11 +34,23 @@ vi.mock('@/lib/firebase/firestore', () => ({
       dayMoneyPool: 75,
       coursePar: 72,
       isFinalized: false,
-    },
+      ...(eventId === 'event-new-2' ? { hasCut: false } : {}),
+    };
+  }
+  return mockConfigCache[eventId];
+}
+
+vi.mock('@/lib/firebase/firestore', () => ({
+  useActiveConfig: () => ({
+    config: mockActiveConfig,
     loading: false,
   }),
-  useParticipants: (eventId: string) => ({
-    participants: [],
+  useContestConfig: (eventId: string) => ({
+    config: getMockContestConfig(eventId),
+    loading: false,
+  }),
+  useParticipants: () => ({
+    participants: mockEmptyParticipants,
     loading: false,
   }),
   setActiveEvent: vi.fn(),
@@ -100,5 +113,48 @@ describe('AdminPage Event Selection', () => {
 
     // The select should retain event-new-2 and NOT rebound back to event-active-1
     expect(select.value).toBe('event-new-2');
+  });
+
+  it('defaults Event has 36-hole cut checkbox to true when omitted, loads hasCut: false, and persists hasCut on save', async () => {
+    vi.stubGlobal('alert', vi.fn());
+    vi.mocked(setContestConfig).mockClear();
+
+    render(<AdminPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('option', { name: /Active Tournament 1/i })).toBeInTheDocument();
+    });
+
+    const hasCutCheckbox = screen.getByRole('checkbox', {
+      name: /Event has 36-hole cut/i,
+    }) as HTMLInputElement;
+    expect(hasCutCheckbox.checked).toBe(true);
+
+    // Uncheck and save configuration
+    fireEvent.click(hasCutCheckbox);
+    expect(hasCutCheckbox.checked).toBe(false);
+
+    const saveBtn = screen.getByRole('button', { name: /Save Configuration/i });
+    fireEvent.click(saveBtn);
+
+    await waitFor(() => {
+      expect(setContestConfig).toHaveBeenCalledWith(
+        'event-active-1',
+        expect.objectContaining({ hasCut: false }),
+        'admin@demo-mp.com'
+      );
+    });
+
+    // Switch to an event whose saved config has hasCut: false and back to active event
+    const select = screen.getByRole('combobox', { name: /Select Calendar Event/i }) as HTMLSelectElement;
+    fireEvent.change(select, { target: { value: 'event-new-2' } });
+    await waitFor(() => {
+      expect(hasCutCheckbox.checked).toBe(false);
+    });
+
+    fireEvent.change(select, { target: { value: 'event-active-1' } });
+    await waitFor(() => {
+      expect(hasCutCheckbox.checked).toBe(true);
+    });
   });
 });
