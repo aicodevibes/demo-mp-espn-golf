@@ -35,6 +35,7 @@ export interface EventContextState {
   loading: boolean;
   isRefreshing: boolean;
   lastRefreshedAt: Date | null;
+  manualRefreshNonce: number;
   error: Error | null;
   refreshLeaderboard: (options?: { force?: boolean }) => Promise<void>;
 }
@@ -84,6 +85,7 @@ function EventContextBridge({ children }: { children: ReactNode }) {
       loading: tournamentState.loading,
       isRefreshing: liveSyncState.isRefreshing,
       lastRefreshedAt: liveSyncState.lastRefreshedAt,
+      manualRefreshNonce: liveSyncState.manualRefreshNonce,
       error: liveSyncState.error || tournamentState.error,
       refreshLeaderboard: liveSyncState.refreshLeaderboard,
     }),

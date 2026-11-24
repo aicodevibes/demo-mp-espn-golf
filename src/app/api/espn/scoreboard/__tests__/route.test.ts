@@ -203,4 +203,34 @@ describe('/api/espn/scoreboard Route Handler', () => {
       vi.useRealTimers();
     }
   });
+
+  it('enforces 10-second cooldown for force=true scoreboard requests', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-10T12:00:00Z'));
+
+    try {
+      const fetchSpy = vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ events: [{ id: '401580384', name: 'Masters' }] }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      );
+      global.fetch = fetchSpy;
+
+      const res1 = await GET(new NextRequest('http://localhost:3000/api/espn/scoreboard?force=true'));
+      expect(res1.status).toBe(200);
+      expect(res1.headers.get('X-Force-Coalesced')).toBeNull();
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+      vi.advanceTimersByTime(3_000);
+      const res2 = await GET(new NextRequest('http://localhost:3000/api/espn/scoreboard?force=true'));
+      expect(res2.status).toBe(200);
+      expect(res2.headers.get('Cache-Control')).toBe('no-store');
+      expect(res2.headers.get('X-Force-Coalesced')).toBe('true');
+      expect(res2.headers.get('X-Cache-Age')).toBe('3');
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

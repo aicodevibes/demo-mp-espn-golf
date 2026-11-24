@@ -371,4 +371,114 @@ describe('/api/espn/playersummary Route Handler', () => {
     expect(json.profile.displayName).toBe('Tiger Woods');
     expect(json.courseHoles).toBeUndefined();
   });
+
+  it('keeps 1-hour coreEventUrl cache when force=true bypasses only player summary fetch', async () => {
+    const fetchSpy = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('playersummary')) {
+        return Promise.resolve(
+          new Response(JSON.stringify({ profile: { id: '12345' }, rounds: [] }), { status: 200 })
+        );
+      }
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            courses: [{ name: 'Augusta National', shotsToPar: 72, holes: [{ shotsToPar: 4 }] }],
+          }),
+          { status: 200 }
+        )
+      );
+    });
+    global.fetch = fetchSpy;
+
+    const req = new NextRequest(
+      'http://localhost:3000/api/espn/playersummary?eventId=401580384&playerId=12345&season=2026&force=true'
+    );
+    const res = await GET(req);
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Cache-Control')).toBe('no-store');
+
+    const summaryCall = fetchSpy.mock.calls.find(([url]) => String(url).includes('playersummary'));
+    const coreEventCall = fetchSpy.mock.calls.find(([url]) => String(url).includes('sports.core.api.espn.com'));
+
+    expect(summaryCall?.[1]).toEqual(expect.objectContaining({ cache: 'no-store' }));
+    expect(summaryCall?.[1]?.next).toBeUndefined();
+    expect(coreEventCall?.[1]).toEqual(
+      expect.objectContaining({
+        next: { revalidate: 3600, tags: ['espn-core-event'] },
+      })
+    );
+    expect(coreEventCall?.[1]?.cache).toBeUndefined();
+  });
+
+  it('enforces 10s force=true cooldown and in-flight coalescing per player summary key', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-10T12:00:00Z'));
+
+    try {
+      let resolveSummary!: (res: Response) => void;
+      const pendingSummary = new Promise<Response>((resolve) => {
+        resolveSummary = resolve;
+      });
+
+      const fetchSpy = vi.fn().mockImplementation((url: string) => {
+        if (url.includes('playersummary')) {
+          return pendingSummary;
+        }
+        return Promise.resolve(
+          new Response(JSON.stringify({ courses: [{ name: 'Augusta', shotsToPar: 72, holes: [] }] }), {
+            status: 200,
+          })
+        );
+      });
+      global.fetch = fetchSpy;
+
+      // Concurrent force=true requests coalesce onto a single upstream fetch pair
+      const p1 = GET(
+        new NextRequest(
+          'http://localhost:3000/api/espn/playersummary?eventId=401580384&playerId=12345&season=2026&force=true'
+        )
+      );
+      const p2 = GET(
+        new NextRequest(
+          'http://localhost:3000/api/espn/playersummary?eventId=401580384&playerId=12345&season=2026&force=true'
+        )
+      );
+
+      expect(fetchSpy).toHaveBeenCalledTimes(2); // 1 playersummary + 1 coreEvent
+
+      resolveSummary(
+        new Response(
+          JSON.stringify({
+            profile: { id: '12345', displayName: 'Tiger Woods' },
+            status: { type: { state: 'in', name: 'STATUS_IN_PROGRESS' } },
+          }),
+          { status: 200 }
+        )
+      );
+
+      const [res1, res2] = await Promise.all([p1, p2]);
+      expect(res1.status).toBe(200);
+      expect(res2.status).toBe(200);
+      expect(res1.headers.get('X-Force-Coalesced')).toBeNull();
+      expect(res2.headers.get('X-Force-Coalesced')).toBe('true');
+      expect((await res1.json()).profile.displayName).toBe('Tiger Woods');
+      expect((await res2.json()).profile.displayName).toBe('Tiger Woods');
+
+      // Second sequential request 5s later hits 10s cooldown without calling fetch again
+      vi.advanceTimersByTime(5_000);
+      const res3 = await GET(
+        new NextRequest(
+          'http://localhost:3000/api/espn/playersummary?eventId=401580384&playerId=12345&season=2026&force=true'
+        )
+      );
+      expect(res3.status).toBe(200);
+      expect(res3.headers.get('Cache-Control')).toBe('no-store');
+      expect(res3.headers.get('X-Force-Coalesced')).toBe('true');
+      expect(res3.headers.get('X-Cache-Age')).toBe('5');
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

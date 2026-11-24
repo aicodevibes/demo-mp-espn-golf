@@ -354,5 +354,101 @@ describe('/api/espn/leaderboard Route Handler', () => {
       vi.useRealTimers();
     }
   });
+
+  it('enforces a 10-second per-key cooldown for force=true requests returning X-Force-Coalesced and X-Cache-Age', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-10T12:00:00Z'));
+
+    try {
+      let fetchCount = 0;
+      const fetchSpy = vi.fn().mockImplementation(() => {
+        fetchCount += 1;
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              id: '401580384',
+              fetchCount,
+              events: [{ id: '401580384', status: { type: { state: 'in', name: 'STATUS_IN_PROGRESS' } } }],
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          )
+        );
+      });
+      global.fetch = fetchSpy;
+
+      // 1st force=true hits upstream
+      const res1 = await GET(new NextRequest('http://localhost:3000/api/espn/leaderboard?event=401580384&force=true'));
+      expect(res1.status).toBe(200);
+      expect(res1.headers.get('Cache-Control')).toBe('no-store');
+      expect(res1.headers.get('X-Force-Coalesced')).toBeNull();
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      expect((await res1.json()).fetchCount).toBe(1);
+
+      // 4 seconds later: within 10s cooldown -> coalesced without hitting upstream
+      vi.advanceTimersByTime(4_000);
+      const res2 = await GET(new NextRequest('http://localhost:3000/api/espn/leaderboard?event=401580384&force=true'));
+      expect(res2.status).toBe(200);
+      expect(res2.headers.get('Cache-Control')).toBe('no-store');
+      expect(res2.headers.get('X-Force-Coalesced')).toBe('true');
+      expect(res2.headers.get('X-Cache-Age')).toBe('4');
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      expect((await res2.json()).fetchCount).toBe(1);
+
+      // Different event key is NOT blocked by cooldown for 401580384
+      const otherRes = await GET(new NextRequest('http://localhost:3000/api/espn/leaderboard?event=401580999&force=true'));
+      expect(otherRes.status).toBe(200);
+      expect(otherRes.headers.get('X-Force-Coalesced')).toBeNull();
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+
+      // Advance +7 seconds (total 11s since 1st request on 401580384) -> cooldown expired
+      vi.advanceTimersByTime(7_000);
+      const res3 = await GET(new NextRequest('http://localhost:3000/api/espn/leaderboard?event=401580384&force=true'));
+      expect(res3.status).toBe(200);
+      expect(res3.headers.get('Cache-Control')).toBe('no-store');
+      expect(res3.headers.get('X-Force-Coalesced')).toBeNull();
+      expect(fetchSpy).toHaveBeenCalledTimes(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('coalesces concurrent in-flight force=true requests for the same key onto one upstream fetch', async () => {
+    let resolveFetch!: (res: Response) => void;
+    const pendingPromise = new Promise<Response>((resolve) => {
+      resolveFetch = resolve;
+    });
+
+    const fetchSpy = vi.fn().mockReturnValue(pendingPromise);
+    global.fetch = fetchSpy;
+
+    const req1 = new NextRequest('http://localhost:3000/api/espn/leaderboard?event=401580384&force=true');
+    const req2 = new NextRequest('http://localhost:3000/api/espn/leaderboard?event=401580384&force=true');
+
+    const p1 = GET(req1);
+    const p2 = GET(req2);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+    resolveFetch(
+      new Response(
+        JSON.stringify({
+          id: '401580384',
+          events: [{ id: '401580384', status: { type: { state: 'in', name: 'STATUS_IN_PROGRESS' } } }],
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+
+    const [res1, res2] = await Promise.all([p1, p2]);
+    expect(res1.status).toBe(200);
+    expect(res2.status).toBe(200);
+    expect(res1.headers.get('Cache-Control')).toBe('no-store');
+    expect(res2.headers.get('Cache-Control')).toBe('no-store');
+    expect(res2.headers.get('X-Force-Coalesced')).toBe('true');
+
+    const [json1, json2] = await Promise.all([res1.json(), res2.json()]);
+    expect(json1.id).toBe('401580384');
+    expect(json2.id).toBe('401580384');
+  });
 });
 

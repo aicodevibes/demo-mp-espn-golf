@@ -376,5 +376,94 @@ describe('usePlayerSummary Hook', () => {
       );
     });
   });
+
+  it('consumes each forceRefreshKey nonce at most once so golfer switches and re-clicks hit client/CDN caches without &force=true', async () => {
+    const compA: ESPNCompetitor = {
+      id: '111',
+      score: '-2',
+      athlete: { id: '111', displayName: 'Golfer A' },
+      status: { period: 1, thru: 9, type: { state: 'in' } },
+    } as ESPNCompetitor;
+
+    const compB: ESPNCompetitor = {
+      id: '222',
+      score: '-4',
+      athlete: { id: '222', displayName: 'Golfer B' },
+      status: { period: 1, thru: 9, type: { state: 'in' } },
+    } as ESPNCompetitor;
+
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      const id = url.includes('playerId=111') ? '111' : '222';
+      const name = id === '111' ? 'Golfer A' : 'Golfer B';
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          profile: { id, displayName: name },
+          rounds: [{ period: 1, displayValue: '68', linescores: [] }],
+        }),
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { result, rerender } = renderHook(
+      ({ comp, nonce }: { comp: ESPNCompetitor; nonce: number }) =>
+        usePlayerSummary({
+          eventId: '401234',
+          competitor: comp,
+          forceRefreshKey: nonce || undefined,
+        }),
+      { initialProps: { comp: compA, nonce: 0 } }
+    );
+
+    await waitFor(() => {
+      expect(result.current.isFetching).toBe(false);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(String(fetchMock.mock.calls[0][0])).not.toContain('&force=true');
+
+    // Manual forced refresh increments nonce -> 1: Golfer A fetches ONCE with &force=true
+    fetchMock.mockClear();
+    rerender({ comp: compA, nonce: 1 });
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+    expect(String(fetchMock.mock.calls[0][0])).toContain('&force=true');
+    await waitFor(() => {
+      expect(result.current.isFetching).toBe(false);
+    });
+
+    // Switch to Golfer B while nonce stays 1 -> must NOT send &force=true
+    fetchMock.mockClear();
+    rerender({ comp: compB, nonce: 1 });
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+    expect(String(fetchMock.mock.calls[0][0])).toContain('playerId=222');
+    expect(String(fetchMock.mock.calls[0][0])).not.toContain('&force=true');
+    await waitFor(() => {
+      expect(result.current.isFetching).toBe(false);
+    });
+
+    // Switch back to Golfer A while nonce stays 1 -> hits client cache (0 fetches)
+    fetchMock.mockClear();
+    rerender({ comp: compA, nonce: 1 });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(result.current.isFetching).toBe(false);
+
+    // Switch back to Golfer B while nonce stays 1 -> hits client cache (0 fetches)
+    rerender({ comp: compB, nonce: 1 });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(result.current.isFetching).toBe(false);
+
+    // New forced refresh (nonce -> 2) -> fetches Golfer B WITH &force=true
+    rerender({ comp: compB, nonce: 2 });
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+    expect(String(fetchMock.mock.calls[0][0])).toContain('playerId=222');
+    expect(String(fetchMock.mock.calls[0][0])).toContain('&force=true');
+  });
 });
 

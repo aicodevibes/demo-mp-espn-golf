@@ -15,6 +15,7 @@ export interface SnapshotResult<T = unknown> {
 
 let maxSnapshotEntries = DEFAULT_MAX_SNAPSHOT_ENTRIES;
 const memorySnapshots = new Map<string, StoredSnapshot>();
+const inFlightForceRequests = new Map<string, Promise<unknown>>();
 
 /**
  * Configure the maximum number of entries retained in the bounded LRU snapshot cache.
@@ -95,6 +96,48 @@ export function getMemorySnapshot<T>(
 }
 
 /**
+ * Retrieve a snapshot only if strictly younger than maxAgeMs, without evicting older entries.
+ * Used for force=true cooldown checks while preserving snapshots for stale-while-error fallback.
+ */
+export function getRecentMemorySnapshot<T>(
+  key: string,
+  maxAgeMs: number
+): SnapshotResult<T> | undefined {
+  const entry = memorySnapshots.get(key) as StoredSnapshot<T> | undefined;
+  if (!entry) return undefined;
+
+  const ageMs = Math.max(0, Date.now() - entry.timestamp);
+  if (ageMs >= maxAgeMs) {
+    return undefined;
+  }
+
+  memorySnapshots.delete(key);
+  memorySnapshots.set(key, entry);
+
+  const result: SnapshotResult<T> = {
+    data: entry.data,
+    timestamp: entry.timestamp,
+    ageSeconds: Math.floor(ageMs / 1000),
+  };
+  if (entry.isLive !== undefined) {
+    result.isLive = entry.isLive;
+  }
+  return result;
+}
+
+export function getInFlightForceRequest<T>(key: string): Promise<T> | undefined {
+  return inFlightForceRequests.get(key) as Promise<T> | undefined;
+}
+
+export function setInFlightForceRequest<T>(key: string, promise: Promise<T>): void {
+  inFlightForceRequests.set(key, promise);
+}
+
+export function deleteInFlightForceRequest(key: string): void {
+  inFlightForceRequests.delete(key);
+}
+
+/**
  * Peek at a cached snapshot's known live state without mutating LRU recency.
  */
 export function peekMemorySnapshotLiveState(key: string): boolean | undefined {
@@ -102,9 +145,10 @@ export function peekMemorySnapshotLiveState(key: string): boolean | undefined {
 }
 
 /**
- * Clear all cached snapshots and reset the capacity limit to its default (250).
+ * Clear all cached snapshots, in-flight force requests, and reset the capacity limit to its default (250).
  */
 export function clearMemorySnapshots(): void {
   memorySnapshots.clear();
+  inFlightForceRequests.clear();
   maxSnapshotEntries = DEFAULT_MAX_SNAPSHOT_ENTRIES;
 }

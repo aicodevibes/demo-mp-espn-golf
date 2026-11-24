@@ -174,6 +174,58 @@ describe('Decoupled Domain Contexts', () => {
     expect(result.current.staleCacheAgeSeconds).toBe(300);
   });
 
+  it('LiveSyncProvider increments manualRefreshNonce only on executed forced refreshes', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-10T12:00:00Z'));
+
+    try {
+      const fetchSpy = vi.fn().mockResolvedValue(true);
+      const wrapper = ({ children }: { children: React.ReactNode }) => (
+        <LiveSyncProvider onFetchLeaderboard={fetchSpy} isLive={true}>
+          {children}
+        </LiveSyncProvider>
+      );
+
+      const { result } = renderHook(() => useLiveSync(), { wrapper });
+      expect(result.current.manualRefreshNonce).toBe(0);
+
+      // Non-forced manual refresh must NOT increment manualRefreshNonce
+      await act(async () => {
+        await result.current.refreshLeaderboard({ force: false });
+      });
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      expect(fetchSpy).toHaveBeenLastCalledWith(false);
+      expect(result.current.manualRefreshNonce).toBe(0);
+
+      // Forced refresh increments manualRefreshNonce to 1
+      await act(async () => {
+        await result.current.refreshLeaderboard({ force: true });
+      });
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+      expect(fetchSpy).toHaveBeenLastCalledWith(true);
+      expect(result.current.manualRefreshNonce).toBe(1);
+
+      // Second forced refresh within 10s cooldown is skipped and keeps nonce at 1
+      vi.advanceTimersByTime(5_000);
+      await act(async () => {
+        await result.current.refreshLeaderboard({ force: true });
+      });
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+      expect(result.current.manualRefreshNonce).toBe(1);
+
+      // After 10s cooldown expires, forced refresh increments nonce to 2
+      vi.advanceTimersByTime(6_000);
+      await act(async () => {
+        await result.current.refreshLeaderboard({ force: true });
+      });
+      expect(fetchSpy).toHaveBeenCalledTimes(3);
+      expect(fetchSpy).toHaveBeenLastCalledWith(true);
+      expect(result.current.manualRefreshNonce).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('ContestProvider manages participants and contest configurations', () => {
     const wrapper = ({ children }: { children: React.ReactNode }) => (
       <ContestProvider eventId="401705663">{children}</ContestProvider>
