@@ -455,6 +455,9 @@ components:
 ### 3. Player Summary & Hole-by-Hole Scorecard
 * **Upstream**: `GET https://site.web.api.espn.com/apis/site/v2/sports/golf/pga/leaderboard/{eventId}/playersummary?season={year}&player={playerId}`
 * **Proxy**: `GET /api/espn/playersummary?eventId={eventId}&playerId={playerId}&season={year}`
+* **Validation & Season Derivation**:
+  - Proxy strictly validates `eventId` and `playerId` (`/^\d{1,12}$/`) and `season` (`/^\d{4}$/`), returning `400` on invalid values and constructing upstream URLs with `URL` / `URLSearchParams`.
+  - Clients derive `season` from the selected event's `season?.year` or `date` year rather than `new Date().getFullYear()`, ensuring historical scorecards resolve accurately.
 
 #### Key Payload Paths:
 - `data.rounds` — Array of round objects containing 18-hole `linescores`
@@ -473,6 +476,9 @@ components:
   - `courses[0].name` (Course name, e.g. "Torrey Pines Golf Course")
   - `courses[0].shotsToPar` (Course par, e.g. 72)
   - `courses[0].holes` (Array with `number` and `shotsToPar` for all 18 holes)
+* **Multi-Course & Precedence Rules**:
+  - For multi-course tournaments, match the course by `courseId` when present on the round or competitor payload, falling back to `courses[0]`.
+  - Authoritative `courseHoles` pars from Core Event data take precedence over inferred hole pars and must never be overwritten by non-numeric `scoreType.displayValue` strings.
 
 ---
 
@@ -517,13 +523,14 @@ export interface ESPNCompetitor {
 
 > [!CAUTION]
 > **ESPN sends `null` or an empty status object for players who miss the 36-hole cut.**
-> Any string search on `status.position.displayName === 'CUT'` will **fail**.
+> Any string search on `status.position.displayName === 'CUT'` will **fail**. However, on Saturday morning before Round 3 tee times, unstarted leaders may also still have `linescores.length === 2` while `eventStatus.period === 3`.
 
-### Authoritative Rule: `linescores.length`
+### Authoritative Rule: Context-Aware `linescores.length` & `hasCut`
 
-| `linescores.length` | Event Status | Status Determination |
+| `linescores.length` | Event Status & Competitor State | Status Determination |
 |---|---|---|
-| `2` | Round >= 3 or Post/Final | **CUT** (Missed 36-hole cut) |
+| `2` | `hasCut !== false`, not `WD`/`DQ`, `comp.status` empty/null (not `STATUS_SCHEDULED`/`STATUS_IN_PROGRESS`/`thru > 0` for R3), and (`post` / `period >= 4` / R3 play underway) | **CUT** (Missed 36-hole cut) |
+| `2` | `hasCut === false` (Signature / no-cut event) or `comp.status` indicates scheduled/active R3 | **Active** (Not cut) |
 | `4` | Post / Final | **Active / Finished all 4 rounds** |
 | Any | `status.type.name === 'STATUS_WD'` or `position.displayName === 'WD'` | **WD** (Withdrawn) |
 | Any | `status.type.name === 'STATUS_DQ'` or `position.displayName === 'DQ'` | **DQ** (Disqualified) |
@@ -531,22 +538,34 @@ export interface ESPNCompetitor {
 
 ### Implementation Pattern:
 ```typescript
-export function getPlayerStatusInfo(comp: ESPNCompetitor, eventStatus?: any): PlayerStatusInfo {
-  if (!comp) return { isCut: false, isWD: false, isDQ: false, isMDF: false, isInactive: false, statusText: '-' };
-
-  const isFinalOrLateRound =
-    eventStatus?.type?.state === 'post' ||
-    eventStatus?.type?.completed === true ||
-    (eventStatus?.period ?? 0) >= 3;
-
-  const missedCutByRounds =
-    isFinalOrLateRound &&
-    Array.isArray(comp.linescores) &&
-    comp.linescores.length === 2;
+export function getPlayerStatusInfo(comp: ESPNCompetitor, eventStatus?: any, hasCut = true): PlayerStatusInfo {
+  if (!comp) return { isCut: false, isWD: false, isDQ: false, isMDF: false, isInactive: false, badgeLabel: '' };
 
   const rawPosition = comp.status?.position?.displayName?.toUpperCase() || '';
   const isWD = rawPosition === 'WD' || comp.status?.type?.name?.includes('WD');
   const isDQ = rawPosition === 'DQ' || comp.status?.type?.name?.includes('DQ');
+
+  const hasEmptyStatusForR3 =
+    !comp.status ||
+    (!comp.status.position?.displayName &&
+      comp.status.type?.name !== 'STATUS_SCHEDULED' &&
+      comp.status.type?.name !== 'STATUS_IN_PROGRESS' &&
+      !(Number(comp.status.thru) > 0));
+
+  const isFinalOrLateRound =
+    eventStatus?.type?.state === 'post' ||
+    eventStatus?.type?.completed === true ||
+    (eventStatus?.period ?? 0) >= 4 ||
+    ((eventStatus?.period ?? 0) === 3 && hasEmptyStatusForR3);
+
+  const missedCutByRounds =
+    hasCut !== false &&
+    !isWD &&
+    !isDQ &&
+    isFinalOrLateRound &&
+    Array.isArray(comp.linescores) &&
+    comp.linescores.length === 2;
+
   const isCut = missedCutByRounds || rawPosition === 'CUT' || rawPosition === 'MC';
 
   return {
@@ -555,7 +574,7 @@ export function getPlayerStatusInfo(comp: ESPNCompetitor, eventStatus?: any): Pl
     isDQ,
     isMDF: rawPosition === 'MDF',
     isInactive: isCut || isWD || isDQ,
-    statusText: isCut ? 'CUT' : isWD ? 'WD' : isDQ ? 'DQ' : comp.status?.displayValue || '-'
+    badgeLabel: isCut ? 'CUT' : isWD ? 'WD' : isDQ ? 'DQ' : '',
   };
 }
 ```
@@ -600,22 +619,17 @@ Always include `unoptimized={true}` when rendering external ESPN CDN images to p
 
 ## 🚀 Caching & Performance Best Practices
 
-```typescript
-// Proxy Route Caching Header
-export const dynamic = 'force-dynamic';
-
-export async function GET() {
-  return NextResponse.json(data, {
-    headers: {
-      'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=120',
-      'CDN-Cache-Control': 'public, s-maxage=60',
-    },
-  });
-}
-```
-
-- **`s-maxage=60`**: Edge CDN caches fresh scores for 60 seconds.
-- **`stale-while-revalidate=120`**: Serves stale content instantaneously while revalidating asynchronously in background.
+- **Adaptive Edge Caching**:
+  - Live in-progress leaderboards and player summaries: `Cache-Control: public, s-maxage=15, stale-while-revalidate=30` (`next: { revalidate: 15 }`).
+  - Pre-tournament / completed leaderboards and player summaries: `Cache-Control: public, s-maxage=300, stale-while-revalidate=600`.
+  - Scoreboard calendar: `Cache-Control: public, s-maxage=60, stale-while-revalidate=120`.
+- **Throttled `force=true` Refresh & Coalescing**:
+  - Manual cache-bust (`?force=true`) is protected by a **10-second per-key server cooldown** and **in-flight request coalescing**. Requests inside the cooldown return `200 OK` with the `<10s` snapshot and headers `X-Force-Coalesced: true` and `X-Cache-Age: <seconds>`.
+  - On `/api/espn/playersummary`, `force=true` bypasses only the player summary fetch and **never** busts the 1-hour `sports.core.api.espn.com` course-hole par cache.
+- **Resilience & Stale-While-Error Headers**:
+  - Upstream fetches enforce an **8-second timeout** (`AbortSignal.timeout(8000)`).
+  - Server memory snapshots use a **bounded LRU cache (max 250 entries)** with max staleness caps (**30 minutes** for live events, **24 hours** for pre/post events).
+  - Fallback stale responses include `Cache-Control: no-store`, `X-Cache-Stale: true`, and `X-Cache-Age: <seconds>`. Once past the staleness cap, the proxy returns an upstream error instead of misleading ancient data.
 
 ---
 

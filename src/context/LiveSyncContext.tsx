@@ -23,8 +23,12 @@ export interface LiveSyncContextState {
   isRefreshing: boolean;
   /** True when the latest data snapshot was served from a stale-while-error cache. */
   isStaleData: boolean;
+  /** Age in seconds of the stale snapshot from X-Cache-Age, or null when fresh/unknown. */
+  staleCacheAgeSeconds: number | null;
   /** Timestamp of the last successful leaderboard refresh. */
   lastRefreshedAt: Date | null;
+  /** Monotonic counter incremented only when a manual forced refresh actually executes. */
+  manualRefreshNonce: number;
   /** Error object if any subscription or fetch failed. */
   error: Error | null;
   /** Manual trigger to force re-fetch latest ESPN leaderboard. */
@@ -34,7 +38,9 @@ export interface LiveSyncContextState {
 const LiveSyncContext = createContext<LiveSyncContextState>({
   isRefreshing: false,
   isStaleData: false,
+  staleCacheAgeSeconds: null,
   lastRefreshedAt: null,
+  manualRefreshNonce: 0,
   error: null,
   refreshLeaderboard: async () => {},
 });
@@ -44,6 +50,7 @@ export interface LiveSyncProviderProps {
   activeEventId?: string;
   isLive?: boolean;
   isStaleData?: boolean;
+  staleCacheAgeSeconds?: number | null;
   lastRefreshedAt?: Date | null;
   error?: Error | null;
   onFetchLeaderboard: (isForce?: boolean) => Promise<boolean | void>;
@@ -54,12 +61,14 @@ export function LiveSyncProvider({
   activeEventId,
   isLive = false,
   isStaleData = false,
+  staleCacheAgeSeconds = null,
   lastRefreshedAt = null,
   error = null,
   onFetchLeaderboard,
 }: LiveSyncProviderProps) {
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
-  const lastForcedRefreshRef = useRef<number>(0);
+  const [manualRefreshNonce, setManualRefreshNonce] = useState<number>(0);
+  const lastForcedRefreshRef = useRef<number>(-Infinity);
 
   // Background poller handler
   const handlePoll = useCallback(async () => {
@@ -89,6 +98,7 @@ export function LiveSyncProvider({
         lastForcedRefreshRef.current = now;
         // Bust client player summary memory cache on user-initiated force refresh
         clearPlayerSummaryCache();
+        setManualRefreshNonce((prev) => prev + 1);
       }
       setIsRefreshing(true);
       try {
@@ -104,11 +114,21 @@ export function LiveSyncProvider({
     () => ({
       isRefreshing,
       isStaleData,
+      staleCacheAgeSeconds,
       lastRefreshedAt,
+      manualRefreshNonce,
       error,
       refreshLeaderboard: handleManualRefresh,
     }),
-    [isRefreshing, isStaleData, lastRefreshedAt, error, handleManualRefresh]
+    [
+      isRefreshing,
+      isStaleData,
+      staleCacheAgeSeconds,
+      lastRefreshedAt,
+      manualRefreshNonce,
+      error,
+      handleManualRefresh,
+    ]
   );
 
   return <LiveSyncContext.Provider value={value}>{children}</LiveSyncContext.Provider>;

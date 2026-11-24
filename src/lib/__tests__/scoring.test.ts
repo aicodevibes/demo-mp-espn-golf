@@ -303,5 +303,84 @@ describe('Scoring Engine (lib/scoring.ts)', () => {
       expect(r3.winners.some((w) => w.golferId === 'g4th')).toBe(true);
     });
   });
+
+  it('computes DraftedGolferStatus.totalScoreToPar as DQ for disqualified golfers and honors coursePar/eventCourses', () => {
+    const dqCompetitor: ESPNCompetitor = {
+      id: 'g-dq',
+      athlete: { id: 'g-dq', displayName: 'DQ Golfer' },
+      score: '+3',
+      status: {
+        position: { displayName: 'DQ' },
+        type: { name: 'STATUS_DISQUALIFIED', description: 'Disqualified', detail: 'DQ', state: 'post' },
+      },
+      linescores: [{ period: 1, value: 74 }],
+    };
+
+    const par70Competitor: ESPNCompetitor = {
+      id: 'g-p70',
+      athlete: { id: 'g-p70', displayName: 'Course Par Golfer' },
+      // No comp.score or displayValue; stroke-only linescores
+      linescores: [
+        { period: 1, value: 68 },
+        { period: 2, value: 69 },
+      ],
+    };
+
+    const participants: Participant[] = [
+      {
+        id: 'p1',
+        name: 'Pat',
+        draftedPlayerIds: ['g-dq', 'g-p70'],
+        isGreedyParticipant: true,
+        greedyPlayerId: 'g-p70',
+      },
+    ];
+
+    const noAdminParConfig: ContestConfig = {
+      ...sampleConfig,
+      coursePar: null,
+    };
+    const eventCourses = [{ id: 'c1', name: 'Par 70 Course', shotsToPar: 70 }];
+
+    const standings = calculateParticipantStandings(
+      participants,
+      [dqCompetitor, par70Competitor],
+      noAdminParConfig,
+      undefined,
+      undefined,
+      { eventCourses }
+    );
+
+    const dqDetail = standings[0].draftedGolferDetails.find((g) => g.id === 'g-dq');
+    expect(dqDetail?.isDQ).toBe(true);
+    expect(dqDetail?.totalScoreToPar).toBe('DQ');
+
+    const p70Detail = standings[0].draftedGolferDetails.find((g) => g.id === 'g-p70');
+    // Against event.courses shotsToPar=70: 68 (-2) and 69 (-1) => cumulative -3
+    expect(p70Detail?.roundScoresToPar[1]).toBe(-2);
+    expect(p70Detail?.roundScoresToPar[2]).toBe(-1);
+    expect(p70Detail?.totalScoreToPar).toBe('-3');
+
+    const dayMoney = calculateDayMoneyWinners(
+      participants,
+      [dqCompetitor, par70Competitor],
+      noAdminParConfig,
+      undefined,
+      { eventCourses }
+    );
+    expect(dayMoney[0].lowScore).toBe('68(-2)');
+
+    const greedy = calculateGreedyStandings(
+      participants,
+      [dqCompetitor, par70Competitor],
+      null,
+      undefined,
+      undefined,
+      true,
+      { eventCourses }
+    );
+    expect(greedy[0].greedyGolfer?.scoreToPar).toBe('-3');
+    expect(greedy[0].greedyGolfer?.roundScoresToPar[1]).toBe(-2);
+  });
 });
 

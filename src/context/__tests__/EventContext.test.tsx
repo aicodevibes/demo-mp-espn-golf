@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import React from 'react';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { doc, onSnapshot } from 'firebase/firestore';
 import {
   EventContextProvider,
   useEventContext,
@@ -203,7 +204,8 @@ describe('EventContextProvider Deep Domain Seam', () => {
     await waitFor(
       () => {
         expect(fetchSpy).toHaveBeenCalledWith(
-          expect.stringContaining('/api/espn/leaderboard?event=401580384')
+          expect.stringContaining('/api/espn/leaderboard?event=401580384'),
+          expect.objectContaining({ signal: expect.any(AbortSignal) })
         );
       },
       { container: document.body }
@@ -332,5 +334,370 @@ describe('EventContextProvider Deep Domain Seam', () => {
       },
       { container: document.body }
     );
+  });
+
+  it('parses X-Cache-Age header into staleCacheAgeSeconds, retains valid state on 5xx refresh, and clears state on event switch', async () => {
+    let phase: 'stale' | '503' | 'switch' = 'stale';
+    const fetchSpy = vi.fn().mockImplementation((url: string) => {
+      if (url.includes('/api/espn/scoreboard')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            events: [
+              {
+                id: '401705663',
+                name: 'Masters Tournament',
+                status: { type: { state: 'in', description: 'In Progress' } },
+              },
+            ],
+          }),
+        });
+      }
+      if (url.includes('/api/espn/leaderboard')) {
+        if (phase === 'stale') {
+          return Promise.resolve({
+            ok: true,
+            headers: new Headers({
+              'X-Cache-Stale': 'true',
+              'X-Cache-Age': '240',
+            }),
+            json: async () => ({
+              events: [
+                {
+                  id: '401705663',
+                  name: 'Masters Tournament',
+                  status: { type: { state: 'in', description: 'In Progress' } },
+                  competitions: [
+                    {
+                      id: '401705663',
+                      competitors: [
+                        {
+                          id: '4397140',
+                          athlete: { id: '4397140', displayName: 'Scottie Scheffler' },
+                          score: '-9',
+                          status: { thru: 18, position: { displayName: '1' } },
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            }),
+          });
+        }
+        if (phase === '503') {
+          return Promise.resolve({
+            ok: false,
+            status: 503,
+            json: async () => ({ error: 'ESPN Leaderboard API returned status 503' }),
+          });
+        }
+        // phase === 'switch'
+        return Promise.resolve({
+          ok: true,
+          headers: new Headers(),
+          json: async () => ({
+            events: [
+              {
+                id: '401580340',
+                name: 'PGA Championship',
+                status: { type: { state: 'post', description: 'Final' } },
+                competitions: [
+                  {
+                    id: '401580340',
+                    competitors: [
+                      {
+                        id: '3470',
+                        athlete: { id: '3470', displayName: 'Rory McIlroy' },
+                        score: '-12',
+                        status: { thru: 18, position: { displayName: '1' } },
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          }),
+        });
+      }
+      return Promise.resolve({ ok: true, json: async () => ({}) });
+    });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <EventContextProvider initialEventId="401705663">{children}</EventContextProvider>
+    );
+
+    const { result } = renderHook(() => useEventContext(), { wrapper });
+
+    await waitFor(
+      () => {
+        expect(result.current.competitors).toHaveLength(1);
+        expect(result.current.isStaleData).toBe(true);
+      },
+      { container: document.body }
+    );
+
+    expect(result.current.staleCacheAgeSeconds).toBe(240);
+
+    // 5xx refresh on same event retains competitors and activeEvent while surfacing error
+    phase = '503';
+    await act(async () => {
+      await result.current.refreshLeaderboard();
+    });
+
+    expect(result.current.error?.message).toBe('ESPN Leaderboard API returned status 503');
+    expect(result.current.competitors).toHaveLength(1);
+    expect(result.current.competitors[0].athlete?.displayName).toBe('Scottie Scheffler');
+    expect(result.current.activeEvent?.id).toBe('401705663');
+
+    // Switching to a different event clears old competitors/stale/error and loads new event
+    phase = 'switch';
+    act(() => {
+      result.current.setEventOverride('401580340');
+    });
+
+    await waitFor(
+      () => {
+        expect(result.current.competitors).toHaveLength(1);
+        expect(result.current.competitors[0].athlete?.displayName).toBe('Rory McIlroy');
+      },
+      { container: document.body }
+    );
+
+    expect(result.current.isStaleData).toBe(false);
+    expect(result.current.staleCacheAgeSeconds).toBeNull();
+    expect(result.current.error).toBeNull();
+  });
+
+  it('threads contestConfig.hasCut into normalizeTournamentSnapshot so no-cut events do not infer CUT from 2 linescores', async () => {
+    vi.mocked(doc).mockImplementation(((_db: unknown, ...segments: string[]) => ({
+      path: segments.join('/'),
+    })) as never);
+
+    vi.mocked(onSnapshot).mockImplementation(((ref: unknown, onNext: unknown) => {
+      const path = (ref as { path?: string } | undefined)?.path;
+      if (path === 'events/401705663/contestConfig/default' && typeof onNext === 'function') {
+        onNext({
+          exists: () => true,
+          data: () => ({
+            espnEventId: '401705663',
+            eventName: 'The Sentry',
+            season: 2026,
+            mainPayouts: [600, 320, 180, 100],
+            dayMoneyPool: 75,
+            coursePar: 72,
+            hasCut: false,
+          }),
+        });
+      }
+      return vi.fn();
+    }) as never);
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        if (url.includes('/api/espn/scoreboard')) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({
+              events: [
+                {
+                  id: '401705663',
+                  name: 'The Sentry',
+                  status: { period: 4, type: { state: 'post', completed: true, detail: 'Final' } },
+                },
+              ],
+            }),
+          });
+        }
+        if (url.includes('/api/espn/leaderboard')) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({
+              events: [
+                {
+                  id: '401705663',
+                  name: 'The Sentry',
+                  status: { period: 4, type: { state: 'post', completed: true, detail: 'Final' } },
+                  competitions: [
+                    {
+                      id: '401705663',
+                      competitors: [
+                        {
+                          id: '5360550',
+                          athlete: { id: '5360550', displayName: 'Ben Silverman' },
+                          score: '+4',
+                          status: {
+                            period: 4,
+                            position: { displayName: 'T55' },
+                            type: { name: 'STATUS_FINAL', state: 'post', completed: true },
+                          },
+                          linescores: [
+                            { period: 1, value: 74, displayValue: '+2' },
+                            { period: 2, value: 74, displayValue: '+2' },
+                          ],
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            }),
+          });
+        }
+        return Promise.resolve({ ok: true, json: async () => ({}) });
+      })
+    );
+
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <EventContextProvider initialEventId="401705663">{children}</EventContextProvider>
+    );
+
+    const { result } = renderHook(() => useEventContext(), { wrapper });
+
+    await waitFor(
+      () => {
+        expect(result.current.contestConfig?.hasCut).toBe(false);
+        expect(result.current.tournament.competitorMap.get('5360550')).toBeDefined();
+      },
+      { container: document.body }
+    );
+
+    const golfer = result.current.tournament.competitorMap.get('5360550');
+    expect(golfer?.statusInfo.isCut).toBe(false);
+    expect(golfer?.thruDisplay).toBe('F');
+    expect(golfer?.scoreDisplay).toBe('+4');
+  });
+
+  it('exposes manualRefreshNonce through EventContext and increments only on forced refresh', async () => {
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <EventContextProvider initialEventId="401705663">{children}</EventContextProvider>
+    );
+
+    const { result } = renderHook(() => useEventContext(), { wrapper });
+
+    await waitFor(
+      () => {
+        expect(result.current.loading).toBe(false);
+      },
+      { container: document.body }
+    );
+
+    expect(result.current.manualRefreshNonce).toBe(0);
+
+    await act(async () => {
+      await result.current.refreshLeaderboard({ force: false });
+    });
+    expect(result.current.manualRefreshNonce).toBe(0);
+
+    await act(async () => {
+      await result.current.refreshLeaderboard({ force: true });
+    });
+    expect(result.current.manualRefreshNonce).toBe(1);
+  });
+
+  it('threads contestConfig.coursePar into normalizeTournamentSnapshot and event.courses into contestEvaluation', async () => {
+    vi.mocked(doc).mockImplementation(((_db: unknown, ...segments: string[]) => ({
+      path: segments.join('/'),
+    })) as never);
+
+    vi.mocked(onSnapshot).mockImplementation(((ref: unknown, onNext: unknown) => {
+      const path = (ref as { path?: string } | undefined)?.path;
+      if (path === 'events/401705663/contestConfig/default' && typeof onNext === 'function') {
+        onNext({
+          exists: () => true,
+          data: () => ({
+            espnEventId: '401705663',
+            eventName: 'Par 70 Override Event',
+            season: 2026,
+            mainPayouts: [600, 320, 180, 100],
+            dayMoneyPool: 75,
+            coursePar: 70,
+            hasCut: true,
+          }),
+        });
+      }
+      return vi.fn();
+    }) as never);
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        if (url.includes('/api/espn/scoreboard')) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({
+              events: [
+                {
+                  id: '401705663',
+                  name: 'Par 70 Override Event',
+                  courses: [{ id: 'c1', name: 'Course 1', shotsToPar: 71 }],
+                  status: { period: 2, type: { state: 'in', completed: false, detail: 'Round 2' } },
+                },
+              ],
+            }),
+          });
+        }
+        if (url.includes('/api/espn/leaderboard')) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => ({
+              events: [
+                {
+                  id: '401705663',
+                  name: 'Par 70 Override Event',
+                  courses: [{ id: 'c1', name: 'Course 1', shotsToPar: 71 }],
+                  status: { period: 2, type: { state: 'in', completed: false, detail: 'Round 2' } },
+                  competitions: [
+                    {
+                      id: '401705663',
+                      competitors: [
+                        {
+                          id: '3470',
+                          athlete: { id: '3470', displayName: 'Scottie Scheffler' },
+                          score: '-6',
+                          status: {
+                            period: 2,
+                            thru: 18,
+                            position: { displayName: '1' },
+                            type: { name: 'STATUS_IN_PROGRESS', state: 'in', completed: false },
+                          },
+                          linescores: [
+                            { period: 1, value: 68 },
+                            { period: 2, value: 70 },
+                          ],
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            }),
+          });
+        }
+        return Promise.resolve({ ok: true, json: async () => ({}) });
+      })
+    );
+
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <EventContextProvider initialEventId="401705663">{children}</EventContextProvider>
+    );
+
+    const { result } = renderHook(() => useEventContext(), { wrapper });
+
+    await waitFor(
+      () => {
+        expect(result.current.loading).toBe(false);
+        expect(result.current.contestConfig?.coursePar).toBe(70);
+        expect(result.current.competitors).toHaveLength(1);
+      },
+      { container: document.body }
+    );
+
+    // 68 + 70 = 138 strokes vs admin coursePar 70 (140 par) => -2 (not -4 vs ESPN par 71 or -6 stale comp.score)
+    const golfer = result.current.tournament.competitorMap.get('3470');
+    expect(golfer?.scoreDisplay).toBe('-2');
+    expect(golfer?.scoreToPar).toBe(-2);
   });
 });

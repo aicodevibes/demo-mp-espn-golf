@@ -3,17 +3,28 @@
 import React from 'react';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
 import { DEFAULT_PLAYER_DIRECTORY_MAP } from '@/lib/espn';
 import { GolferHeadshot } from '@/components/GolferHeadshot';
+import { AdminAuthGate } from '@/components/admin/AdminAuthGate';
 import { useAllPlayers } from '@/lib/firebase/firestore';
 
 export default function AdminPlayerGalleryPage() {
+  const { user, loading: authLoading, isAdmin, signInWithGoogle, signOut } = useAuth();
   const { playerMap } = useAllPlayers();
 
   const allPlayerEntries = Object.values(DEFAULT_PLAYER_DIRECTORY_MAP);
 
   return (
-    <div className="min-h-screen bg-surface text-on-surface p-6 space-y-6">
+    <AdminAuthGate
+      loading={authLoading}
+      user={user}
+      isAdmin={isAdmin}
+      onSignIn={signInWithGoogle}
+      onSignOut={signOut}
+      signInDescription="Sign in with your authorized admin Google account to manage tournament configurations, participant rosters, and player directory assets."
+    >
+      <div className="min-h-screen bg-surface text-on-surface p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-outline-variant/60 pb-4">
         <div className="flex items-center gap-3">
@@ -53,7 +64,6 @@ export default function AdminPlayerGalleryPage() {
                 src={headshotUrl}
                 playerId={p.id}
                 size={56}
-                priority={true}
               />
               <div className="min-w-0 flex-1">
                 <div className="font-bold text-sm text-on-surface truncate" title={displayName}>
@@ -70,6 +80,7 @@ export default function AdminPlayerGalleryPage() {
           );
         })}
       </div>
-    </div>
+      </div>
+    </AdminAuthGate>
   );
 }

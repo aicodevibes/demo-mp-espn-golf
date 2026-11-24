@@ -7,6 +7,7 @@ import React, {
   useState,
   useMemo,
   useCallback,
+  useRef,
   ReactNode,
 } from 'react';
 import { ESPNEvent, ESPNCompetitor } from '@/types/espn';
@@ -20,7 +21,6 @@ import {
   NormalizedTournament,
   DEFAULT_PLAYER_DIRECTORY_MAP,
 } from '@/lib/espn';
-import { syncPlayersToFirestore } from '@/lib/firebase/firestore';
 
 export interface TournamentContextState {
   /** Selected event ID currently being viewed (accounts for viewer override). */
@@ -47,10 +47,16 @@ export interface TournamentContextState {
   error: Error | null;
   /** Whether last response was served from stale cache. */
   isStaleData: boolean;
+  /** Age in seconds of the stale snapshot from X-Cache-Age, or null when fresh/unknown. */
+  staleCacheAgeSeconds: number | null;
   /** Timestamp of last successful refresh. */
   lastRefreshedAt: Date | null;
   /** Set the active event ID from global app config. */
   setActiveConfigId: (id: string) => void;
+  /** Set whether the active tournament enforces a 36-hole cut. */
+  setHasCut: (hasCut: boolean) => void;
+  /** Set admin-configured course par override for the active event. */
+  setCoursePar: (coursePar: number | null) => void;
 }
 
 const DEFAULT_TOURNAMENT: NormalizedTournament = {
@@ -81,31 +87,53 @@ const TournamentContext = createContext<TournamentContextState>({
   fetchLeaderboard: async () => false,
   error: null,
   isStaleData: false,
+  staleCacheAgeSeconds: null,
   lastRefreshedAt: null,
   setActiveConfigId: () => {},
+  setHasCut: () => {},
+  setCoursePar: () => {},
 });
 
 export interface TournamentProviderProps {
   children: ReactNode;
   initialEventId?: string;
+  hasCut?: boolean;
+  coursePar?: number | null;
   firestorePlayerMap?: Record<string, { id: string; name: string; headshotUrl?: string }>;
 }
 
 export function TournamentProvider({
   children,
   initialEventId = '',
+  hasCut: initialHasCut = true,
+  coursePar: initialCoursePar = null,
   firestorePlayerMap = DEFAULT_PLAYER_DIRECTORY_MAP,
 }: TournamentProviderProps) {
   const [activeConfigId, setActiveConfigId] = useState<string>(initialEventId || '');
+  const [hasCutOverride, setHasCut] = useState<boolean | undefined>(undefined);
+  const hasCut = hasCutOverride ?? initialHasCut;
+  const [courseParOverride, setCoursePar] = useState<number | null | undefined>(undefined);
+  const coursePar = courseParOverride !== undefined ? courseParOverride : initialCoursePar;
   const [events, setEvents] = useState<ESPNEvent[]>([]);
   const [activeEventObj, setActiveEventObj] = useState<ESPNEvent | null>(null);
   const [competitors, setCompetitors] = useState<ESPNCompetitor[]>([]);
   const [viewerEventIdOverride, setViewerEventIdOverride] = useState<string>('');
 
   const [isStaleData, setIsStaleData] = useState<boolean>(false);
+  const [staleCacheAgeSeconds, setStaleCacheAgeSeconds] = useState<number | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null);
   const [error, setError] = useState<Error | null>(null);
+
+  const leaderboardRequestSeqRef = useRef<number>(0);
+  const leaderboardAbortControllerRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      leaderboardAbortControllerRef.current?.abort();
+      leaderboardRequestSeqRef.current += 1;
+    };
+  }, []);
 
   // Safe client-side hydration from local cache
   useEffect(() => {
@@ -169,46 +197,72 @@ export function TournamentProvider({
     async (isForce: boolean = false): Promise<boolean> => {
       if (!selectedViewerEventId) return false;
 
+      // Cancel any prior in-flight leaderboard request and advance sequence ID
+      leaderboardAbortControllerRef.current?.abort();
+      const controller = new AbortController();
+      leaderboardAbortControllerRef.current = controller;
+      const requestSeq = ++leaderboardRequestSeqRef.current;
+
+      const isStaleRequest = () =>
+        controller.signal.aborted || requestSeq !== leaderboardRequestSeqRef.current;
+
       try {
         const url = isForce
           ? `/api/espn/leaderboard?event=${selectedViewerEventId}&force=true`
           : `/api/espn/leaderboard?event=${selectedViewerEventId}`;
-        const res = await fetch(url);
+        const res = await fetch(url, { signal: controller.signal });
+        if (isStaleRequest()) return false;
+
         if (!res.ok) {
           let errorMessage = `ESPN Leaderboard API returned status ${res.status}`;
           try {
             const errorData = await res.json();
+            if (isStaleRequest()) return false;
             if (errorData && (errorData.error || errorData.message)) {
               errorMessage = errorData.error || errorData.message;
             }
           } catch {
             // Fall back to status string
           }
+          if (isStaleRequest()) return false;
           setError(new Error(errorMessage));
           return false;
         }
 
         const isStale = Boolean(res.headers?.get && res.headers.get('X-Cache-Stale') === 'true');
-        setIsStaleData(isStale);
+        const rawCacheAge = res.headers?.get ? res.headers.get('X-Cache-Age') : null;
+        const parsedCacheAge =
+          isStale && rawCacheAge !== null && /^\d+$/.test(rawCacheAge.trim())
+            ? Number(rawCacheAge.trim())
+            : null;
 
         const data = await res.json();
+        if (isStaleRequest()) return false;
+
+        setIsStaleData(isStale);
+        setStaleCacheAgeSeconds(parsedCacheAge);
+
         if (data.events && data.events[0]) {
           setActiveEventObj(data.events[0]);
           const comps = data.events[0]?.competitions?.[0]?.competitors || [];
           const resolvedComps = resolveEventCompetitorsWithFallback(comps, []);
           setCompetitors(resolvedComps);
-          syncPlayersToFirestore(resolvedComps);
           setError(null);
           setLastRefreshedAt(new Date());
           return true;
         }
         return false;
       } catch (err: unknown) {
+        if (isStaleRequest() || (err instanceof Error && err.name === 'AbortError')) {
+          return false;
+        }
         console.error('Failed to fetch ESPN Leaderboard:', err);
         setError(err instanceof Error ? err : new Error(String(err)));
         return false;
       } finally {
-        setLoading(false);
+        if (requestSeq === leaderboardRequestSeqRef.current) {
+          setLoading(false);
+        }
       }
     },
     [selectedViewerEventId]
@@ -218,6 +272,9 @@ export function TournamentProvider({
   useEffect(() => {
     setCompetitors([]);
     setActiveEventObj(null);
+    setIsStaleData(false);
+    setStaleCacheAgeSeconds(null);
+    setError(null);
     setLoading(true);
     fetchLeaderboard();
   }, [selectedViewerEventId, fetchLeaderboard]);
@@ -226,9 +283,14 @@ export function TournamentProvider({
     return EspnTournamentAdapter.normalizeTournamentSnapshot(
       { events },
       activeEventObj,
-      { activeEventId: selectedViewerEventId, playerDirectoryMap: firestorePlayerMap }
+      {
+        activeEventId: selectedViewerEventId,
+        playerDirectoryMap: firestorePlayerMap,
+        hasCut,
+        coursePar,
+      }
     );
-  }, [events, activeEventObj, selectedViewerEventId, firestorePlayerMap]);
+  }, [events, activeEventObj, selectedViewerEventId, firestorePlayerMap, hasCut, coursePar]);
 
   const value: TournamentContextState = useMemo(
     () => ({
@@ -244,8 +306,11 @@ export function TournamentProvider({
       fetchLeaderboard,
       error,
       isStaleData,
+      staleCacheAgeSeconds,
       lastRefreshedAt,
       setActiveConfigId,
+      setHasCut,
+      setCoursePar,
     }),
     [
       selectedViewerEventId,
@@ -260,6 +325,7 @@ export function TournamentProvider({
       fetchLeaderboard,
       error,
       isStaleData,
+      staleCacheAgeSeconds,
       lastRefreshedAt,
     ]
   );

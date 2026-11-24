@@ -23,16 +23,14 @@ import {
 import {
   ArrowLeft,
   Settings,
-  ShieldCheck,
   ShieldAlert,
-  LogIn,
-  LogOut,
 } from 'lucide-react';
 import { Participant } from '@/types/contest';
 import { ESPNEvent, ESPNCompetitor } from '@/types/espn';
 import { parseCommaDelimitedGolfers, matchGolferInputToId } from '@/lib/espn/golferMatcher';
 import { resolveEventCompetitorsWithFallback } from '@/lib/espn';
 import {
+  AdminAuthGate,
   AdminEventConfigSection,
   AdminRosterSyncOperations,
   AdminParticipantRosterTable,
@@ -80,6 +78,7 @@ export default function AdminPage() {
   const [formDataMainPayoutsStr, setFormDataMainPayoutsStr] = useState('600, 320, 180, 100');
   const [formDataDayMoneyPool, setFormDataDayMoneyPool] = useState<number | ''>(75);
   const [formDataIsFinalized, setFormDataIsFinalized] = useState(false);
+  const [formDataHasCut, setFormDataHasCut] = useState(true);
 
   // Participant Form States
   const [editingParticipant, setEditingParticipant] = useState<Participant | null>(null);
@@ -170,6 +169,7 @@ export default function AdminPage() {
         selectedContestConfig.mainPayouts ? selectedContestConfig.mainPayouts.join(', ') : '600, 320, 180, 100'
       );
       setFormDataDayMoneyPool(selectedContestConfig.dayMoneyPool ?? 75);
+      setFormDataHasCut(selectedContestConfig.hasCut !== false);
     } else {
       const matchedEvent = events.find((e) => e.id === selectedEventId);
       setFormDataName(matchedEvent?.name || '');
@@ -178,6 +178,7 @@ export default function AdminPage() {
       setFormDataMainPayoutsStr('600, 320, 180, 100');
       setFormDataDayMoneyPool(75);
       setFormDataIsFinalized(false);
+      setFormDataHasCut(true);
     }
   }, [selectedContestConfig, selectedEventId, events]);
 
@@ -220,6 +221,7 @@ export default function AdminPage() {
           mainPayouts: parsedPayouts.length > 0 ? parsedPayouts : [600, 320, 180, 100],
           dayMoneyPool: formDataDayMoneyPool === '' ? 75 : Number(formDataDayMoneyPool),
           coursePar: formDataCoursePar === '' ? null : Number(formDataCoursePar),
+          hasCut: formDataHasCut,
           isFinalized: formDataIsFinalized,
           season: new Date().getFullYear(),
         },
@@ -670,102 +672,16 @@ export default function AdminPage() {
     }
   };
 
-  // Loading Check
-  if (authLoading || appConfigLoading) {
-    return (
-      <div className="min-h-screen bg-surface flex items-center justify-center">
-        <div className="w-10 h-10 border-4 border-outline-variant border-t-tertiary rounded-full animate-spin" />
-      </div>
-    );
-  }
-
-  // 1. Unauthenticated Visitor -> Render Admin Sign-In Portal
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-surface text-on-surface flex flex-col items-center justify-center p-4">
-        <div className="w-full max-w-md bg-surface-container-lowest border border-outline-variant rounded-2xl p-8 shadow-xl text-center space-y-6">
-          <div className="mx-auto w-16 h-16 rounded-2xl bg-tertiary/10 text-tertiary flex items-center justify-center border border-tertiary/30">
-            <ShieldCheck className="w-8 h-8 text-tertiary" />
-          </div>
-
-          <div className="space-y-2">
-            <h1 className="text-2xl font-black tracking-tight text-on-surface">Admin Access Portal</h1>
-            <p className="text-sm text-on-surface-variant leading-relaxed">
-              Sign in with your authorized admin Google account to manage tournament configurations, participant rosters, and payout settings.
-            </p>
-          </div>
-
-          <div className="space-y-3 pt-2">
-            <button
-              onClick={() => signInWithGoogle()}
-              className="w-full flex items-center justify-center gap-3 px-5 py-3 rounded-xl bg-tertiary hover:bg-tertiary/90 text-on-tertiary font-bold text-sm shadow-md transition cursor-pointer"
-            >
-              <LogIn className="w-5 h-5 text-white" /> Sign In with Google
-            </button>
-
-            {process.env.NODE_ENV === 'development' && (
-              <button
-                onClick={() => signInWithGoogle()}
-                className="w-full text-xs font-semibold py-2 px-3 rounded-lg bg-surface-container-high hover:bg-surface-container-highest text-on-surface-variant border border-outline-variant transition cursor-pointer"
-              >
-                ⚡ Dev Quick Login (aicodevibes@gmail.com)
-              </button>
-            )}
-          </div>
-
-          <div className="border-t border-outline-variant/60 pt-4">
-            <Link
-              href="/"
-              className="inline-flex items-center gap-1.5 text-xs font-semibold text-on-surface-variant hover:text-on-surface transition"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" /> Return to Tournament Dashboard
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // 2. Logged In Non-Admin User -> Render Access Denied Card
-  if (!isAdmin) {
-    return (
-      <div className="min-h-screen bg-surface text-on-surface flex flex-col items-center justify-center p-4">
-        <div className="w-full max-w-md bg-surface-container-lowest border border-outline-variant rounded-2xl p-8 shadow-xl text-center space-y-6">
-          <div className="mx-auto w-16 h-16 rounded-2xl bg-error/10 text-error flex items-center justify-center border border-error/30">
-            <ShieldAlert className="w-8 h-8 text-error" />
-          </div>
-
-          <div className="space-y-2">
-            <h1 className="text-2xl font-black tracking-tight text-on-surface">Access Denied</h1>
-            <p className="text-sm text-on-surface-variant leading-relaxed">
-              Signed in as <span className="font-semibold text-on-surface">{user.email}</span>. This Google account does not have admin privileges.
-            </p>
-          </div>
-
-          <div className="space-y-3 pt-2">
-            <button
-              onClick={() => signOut()}
-              className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl bg-surface-container-high hover:bg-surface-container-highest text-on-surface font-bold text-sm border border-outline-variant transition cursor-pointer"
-            >
-              <LogOut className="w-4 h-4 text-on-surface" /> Sign Out & Switch Account
-            </button>
-          </div>
-
-          <div className="border-t border-outline-variant/60 pt-4">
-            <Link
-              href="/"
-              className="inline-flex items-center gap-1.5 text-xs font-semibold text-on-surface-variant hover:text-on-surface transition"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" /> Return to Tournament Dashboard
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-surface text-on-surface flex flex-col font-sans">
+    <AdminAuthGate
+      loading={authLoading || appConfigLoading}
+      user={user}
+      isAdmin={isAdmin}
+      onSignIn={signInWithGoogle}
+      onSignOut={signOut}
+      showDevQuickLogin={true}
+    >
+      <div className="min-h-screen bg-surface text-on-surface flex flex-col font-sans">
       {/* Top Header */}
       <header className="bg-surface-container-low border-b border-outline-variant py-4 px-6 flex justify-between items-center shadow-xs">
         <div className="flex items-center gap-3">
@@ -782,7 +698,7 @@ export default function AdminPage() {
         </div>
         <div className="flex items-center gap-3 text-xs font-medium bg-surface-container-high px-3 py-1.5 rounded-lg border border-outline-variant">
           <span className="w-2 h-2 rounded-full bg-emerald-500" />
-          <span>Logged in as: {user.email}</span>
+          <span>Logged in as: {user?.email}</span>
         </div>
       </header>
 
@@ -814,6 +730,7 @@ export default function AdminPage() {
             formDataDayMoneyPool={formDataDayMoneyPool}
             formDataMainPayoutsStr={formDataMainPayoutsStr}
             formDataIsFinalized={formDataIsFinalized}
+            formDataHasCut={formDataHasCut}
             onSelectEvent={(id) => setSelectedEventId(id)}
             onChangeName={(name) => setFormDataName(name)}
             onChangeCoursePar={(par) => setFormDataCoursePar(par)}
@@ -821,6 +738,7 @@ export default function AdminPage() {
             onChangeDayMoneyPool={(pool) => setFormDataDayMoneyPool(pool)}
             onChangeMainPayoutsStr={(payouts) => setFormDataMainPayoutsStr(payouts)}
             onChangeIsFinalized={(fin) => setFormDataIsFinalized(fin)}
+            onChangeHasCut={(hasCut) => setFormDataHasCut(hasCut)}
             onSaveConfig={handleSaveConfig}
             onSetActive={handleSetActive}
             onDeleteEvent={handleDeleteEvent}
@@ -946,5 +864,6 @@ export default function AdminPage() {
         onCopyRoster={handleCopyRosterFromEvent}
       />
     </div>
+    </AdminAuthGate>
   );
 }

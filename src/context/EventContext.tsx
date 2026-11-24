@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, ReactNode, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, ReactNode, useMemo, useCallback, useEffect } from 'react';
 import { TournamentProvider, useTournament } from './TournamentContext';
 import { ContestProvider, useContest } from './ContestContext';
 import { LiveSyncProvider, useLiveSync, LIVE_POLL_INTERVAL_MS, RELAXED_POLL_INTERVAL_MS } from './LiveSyncContext';
@@ -31,9 +31,11 @@ export interface EventContextState {
   fieldEvaluation: FieldLeaderboardEvaluation;
   contestEvaluation: ContestEvaluationResult;
   isStaleData: boolean;
+  staleCacheAgeSeconds: number | null;
   loading: boolean;
   isRefreshing: boolean;
   lastRefreshedAt: Date | null;
+  manualRefreshNonce: number;
   error: Error | null;
   refreshLeaderboard: (options?: { force?: boolean }) => Promise<void>;
 }
@@ -59,6 +61,7 @@ function EventContextBridge({ children }: { children: ReactNode }) {
     contestConfig: contestState.contestConfig,
     eventStatus: tournamentState.activeEvent?.status,
     playerDirectoryMap: contestState.firestorePlayerMap,
+    eventCourses: tournamentState.activeEvent?.courses,
   });
 
   const contextValue: EventContextState = useMemo(
@@ -79,9 +82,11 @@ function EventContextBridge({ children }: { children: ReactNode }) {
       fieldEvaluation,
       contestEvaluation,
       isStaleData: liveSyncState.isStaleData,
+      staleCacheAgeSeconds: liveSyncState.staleCacheAgeSeconds,
       loading: tournamentState.loading,
       isRefreshing: liveSyncState.isRefreshing,
       lastRefreshedAt: liveSyncState.lastRefreshedAt,
+      manualRefreshNonce: liveSyncState.manualRefreshNonce,
       error: liveSyncState.error || tournamentState.error,
       refreshLeaderboard: liveSyncState.refreshLeaderboard,
     }),
@@ -105,6 +110,15 @@ interface EventContextProviderInnerProps {
 function EventContextProviderInner({ children }: { children: ReactNode }) {
   const tournamentState = useTournament();
   const contestState = useContest();
+  const { setHasCut, setCoursePar } = tournamentState;
+
+  useEffect(() => {
+    setHasCut(contestState.contestConfig?.hasCut !== false);
+  }, [contestState.contestConfig?.hasCut, setHasCut]);
+
+  useEffect(() => {
+    setCoursePar(contestState.contestConfig?.coursePar ?? null);
+  }, [contestState.contestConfig?.coursePar, setCoursePar]);
 
   // Keep tournament active config ID synchronized when contest config loads
   const handleActiveEventIdResolved = useCallback(
@@ -119,6 +133,7 @@ function EventContextProviderInner({ children }: { children: ReactNode }) {
       activeEventId={tournamentState.selectedEventId}
       isLive={tournamentState.tournament.statusState === 'in'}
       isStaleData={tournamentState.isStaleData}
+      staleCacheAgeSeconds={tournamentState.staleCacheAgeSeconds}
       lastRefreshedAt={tournamentState.lastRefreshedAt}
       error={tournamentState.error}
       onFetchLeaderboard={tournamentState.fetchLeaderboard}

@@ -1,7 +1,7 @@
 # ESPN Caching, SWR Revalidation, and Adaptive Polling Strategy
 
 ## Status
-Accepted
+Superseded by ADR-0005
 
 ## Context
 When users first opened the web app or stayed on the dashboard, live golf score updates suffered from a combination of long server-side stale-while-revalidate windows (60s), a 5-minute background polling interval mismatch (despite comments referencing 45s), and sequential cold-start state initialization waterfalls. Users experienced stale data or delays up to a minute when loading the app.

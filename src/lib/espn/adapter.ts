@@ -2,6 +2,7 @@ import {
   ESPNEvent,
   ESPNCompetitor,
   ESPNCompetitorScore,
+  ESPNCourse,
   ESPNEventStatus,
 } from '@/types/espn';
 import {
@@ -15,6 +16,8 @@ import {
   getGolferCumulativeScoreToPar,
   getPlayerStatusInfo,
   getWinnerStatus,
+  isEventFinal,
+  isTournamentPlayoff,
   PlayerStatusInfo,
   WinnerStatusInfo,
   DEFAULT_PLAYER_DIRECTORY_MAP,
@@ -116,9 +119,17 @@ export interface NormalizedPlayerSummary {
   rounds: NormalizedRoundLinescore[];
 }
 
+export interface NormalizeCompetitorOptions {
+  coursePar?: number | null;
+  eventCourses?: ESPNCourse[] | null;
+  hasCut?: boolean;
+}
+
 export interface NormalizeTournamentOptions {
   activeEventId?: string | null;
   playerDirectoryMap?: Record<string, { id: string; name: string; headshotUrl?: string; countryFlagUrl?: string }>;
+  coursePar?: number | null;
+  hasCut?: boolean;
 }
 
 /**
@@ -169,13 +180,17 @@ export function normalizeCompetitor(
   comp: ESPNCompetitor,
   eventStatus?: ESPNEventStatus,
   allCompetitors: ESPNCompetitor[] = [],
-  playerDirectoryMap: Record<string, { id: string; name: string; headshotUrl?: string; countryFlagUrl?: string }> = DEFAULT_PLAYER_DIRECTORY_MAP
+  playerDirectoryMap: Record<string, { id: string; name: string; headshotUrl?: string; countryFlagUrl?: string }> = DEFAULT_PLAYER_DIRECTORY_MAP,
+  optionsOrHasCut?: NormalizeCompetitorOptions | boolean
 ): NormalizedCompetitor {
+  const options = typeof optionsOrHasCut === 'object' ? optionsOrHasCut : undefined;
+  const hasCut = typeof optionsOrHasCut === 'boolean' ? optionsOrHasCut : (options?.hasCut ?? true);
+
   const athleteId = comp.athlete?.id || comp.id || '';
   const dirPlayer = playerDirectoryMap[athleteId];
 
   // Derive player status info (CUT, WD, DQ, etc.)
-  const playerStatus = getPlayerStatusInfo(comp, eventStatus);
+  const playerStatus = getPlayerStatusInfo(comp, eventStatus, hasCut);
 
   // Derive winner / playoff status if tournament is completed
   const winnerStatus = getWinnerStatus(comp, eventStatus, allCompetitors);
@@ -200,8 +215,11 @@ export function normalizeCompetitor(
     statusBadge,
   };
 
-  // Pre-compute score and score meta
-  const scoreMeta = getGolferCumulativeScoreToPar(comp, eventStatus);
+  // Pre-compute score and score meta respecting course par precedence and cut config
+  const scoreMeta = getGolferCumulativeScoreToPar(comp, eventStatus, options?.coursePar, {
+    eventCourses: options?.eventCourses,
+    hasCut,
+  });
   const scoreDisplay = scoreMeta.formattedScore;
   let scoreToPar: number | null = null;
   if (scoreDisplay === 'E' || scoreDisplay === 'EVEN') {
@@ -212,7 +230,7 @@ export function normalizeCompetitor(
   }
 
   // Pre-compute thru display
-  const thruDisplay = formatThruDisplay(comp, eventStatus);
+  const thruDisplay = formatThruDisplay(comp, eventStatus, hasCut);
 
   // Resolve headshot fallback chain
   const rawHeadshot = comp.athlete?.headshot?.href;
@@ -289,18 +307,10 @@ export function normalizeTournamentSnapshot(
   const statusState = eventStatus.type?.state || 'pre';
   const statusDetail = eventStatus.type?.detail || eventStatus.type?.description || 'Scheduled';
   const period = eventStatus.period || 0;
-  const isCompleted = eventStatus.type?.completed === true || statusState === 'post' || statusDetail.toLowerCase().includes('final');
+  const isCompleted = isEventFinal(eventStatus);
 
-  // Check playoff flag
-  const isPlayoff = Boolean(
-    statusDetail.toLowerCase().includes('playoff') ||
-      statusDetail.toLowerCase().includes('extra') ||
-      (rawComps.length >= 2 &&
-        rawComps[0]?.score === rawComps[1]?.score &&
-        rawComps[0]?.score !== undefined &&
-        (rawComps[1]?.status?.position?.displayName?.includes('P') ||
-          rawComps[1]?.status?.position?.displayName?.includes('T')))
-  );
+  // Check playoff flag (strictly gated on completed/final event status)
+  const isPlayoff = isCompleted && isTournamentPlayoff(eventStatus, rawComps);
 
   const datesFormatted = formatEventDates(activeEvent?.date, activeEvent?.endDate);
   const dirMap = options.playerDirectoryMap || DEFAULT_PLAYER_DIRECTORY_MAP;
@@ -326,9 +336,19 @@ export function normalizeTournamentSnapshot(
     } as ESPNCompetitor));
   }
 
+  const eventCourses: ESPNCourse[] | null =
+    detailedEvent?.courses || activeEvent?.courses || null;
+  const adminCoursePar =
+    typeof options.coursePar === 'number' && options.coursePar > 50 ? options.coursePar : null;
+
   // Normalize all competitors
+  const hasCut = options.hasCut !== false;
   const normalizedCompetitors: NormalizedCompetitor[] = compsToNormalize.map((c) =>
-    normalizeCompetitor(c, eventStatus, compsToNormalize, dirMap)
+    normalizeCompetitor(c, eventStatus, compsToNormalize, dirMap, {
+      coursePar: adminCoursePar,
+      eventCourses,
+      hasCut,
+    })
   );
 
   // Build pre-indexed O(1) competitor map
@@ -427,6 +447,41 @@ export function getGolferCardViewModel(
   };
 }
 
+interface RawSummaryHoleLinescore {
+  period?: number;
+  value?: number;
+  par?: number;
+  scoreType?: {
+    displayValue?: string | number;
+  };
+}
+
+interface RawSummaryRound {
+  period?: number;
+  value?: number;
+  displayValue?: string;
+  courseHoles?: Array<number | undefined>;
+  linescores?: RawSummaryHoleLinescore[];
+}
+
+/**
+ * Strictly parses a hole scoreType.displayValue into a numeric score-to-par diff.
+ * Accepts "/^[+-]?\d+$/" or "E"/"EVEN" -> 0; returns null for non-numeric labels (e.g. "Par", "Double Bogey", "-").
+ */
+function parseStrictHoleDiff(rawDisplayValue: unknown): number | null {
+  if (typeof rawDisplayValue === 'number' && Number.isFinite(rawDisplayValue)) {
+    return Math.trunc(rawDisplayValue);
+  }
+  if (typeof rawDisplayValue !== 'string') return null;
+  const trimmed = rawDisplayValue.trim().toUpperCase();
+  if (trimmed === 'E' || trimmed === 'EVEN') return 0;
+  if (/^[+-]?\d+$/.test(trimmed)) {
+    const parsed = parseInt(trimmed, 10);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
 /**
  * Deep Module Seam: Normalizes raw ESPN hole-by-hole linescores into structured 18-hole scorecard view models.
  */
@@ -496,41 +551,52 @@ export function normalizePlayerSummary(
     countryFlagUrl,
   };
 
-  // Known hole pars map across rounds
+  // Known hole pars map across rounds (authoritative courseHoles take strict precedence)
   const knownHoleParsMap = new Map<number, number>();
-  const courseHolesList: number[] = rawSummary?.courseHoles || eventCourseHoles || [];
+  const rawCourseHoles =
+    Array.isArray(rawSummary?.courseHoles) && rawSummary.courseHoles.length > 0
+      ? rawSummary.courseHoles
+      : undefined;
+  const courseHolesList: number[] = rawCourseHoles || eventCourseHoles || [];
   courseHolesList.forEach((parVal, hIdx) => {
     if (typeof parVal === 'number' && parVal > 0 && hIdx < 18) {
       knownHoleParsMap.set(hIdx + 1, parVal);
     }
   });
 
-  // Pass 1: Extract pars from all available linescores
-  rawRounds.forEach((rd: any) => {
-    (rd.linescores || []).forEach((h: any, hIdx: number) => {
+  // Pass 1a: Collect explicit h.par for holes without an authoritative courseHoles entry
+  rawRounds.forEach((rd: RawSummaryRound) => {
+    (rd.linescores || []).forEach((h: RawSummaryHoleLinescore, hIdx: number) => {
       const holeNum = h.period || hIdx + 1;
-      const strokes = h.value || 0;
-      const diffStr = h.scoreType?.displayValue || '0';
-      const diff = parseInt(diffStr, 10) || 0;
-
-      let extractedPar: number | undefined;
+      if (holeNum < 1 || holeNum > 18 || knownHoleParsMap.has(holeNum)) return;
       if (typeof h.par === 'number' && h.par > 0) {
-        extractedPar = h.par;
-      } else if (strokes > 0 && diff !== undefined && !isNaN(diff)) {
-        const derived = strokes - diff;
-        if (derived > 0) extractedPar = derived;
+        knownHoleParsMap.set(holeNum, h.par);
       }
+    });
+  });
 
-      if (extractedPar && holeNum >= 1 && holeNum <= 18) {
-        knownHoleParsMap.set(holeNum, extractedPar);
+  // Pass 1b: Infer par from strokes + strict numeric scoreType.displayValue only for still-unknown holes
+  rawRounds.forEach((rd: RawSummaryRound) => {
+    (rd.linescores || []).forEach((h: RawSummaryHoleLinescore, hIdx: number) => {
+      const holeNum = h.period || hIdx + 1;
+      if (holeNum < 1 || holeNum > 18 || knownHoleParsMap.has(holeNum)) return;
+      const strokes = h.value || 0;
+      const diff = parseStrictHoleDiff(h.scoreType?.displayValue);
+      if (strokes > 0 && diff !== null) {
+        const derived = strokes - diff;
+        if (derived > 0) {
+          knownHoleParsMap.set(holeNum, derived);
+        }
       }
     });
   });
 
   // Pass 2: Format each round
-  const rounds: NormalizedRoundLinescore[] = rawRounds.map((rd: any, idx: number) => {
+  const rounds: NormalizedRoundLinescore[] = rawRounds.map((rd: RawSummaryRound, idx: number) => {
     const roundPeriod = rd.period || idx + 1;
     const roundDisplayValue = rd.value !== undefined && rd.value !== 0 ? `${rd.value}` : rd.displayValue || '-';
+    const roundCourseHoles =
+      Array.isArray(rd.courseHoles) && rd.courseHoles.length > 0 ? rd.courseHoles : undefined;
 
     let frontPar = 0;
     let frontStrokes = 0;
@@ -539,8 +605,8 @@ export function normalizePlayerSummary(
     let playedHolesCount = 0;
     let playedDiffSum = 0;
 
-    const rawHolesMap = new Map<number, any>();
-    (rd.linescores || []).forEach((h: any, hIdx: number) => {
+    const rawHolesMap = new Map<number, RawSummaryHoleLinescore>();
+    (rd.linescores || []).forEach((h: RawSummaryHoleLinescore, hIdx: number) => {
       const holeNum = h.period || hIdx + 1;
       rawHolesMap.set(holeNum, h);
     });
@@ -551,9 +617,16 @@ export function normalizePlayerSummary(
       const strokes = rawHole?.value || 0;
       const isPlayed = strokes > 0;
 
-      let par = knownHoleParsMap.get(holeNum) || 4;
-      if (typeof rawHole?.par === 'number' && rawHole.par > 0) {
+      const roundCoursePar = roundCourseHoles?.[i];
+      let par: number;
+      if (typeof roundCoursePar === 'number' && roundCoursePar > 0) {
+        par = roundCoursePar;
+      } else if (knownHoleParsMap.has(holeNum)) {
+        par = knownHoleParsMap.get(holeNum)!;
+      } else if (typeof rawHole?.par === 'number' && rawHole.par > 0) {
         par = rawHole.par;
+      } else {
+        par = 4;
       }
 
       let diff: number | null = null;

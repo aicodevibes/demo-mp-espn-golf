@@ -1,3 +1,4 @@
+export * from './AdminAuthGate';
 export * from './AdminEventConfigSection';
 export * from './AdminRosterSyncOperations';
 export * from './AdminParticipantRosterTable';

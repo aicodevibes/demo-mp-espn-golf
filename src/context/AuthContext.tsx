@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { User, onAuthStateChanged, signInWithPopup, signOut as firebaseSignOut } from 'firebase/auth';
 import { auth, googleProvider } from '@/lib/firebase/config';
 
@@ -35,14 +35,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => unsubscribe();
   }, []);
 
-  const signInWithGoogle = async () => {
+  const signInWithGoogle = useCallback(async () => {
     try {
       await signInWithPopup(auth, googleProvider);
     } catch (error) {
       console.error('Failed to sign in with Google:', error);
-      // Local dev fallback: if Firebase popup fails due to unconfigured Firebase Console API keys,
-      // log in as local dev admin so all admin controls can be tested immediately!
-      if (process.env.NODE_ENV === 'development') {
+      // Local dev fallback: strictly opt-in via NEXT_PUBLIC_ENABLE_DEV_MOCK_AUTH=true in development.
+      if (
+        process.env.NODE_ENV === 'development' &&
+        process.env.NEXT_PUBLIC_ENABLE_DEV_MOCK_AUTH === 'true'
+      ) {
         console.warn('Firebase Auth popup failed or unconfigured. Falling back to Local Dev Admin session for aicodevibes@gmail.com');
         setUser({
           uid: 'dev-admin-uid',
@@ -53,21 +55,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } as User);
       }
     }
-  };
+  }, []);
 
-
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     try {
       await firebaseSignOut(auth);
     } catch (error) {
       console.error('Failed to sign out:', error);
     }
-  };
+  }, []);
 
-  const isAdmin = Boolean(user && user.email && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase());
+  const isAdmin = Boolean(
+    user && user.emailVerified && user.email && user.email.toLowerCase() === ADMIN_EMAIL.toLowerCase()
+  );
+
+  const value = useMemo(
+    () => ({ user, loading, isAdmin, signInWithGoogle, signOut }),
+    [user, loading, isAdmin, signInWithGoogle, signOut]
+  );
 
   return (
-    <AuthContext.Provider value={{ user, loading, isAdmin, signInWithGoogle, signOut }}>
+    <AuthContext.Provider value={value}>
       {children}
     </AuthContext.Provider>
   );

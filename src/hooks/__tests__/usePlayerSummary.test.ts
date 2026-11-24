@@ -1,8 +1,16 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { renderHook, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { usePlayerSummary, clearPlayerSummaryCache } from '../usePlayerSummary';
+import { renderHook, waitFor, act } from '@testing-library/react';
+import {
+  usePlayerSummary,
+  clearPlayerSummaryCache,
+  prefetchPlayerSummary,
+  prefetchPlayerSummaries,
+  buildPlayerSummaryCacheKey,
+  getCachedPlayerSummary,
+  resolveEventSeason,
+} from '../usePlayerSummary';
 import { ESPNCompetitor } from '@/types/espn';
 
 const mockCompetitor: ESPNCompetitor = {
@@ -375,6 +383,262 @@ describe('usePlayerSummary Hook', () => {
         expect.anything()
       );
     });
+  });
+
+  it('consumes each forceRefreshKey nonce at most once so golfer switches and re-clicks hit client/CDN caches without &force=true', async () => {
+    const compA: ESPNCompetitor = {
+      id: '111',
+      score: '-2',
+      athlete: { id: '111', displayName: 'Golfer A' },
+      status: { period: 1, thru: 9, type: { state: 'in' } },
+    } as ESPNCompetitor;
+
+    const compB: ESPNCompetitor = {
+      id: '222',
+      score: '-4',
+      athlete: { id: '222', displayName: 'Golfer B' },
+      status: { period: 1, thru: 9, type: { state: 'in' } },
+    } as ESPNCompetitor;
+
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      const id = url.includes('playerId=111') ? '111' : '222';
+      const name = id === '111' ? 'Golfer A' : 'Golfer B';
+      return Promise.resolve({
+        ok: true,
+        json: async () => ({
+          profile: { id, displayName: name },
+          rounds: [{ period: 1, displayValue: '68', linescores: [] }],
+        }),
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { result, rerender } = renderHook(
+      ({ comp, nonce }: { comp: ESPNCompetitor; nonce: number }) =>
+        usePlayerSummary({
+          eventId: '401234',
+          competitor: comp,
+          forceRefreshKey: nonce || undefined,
+        }),
+      { initialProps: { comp: compA, nonce: 0 } }
+    );
+
+    await waitFor(() => {
+      expect(result.current.isFetching).toBe(false);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(String(fetchMock.mock.calls[0][0])).not.toContain('&force=true');
+
+    // Manual forced refresh increments nonce -> 1: Golfer A fetches ONCE with &force=true
+    fetchMock.mockClear();
+    rerender({ comp: compA, nonce: 1 });
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+    expect(String(fetchMock.mock.calls[0][0])).toContain('&force=true');
+    await waitFor(() => {
+      expect(result.current.isFetching).toBe(false);
+    });
+
+    // Switch to Golfer B while nonce stays 1 -> must NOT send &force=true
+    fetchMock.mockClear();
+    rerender({ comp: compB, nonce: 1 });
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+    expect(String(fetchMock.mock.calls[0][0])).toContain('playerId=222');
+    expect(String(fetchMock.mock.calls[0][0])).not.toContain('&force=true');
+    await waitFor(() => {
+      expect(result.current.isFetching).toBe(false);
+    });
+
+    // Switch back to Golfer A while nonce stays 1 -> hits client cache (0 fetches)
+    fetchMock.mockClear();
+    rerender({ comp: compA, nonce: 1 });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(result.current.isFetching).toBe(false);
+
+    // Switch back to Golfer B while nonce stays 1 -> hits client cache (0 fetches)
+    rerender({ comp: compB, nonce: 1 });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(result.current.isFetching).toBe(false);
+
+    // New forced refresh (nonce -> 2) -> fetches Golfer B WITH &force=true
+    rerender({ comp: compB, nonce: 2 });
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+    expect(String(fetchMock.mock.calls[0][0])).toContain('playerId=222');
+    expect(String(fetchMock.mock.calls[0][0])).toContain('&force=true');
+  });
+
+  it('resolves historical season from event.season.year or event.date and falls back to current year', () => {
+    const currentYear = new Date().getFullYear();
+
+    expect(resolveEventSeason({ season: { year: 2024 }, date: '2025-01-01T00:00:00Z' })).toBe(2024);
+    expect(resolveEventSeason({ date: '2023-04-06T12:00:00Z' })).toBe(2023);
+    expect(resolveEventSeason({ date: '2024-01-01T02:00:00Z' })).toBe(2024);
+    expect(resolveEventSeason({ date: 'not-a-date' })).toBe(currentYear);
+    expect(resolveEventSeason(null)).toBe(currentYear);
+    expect(resolveEventSeason(undefined)).toBe(currentYear);
+  });
+
+  it('propagates historical season into usePlayerSummary, prefetchPlayerSummaries, and isolates cache keys by season', async () => {
+    const fetchMock = vi.fn().mockImplementation(() =>
+      Promise.resolve({
+        ok: true,
+        json: async () => ({
+          profile: { id: '12345', displayName: 'Tiger Woods' },
+          rounds: [{ period: 1, displayValue: '70', linescores: [] }],
+        }),
+      })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { result } = renderHook(() =>
+      usePlayerSummary({ eventId: '401580340', competitor: mockCompetitor, season: 2024 })
+    );
+
+    await waitFor(() => {
+      expect(result.current.isFetching).toBe(false);
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/espn/playersummary?eventId=401580340&playerId=12345&season=2024',
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    );
+
+    const key2024 = buildPlayerSummaryCacheKey('401580340', '12345', 2024);
+    const key2026 = buildPlayerSummaryCacheKey('401580340', '12345', 2026);
+    expect(key2024).not.toBe(key2026);
+    expect(getCachedPlayerSummary(key2024)).toBeDefined();
+    expect(getCachedPlayerSummary(key2026)).toBeUndefined();
+
+    // Prefetch with season=2023 should hit season=2023 and warm its own cache entry
+    fetchMock.mockClear();
+    const otherGolfer: ESPNCompetitor = {
+      id: '9478',
+      athlete: { id: '9478', displayName: 'Scottie Scheffler' },
+      score: '-10',
+    } as ESPNCompetitor;
+
+    await prefetchPlayerSummaries('401465508', [otherGolfer], 2023);
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/espn/playersummary?eventId=401465508&playerId=9478&season=2023'
+    );
+    expect(getCachedPlayerSummary(buildPlayerSummaryCacheKey('401465508', '9478', 2023))).toBeDefined();
+  });
+
+  it('deduplicates in-flight prefetchPlayerSummary with usePlayerSummary for the same golfer and season', async () => {
+    let resolveFetch!: (val: unknown) => void;
+    const fetchMock = vi.fn().mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveFetch = resolve;
+        })
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const prefetchPromise = prefetchPlayerSummary('401580340', mockCompetitor, 2024);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    const { result } = renderHook(() =>
+      usePlayerSummary({ eventId: '401580340', competitor: mockCompetitor, season: 2024 })
+    );
+
+    // Must reuse the in-flight prefetch instead of issuing a second fetch
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.current.isFetching).toBe(true);
+
+    await act(async () => {
+      resolveFetch({
+        ok: true,
+        json: async () => ({
+          profile: { id: '12345', displayName: 'Tiger Woods' },
+          rounds: [
+            {
+              period: 1,
+              displayValue: '69',
+              linescores: [{ period: 1, value: 3, par: 4, scoreType: { displayValue: '-1' } }],
+            },
+          ],
+        }),
+      });
+      await prefetchPromise;
+    });
+
+    await waitFor(() => {
+      expect(result.current.isFetching).toBe(false);
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(result.current.summary?.rounds[0]?.holes[0]?.strokes).toBe(3);
+  });
+
+  it('bounds prefetchPlayerSummaries to at most 3 concurrent fetches even when more than 3 competitors are passed', async () => {
+    const competitors: ESPNCompetitor[] = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6'].map(
+      (id, idx) =>
+        ({
+          id,
+          athlete: { id, displayName: `Golfer ${idx + 1}` },
+          score: '-2',
+        }) as ESPNCompetitor
+    );
+
+    let activeFetches = 0;
+    let peakConcurrency = 0;
+    const resolvers: Array<() => void> = [];
+
+    const fetchMock = vi.fn().mockImplementation((url: string) => {
+      activeFetches += 1;
+      peakConcurrency = Math.max(peakConcurrency, activeFetches);
+      const match = /playerId=([^&]+)/.exec(url);
+      const id = match?.[1] ?? 'unknown';
+
+      return new Promise((resolve) => {
+        resolvers.push(() => {
+          activeFetches -= 1;
+          resolve({
+            ok: true,
+            json: async () => ({
+              profile: { id, displayName: `Golfer ${id}` },
+              rounds: [{ period: 1, displayValue: '70', linescores: [] }],
+            }),
+          });
+        });
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    let completed = false;
+    const batchPromise = prefetchPlayerSummaries('401580340', competitors, 2024).then(() => {
+      completed = true;
+    });
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+    });
+    expect(peakConcurrency).toBe(3);
+
+    // Drain queued fetches wave by wave until all 6 finish
+    while (!completed) {
+      if (resolvers.length > 0) {
+        const batch = resolvers.splice(0, resolvers.length);
+        batch.forEach((fn) => fn());
+      }
+      await new Promise((r) => setTimeout(r, 0));
+    }
+
+    await batchPromise;
+
+    expect(fetchMock).toHaveBeenCalledTimes(6);
+    expect(peakConcurrency).toBe(3);
+    for (const comp of competitors) {
+      expect(
+        getCachedPlayerSummary(buildPlayerSummaryCacheKey('401580340', comp.id, 2024))
+      ).toBeDefined();
+    }
   });
 });
 

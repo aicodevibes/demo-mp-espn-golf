@@ -322,6 +322,232 @@ describe('EspnTournamentAdapter', () => {
       expect(wd?.thruDisplay).toBe('WD');
     });
 
+    it('normalizes DQ competitors consistently with CUT and WD', () => {
+      const dqPayload = {
+        events: [
+          {
+            id: '401580346',
+            name: 'PGA Championship',
+            status: {
+              type: { name: 'STATUS_IN_PROGRESS', state: 'in', completed: false },
+              period: 3,
+            },
+            competitions: [
+              {
+                id: '401580346',
+                competitors: [
+                  {
+                    id: '8888',
+                    order: 90,
+                    score: '+1',
+                    status: {
+                      position: { displayName: 'DQ' },
+                      type: { name: 'STATUS_DISQUALIFIED', detail: 'Disqualified' },
+                    },
+                    linescores: [
+                      { period: 1, value: 72, displayValue: 'E' },
+                      { period: 2, value: 73, displayValue: '+1' },
+                    ],
+                    athlete: { id: '8888', displayName: 'Disqualified Golfer' },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      const snapshot = normalizeTournamentSnapshot(dqPayload);
+      const dq = snapshot.competitorMap.get('8888');
+      expect(dq?.statusInfo.isDQ).toBe(true);
+      expect(dq?.statusInfo.isCut).toBe(false);
+      expect(dq?.statusInfo.isWD).toBe(false);
+      expect(dq?.statusInfo.isInactive).toBe(true);
+      expect(dq?.statusInfo.badgeLabel).toBe('DQ');
+      expect(dq?.thruDisplay).toBe('DQ');
+      expect(dq?.scoreDisplay).toBe('DQ');
+    });
+
+    it('protects unstarted Saturday-morning Round 3 leaders with 2 linescores from being falsely marked CUT', () => {
+      const saturdayMorningR3Payload = {
+        events: [
+          {
+            id: '401580344',
+            name: 'Masters Tournament',
+            status: {
+              type: {
+                name: 'STATUS_IN_PROGRESS',
+                description: 'In Progress',
+                detail: 'Round 3 - In Progress',
+                state: 'in',
+                completed: false,
+              },
+              period: 3,
+            },
+            competitions: [
+              {
+                id: '401580344',
+                competitors: [
+                  {
+                    id: '9478',
+                    order: 1,
+                    score: '-10',
+                    status: {
+                      period: 3,
+                      thru: 0,
+                      position: { displayName: '1' },
+                      type: { name: 'STATUS_SCHEDULED', state: 'pre', completed: false },
+                    },
+                    linescores: [
+                      { period: 1, value: 66, displayValue: '-6' },
+                      { period: 2, value: 68, displayValue: '-4' },
+                    ],
+                    athlete: { id: '9478', displayName: 'Scottie Scheffler' },
+                  },
+                  {
+                    id: '3470',
+                    order: 2,
+                    score: '-8',
+                    status: {
+                      period: 3,
+                      thru: 0,
+                      type: { name: 'STATUS_SCHEDULED' },
+                    },
+                    linescores: [
+                      { period: 1, value: 67, displayValue: '-5' },
+                      { period: 2, value: 69, displayValue: '-3' },
+                    ],
+                    athlete: { id: '3470', displayName: 'Rory McIlroy' },
+                  },
+                  {
+                    id: '10140',
+                    order: 10,
+                    score: '-5',
+                    status: {
+                      period: 3,
+                      thru: 3,
+                      position: { displayName: 'T10' },
+                      type: { name: 'STATUS_IN_PROGRESS', state: 'in' },
+                    },
+                    linescores: [
+                      { period: 1, value: 69, displayValue: '-3' },
+                      { period: 2, value: 70, displayValue: '-2' },
+                    ],
+                    athlete: { id: '10140', displayName: 'Xander Schauffele' },
+                  },
+                  {
+                    id: '7777',
+                    order: 75,
+                    score: '+6',
+                    status: null,
+                    linescores: [
+                      { period: 1, value: 75, displayValue: '+3' },
+                      { period: 2, value: 75, displayValue: '+3' },
+                    ],
+                    athlete: { id: '7777', displayName: 'Missed Cut Golfer' },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      const snapshot = normalizeTournamentSnapshot(saturdayMorningR3Payload);
+      const leader = snapshot.competitorMap.get('9478');
+      const unstartedNoPos = snapshot.competitorMap.get('3470');
+      const activeR3TwoLinescores = snapshot.competitorMap.get('10140');
+      const cutGolfer = snapshot.competitorMap.get('7777');
+
+      expect(leader?.statusInfo.isCut).toBe(false);
+      expect(leader?.statusInfo.isInactive).toBe(false);
+      expect(leader?.thruDisplay).toBe('F');
+
+      expect(unstartedNoPos?.statusInfo.isCut).toBe(false);
+      expect(unstartedNoPos?.statusInfo.isInactive).toBe(false);
+
+      expect(activeR3TwoLinescores?.statusInfo.isCut).toBe(false);
+      expect(activeR3TwoLinescores?.thruDisplay).toBe('3');
+
+      expect(cutGolfer?.statusInfo.isCut).toBe(true);
+      expect(cutGolfer?.statusInfo.badgeLabel).toBe('CUT');
+      expect(cutGolfer?.thruDisplay).toBe('CUT');
+    });
+
+    it('does not infer CUT from 2 linescores when hasCut is false (Signature / no-cut event)', () => {
+      const noCutEventPayload = {
+        events: [
+          {
+            id: '401580345',
+            name: 'The Sentry (No-Cut Signature Event)',
+            status: {
+              type: {
+                name: 'STATUS_FINAL',
+                description: 'Final',
+                detail: 'Final',
+                state: 'post',
+                completed: true,
+              },
+              period: 4,
+            },
+            competitions: [
+              {
+                id: '401580345',
+                competitors: [
+                  {
+                    id: '9478',
+                    order: 1,
+                    score: '-20',
+                    status: {
+                      thru: 18,
+                      position: { displayName: '1' },
+                      type: { state: 'post', completed: true },
+                    },
+                    linescores: [
+                      { period: 1, value: 66, displayValue: '-6' },
+                      { period: 2, value: 67, displayValue: '-5' },
+                      { period: 3, value: 68, displayValue: '-4' },
+                      { period: 4, value: 67, displayValue: '-5' },
+                    ],
+                    athlete: { id: '9478', displayName: 'Scottie Scheffler' },
+                  },
+                  {
+                    id: '5360550',
+                    order: 55,
+                    score: '+4',
+                    status: {
+                      period: 4,
+                      position: { displayName: 'T55' },
+                      type: { name: 'STATUS_FINAL', state: 'post', completed: true },
+                    },
+                    linescores: [
+                      { period: 1, value: 74, displayValue: '+2' },
+                      { period: 2, value: 74, displayValue: '+2' },
+                    ],
+                    athlete: { id: '5360550', displayName: 'No-Cut Two-Round Golfer' },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      const noCutSnapshot = normalizeTournamentSnapshot(noCutEventPayload, null, { hasCut: false });
+      const golferNoCut = noCutSnapshot.competitorMap.get('5360550');
+      expect(golferNoCut?.statusInfo.isCut).toBe(false);
+      expect(golferNoCut?.statusInfo.isInactive).toBe(false);
+      expect(golferNoCut?.thruDisplay).toBe('F');
+      expect(golferNoCut?.scoreDisplay).toBe('+4');
+
+      // Default (hasCut omitted -> true) still infers CUT for standard events
+      const defaultCutSnapshot = normalizeTournamentSnapshot(noCutEventPayload);
+      const golferDefault = defaultCutSnapshot.competitorMap.get('5360550');
+      expect(golferDefault?.statusInfo.isCut).toBe(true);
+      expect(golferDefault?.thruDisplay).toBe('CUT');
+      expect(golferDefault?.scoreDisplay).toBe('CUT');
+    });
+
     it('correctly normalizes a completed playoff tournament with winner badges', () => {
       const playoffFinalPayload = {
         events: [
@@ -402,6 +628,170 @@ describe('EspnTournamentAdapter', () => {
       expect(runnerUp?.statusInfo.isWinner).toBe(false);
       expect(runnerUp?.statusInfo.isPlayoff).toBe(true);
       expect(runnerUp?.statusInfo.badgeLabel).toBe('2nd (Playoff)');
+    });
+
+    it('threads ContestConfig.coursePar and event.courses shotsToPar through normalizeTournamentSnapshot and normalizeCompetitor', () => {
+      const par71EventPayload = {
+        events: [
+          {
+            id: 'us-open-2026',
+            name: 'U.S. Open',
+            courses: [{ id: '1', name: 'Oakmont Country Club', shotsToPar: 71 }],
+            status: {
+              period: 4,
+              type: { state: 'post', completed: true, detail: 'Final' },
+            },
+            competitions: [
+              {
+                id: 'comp-1',
+                competitors: [
+                  {
+                    id: '9478',
+                    order: 1,
+                    status: {
+                      period: 4,
+                      thru: 18,
+                      position: { displayName: '1' },
+                      type: { state: 'post', completed: true },
+                    },
+                    linescores: [
+                      { period: 1, value: 68 },
+                      { period: 2, value: 69 },
+                      { period: 3, value: 70 },
+                      { period: 4, value: 71 },
+                    ],
+                    athlete: { id: '9478', displayName: 'Scottie Scheffler' },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      // Without Admin coursePar, uses event.courses[0].shotsToPar (71) -> (68-71)+(69-71)+(70-71)+(71-71) = -6
+      const espnParSnapshot = normalizeTournamentSnapshot(par71EventPayload);
+      expect(espnParSnapshot.competitorMap.get('9478')?.scoreDisplay).toBe('-6');
+      expect(espnParSnapshot.competitorMap.get('9478')?.scoreToPar).toBe(-6);
+
+      // With Admin coursePar override (70), overrides event.courses[0].shotsToPar (71) -> (68-70)+(69-70)+(70-70)+(71-70) = -2
+      const adminOverrideSnapshot = normalizeTournamentSnapshot(par71EventPayload, null, {
+        coursePar: 70,
+      });
+      expect(adminOverrideSnapshot.competitorMap.get('9478')?.scoreDisplay).toBe('-2');
+      expect(adminOverrideSnapshot.competitorMap.get('9478')?.scoreToPar).toBe(-2);
+    });
+
+    it('detects playoff when top 2 have equal object score payloads and never marks Round 1 ties as playoffs', () => {
+      const objectScorePlayoffPayload = {
+        events: [
+          {
+            id: '401580347',
+            name: 'PGA Championship',
+            status: {
+              type: {
+                name: 'STATUS_FINAL',
+                description: 'Final',
+                detail: 'Final',
+                state: 'post',
+                completed: true,
+              },
+              period: 4,
+            },
+            competitions: [
+              {
+                id: '401580347',
+                competitors: [
+                  {
+                    id: '9478',
+                    order: 1,
+                    score: { displayValue: '-12', value: 276 },
+                    status: {
+                      thru: 18,
+                      position: { displayName: '1' },
+                      type: { state: 'post', completed: true },
+                    },
+                    athlete: { id: '9478', displayName: 'Scottie Scheffler' },
+                  },
+                  {
+                    id: '3470',
+                    order: 2,
+                    score: { displayValue: '-12', value: 276 },
+                    status: {
+                      thru: 18,
+                      position: { displayName: 'P2' },
+                      type: { state: 'post', completed: true },
+                    },
+                    athlete: { id: '3470', displayName: 'Rory McIlroy' },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      const completedSnapshot = normalizeTournamentSnapshot(objectScorePlayoffPayload);
+      expect(completedSnapshot.isCompleted).toBe(true);
+      expect(completedSnapshot.isPlayoff).toBe(true);
+      expect(completedSnapshot.competitorMap.get('9478')?.statusInfo.isPlayoff).toBe(true);
+      expect(completedSnapshot.competitorMap.get('9478')?.statusInfo.badgeLabel).toBe('🏆 Champion (Playoff)');
+      expect(completedSnapshot.competitorMap.get('3470')?.statusInfo.isPlayoff).toBe(true);
+      expect(completedSnapshot.competitorMap.get('3470')?.statusInfo.badgeLabel).toBe('2nd (Playoff)');
+
+      const round1TiePayload = {
+        events: [
+          {
+            id: '401580348',
+            name: 'Masters Tournament',
+            status: {
+              type: {
+                name: 'STATUS_IN_PROGRESS',
+                description: 'In Progress',
+                detail: 'Round 1 - In Progress',
+                state: 'in',
+                completed: false,
+              },
+              period: 1,
+            },
+            competitions: [
+              {
+                id: '401580348',
+                competitors: [
+                  {
+                    id: '9478',
+                    order: 1,
+                    score: { displayValue: '-5', value: -5 },
+                    status: {
+                      thru: 18,
+                      position: { displayName: 'T1' },
+                      type: { state: 'post', completed: true },
+                    },
+                    athlete: { id: '9478', displayName: 'Scottie Scheffler' },
+                  },
+                  {
+                    id: '3470',
+                    order: 2,
+                    score: { displayValue: '-5', value: -5 },
+                    status: {
+                      thru: 18,
+                      position: { displayName: 'T1' },
+                      type: { state: 'post', completed: true },
+                    },
+                    athlete: { id: '3470', displayName: 'Rory McIlroy' },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      };
+
+      const round1Snapshot = normalizeTournamentSnapshot(round1TiePayload);
+      expect(round1Snapshot.isCompleted).toBe(false);
+      expect(round1Snapshot.isPlayoff).toBe(false);
+      expect(round1Snapshot.competitorMap.get('9478')?.statusInfo.isPlayoff).toBe(false);
+      expect(round1Snapshot.competitorMap.get('9478')?.statusInfo.isWinner).toBe(false);
     });
   });
 
@@ -515,6 +905,69 @@ describe('EspnTournamentAdapter', () => {
       expect(r1.holes[2].scoreType).toBe('eagle');
       expect(r1.holes[3].scoreType).toBe('bogey');
       expect(r1.holes[4].scoreType).toBe('double');
+    });
+
+    it('preserves authoritative courseHoles pars and ignores non-numeric scoreType.displayValue strings', () => {
+      // Par 70 layout: holes 1-3 are [4, 4, 3]
+      const par70CourseHoles = [4, 4, 3, 4, 5, 4, 3, 4, 4, 4, 4, 3, 4, 4, 5, 3, 4, 4];
+
+      // Case A: Authoritative courseHoles present; hole linescores have non-numeric scoreType labels
+      const summaryWithLabels = {
+        profile: { id: '9478', displayName: 'Scottie Scheffler' },
+        courseHoles: par70CourseHoles,
+        rounds: [
+          {
+            period: 1,
+            value: 72,
+            linescores: [
+              { period: 1, value: 6, scoreType: { displayValue: 'Double Bogey' } },
+              { period: 2, value: 5, scoreType: { displayValue: 'Bogey' } },
+              { period: 3, value: 3, scoreType: { displayValue: 'Par' } },
+              { period: 4, value: 4, scoreType: { displayValue: '-' } },
+            ],
+          },
+        ],
+      };
+
+      const preserved = EspnTournamentAdapter.normalizePlayerSummary(summaryWithLabels);
+      const r1 = preserved.rounds[0];
+      expect(r1.holes[0].par).toBe(4);
+      expect(r1.holes[0].scoreType).toBe('double'); // 6 on par 4 = +2 (not par 6!)
+      expect(r1.holes[1].par).toBe(4);
+      expect(r1.holes[1].scoreType).toBe('bogey');  // 5 on par 4 = +1 (not par 5!)
+      expect(r1.holes[2].par).toBe(3);
+      expect(r1.holes[2].scoreType).toBe('par');
+      expect(r1.holes[3].par).toBe(4);
+      expect(r1.totalPar).toBe(70);
+
+      // Case B: No courseHoles; non-numeric scoreType.displayValue in R1 must not poison unknown hole par as 0 diff
+      const summaryWithoutCourseHoles = {
+        profile: { id: '3470', displayName: 'Rory McIlroy' },
+        rounds: [
+          {
+            period: 1,
+            linescores: [
+              { period: 1, value: 6, scoreType: { displayValue: 'Double Bogey' } },
+              { period: 2, value: 5, scoreType: { displayValue: 'Bogey' } },
+              { period: 3, value: 3, scoreType: { displayValue: 'E' } },
+              { period: 4, value: 4, scoreType: { displayValue: '-1' } },
+            ],
+          },
+          {
+            period: 2,
+            linescores: [
+              // R2 provides explicit par for hole 2 after R1 had 'Bogey'
+              { period: 2, value: 4, par: 4, scoreType: { displayValue: '0' } },
+            ],
+          },
+        ],
+      };
+
+      const inferred = EspnTournamentAdapter.normalizePlayerSummary(summaryWithoutCourseHoles);
+      expect(inferred.rounds[0].holes[0].par).toBe(4); // defaults to 4 rather than 6-0=6
+      expect(inferred.rounds[0].holes[1].par).toBe(4); // learned from R2 explicit par:4, not 5-0=5
+      expect(inferred.rounds[0].holes[2].par).toBe(3); // 3 - 0 ('E') = 3
+      expect(inferred.rounds[0].holes[3].par).toBe(5); // 4 - (-1) = 5
     });
   });
 

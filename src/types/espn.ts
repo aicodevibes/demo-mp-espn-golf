@@ -31,6 +31,20 @@ export interface ESPNEventStatus {
   };
 }
 
+export interface ESPNCourseHole {
+  number?: number;
+  shotsToPar?: number;
+}
+
+export interface ESPNCourse {
+  id: string | number;
+  name?: string;
+  city?: string;
+  state?: string;
+  shotsToPar?: number;
+  holes?: ESPNCourseHole[];
+}
+
 export interface ESPNEvent {
   id: string;
   name: string;
@@ -40,12 +54,7 @@ export interface ESPNEvent {
   season?: {
     year: number;
   };
-  courses?: Array<{
-    id: string;
-    name: string;
-    city?: string;
-    state?: string;
-  }>;
+  courses?: ESPNCourse[];
   competitions?: Array<{
     id: string;
     competitors: ESPNCompetitor[];
@@ -58,6 +67,12 @@ export interface ESPNCompetitor {
   uid?: string;
   type?: string;
   order?: number;
+  courseId?: string | number;
+  course?: {
+    id?: string | number;
+    name?: string;
+    shotsToPar?: number;
+  };
   status?: {
     period?: number;
     thru?: number | string;
@@ -85,6 +100,12 @@ export interface ESPNCompetitor {
     period?: number;
     value: number;
     displayValue?: string;
+    courseId?: string | number;
+    course?: {
+      id?: string | number;
+      name?: string;
+      shotsToPar?: number;
+    };
     linescores?: Array<{
       period?: number;
       value: number;
